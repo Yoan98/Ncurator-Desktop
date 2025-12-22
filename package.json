@@ -23,6 +23,7 @@
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
+    "antd": "5.22.1",
     "electron-updater": "^6.3.9"
   },
   "devDependencies": {
