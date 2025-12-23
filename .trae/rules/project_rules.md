@@ -1,7 +1,7 @@
 # NCurator-Desktop 项目规则与指南
 
 ## 1. 项目概述
-NCurator-Desktop 是一个基于 Electron 构建的本地知识库搜索应用程序。它专注于隐私和离线能力，通过本地处理文档。
+NCurator-Desktop 是一个基于 Electron-Vite 构建的本地知识库搜索应用程序。它专注于隐私和离线能力，通过本地处理文档。
 - **目标文件**: PDF (`.pdf`), Word (`.docx`)。
 - **核心功能**: 摄入、索引和混合搜索（向量 + 关键词）。
 
