@@ -10,11 +10,13 @@ NCurator-Desktop 是一个基于 Electron-Vite 构建的本地知识库搜索应
 ### 核心 & 桌面
 - **运行时**: Electron (主进程负责逻辑，渲染进程负责 UI)。
 - **语言**: TypeScript。
+- **构建工具**: Electron-Vite。
+- **包管理**: pnpm。
 
 ### 前端 (渲染器)
 - **框架**: React。
 - **UI 库**: Ant Design (antd)。
-- **样式**: Tailwind CSS。
+- **样式**: Tailwind CSS + LESS。
 - **状态管理**: React Hooks / Context (或用户首选)。
 
 ### 后端 / 逻辑 (Node.js / 主进程)
