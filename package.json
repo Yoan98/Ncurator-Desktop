@@ -21,17 +21,17 @@
     "build:linux": "electron-vite build && electron-builder --linux"
   },
   "dependencies": {
-    "@ant-design/icons": "5.x",
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
+    "@huggingface/transformers": "^3.8.1",
+    "@lancedb/lancedb": "^0.23.0",
     "@langchain/community": "^1.1.1",
     "antd": "5.22.1",
-    "clsx": "^2.1.1",
     "electron-updater": "^6.3.9",
+    "flexsearch": "^0.8.212",
     "langchain": "^1.2.3",
     "mammoth": "^1.11.0",
-    "pdf-parse": "^2.4.5",
-    "uuid": "^13.0.0"
+    "pdf-parse": "^2.4.5"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",
