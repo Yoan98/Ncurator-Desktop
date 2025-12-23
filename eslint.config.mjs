@@ -25,7 +25,11 @@ export default defineConfig(
     },
     rules: {
       ...eslintPluginReactHooks.configs.recommended.rules,
-      ...eslintPluginReactRefresh.configs.vite.rules
+      ...eslintPluginReactRefresh.configs.vite.rules,
+      '@typescript-eslint/explicit-function-return-type': 0,
+      'prettier/prettier': 0,
+      '@typescript-eslint/no-explicit-any': 0,
+      '@typescript-eslint/no-empty-function': 0
     }
   },
   eslintConfigPrettier

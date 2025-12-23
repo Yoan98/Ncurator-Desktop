@@ -1,50 +1,50 @@
-import React, { useState } from 'react';
-import { Input, Button, Upload, message, List, Card, Typography } from 'antd';
-import { UploadOutlined } from '@ant-design/icons';
+import React, { useState } from 'react'
+import { Input, Button, Upload, message, List, Card, Typography } from 'antd'
+import { UploadOutlined } from '@ant-design/icons'
 
-const { Paragraph } = Typography;
+const { Paragraph } = Typography
 
 function App(): React.JSX.Element {
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
 
   const handleSearch = async (value: string) => {
-    if (!value.trim()) return;
-    setLoading(true);
+    if (!value.trim()) return
+    setLoading(true)
     try {
-      const results = await window.api.search(value);
-      setSearchResults(results);
+      const results = await window.api.search(value)
+      setSearchResults(results)
     } catch (error) {
-      console.error(error);
-      message.error('Search failed');
+      console.error(error)
+      message.error('Search failed')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   const handleUpload = async (file: any) => {
     // In Electron, File object has a 'path' property
-    const filePath = file.path;
+    const filePath = file.path
 
     if (!filePath) {
-      message.error('Could not get file path');
-      return Upload.LIST_IGNORE;
+      message.error('Could not get file path')
+      return Upload.LIST_IGNORE
     }
 
     try {
-      message.loading({ content: 'Ingesting file...', key: 'ingest', duration: 0 });
-      const result = await window.api.ingestFile(filePath);
+      message.loading({ content: 'Ingesting file...', key: 'ingest', duration: 0 })
+      const result = await window.api.ingestFile(filePath)
       if (result.success) {
-        message.success({ content: `Ingested ${result.count} chunks`, key: 'ingest' });
+        message.success({ content: `Ingested ${result.count} chunks`, key: 'ingest' })
       } else {
-        message.error({ content: `Ingestion failed: ${result.error}`, key: 'ingest' });
+        message.error({ content: `Ingestion failed: ${result.error}`, key: 'ingest' })
       }
     } catch (error) {
-      console.error(error);
-      message.error({ content: 'Ingestion error', key: 'ingest' });
+      console.error(error)
+      message.error({ content: 'Ingestion error', key: 'ingest' })
     }
-    return Upload.LIST_IGNORE; // Prevent upload
-  };
+    return Upload.LIST_IGNORE // Prevent upload
+  }
 
   return (
     <div className="p-8 max-w-4xl mx-auto h-screen flex flex-col">
@@ -71,7 +71,9 @@ function App(): React.JSX.Element {
           renderItem={(item) => (
             <List.Item>
               <Card
-                title={<span className="text-sm text-gray-500">Score: {item.score?.toFixed(4)}</span>}
+                title={
+                  <span className="text-sm text-gray-500">Score: {item.score?.toFixed(4)}</span>
+                }
                 className="w-full shadow-sm hover:shadow-md transition-shadow"
               >
                 <Paragraph ellipsis={{ rows: 3, expandable: true, symbol: 'more' }}>
@@ -88,7 +90,7 @@ function App(): React.JSX.Element {
         />
       </div>
     </div>
-  );
+  )
 }
 
-export default App;
+export default App
