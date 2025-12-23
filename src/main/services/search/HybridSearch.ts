@@ -1,5 +1,5 @@
 import { VectorStore } from '../storage/VectorStore'
-import { FullIndexStore } from '../storage/FullIndexStore'
+import { FullTextStore } from '../storage/FullTextStore'
 import { EmbeddingService } from '../vector/EmbeddingService'
 
 interface SearchResult {
@@ -12,12 +12,12 @@ interface SearchResult {
 export class HybridSearch {
   private static instance: HybridSearch
   private vectorStore: VectorStore
-  private keywordSearch: FullIndexStore
+  private fullTextStore: FullTextStore
   private embeddingService: EmbeddingService
 
   private constructor() {
     this.vectorStore = VectorStore.getInstance()
-    this.keywordSearch = FullIndexStore.getInstance()
+    this.fullTextStore = FullTextStore.getInstance()
     this.embeddingService = EmbeddingService.getInstance()
   }
 
@@ -35,7 +35,7 @@ export class HybridSearch {
     // 2. Parallel search
     const [vectorResults, keywordResults] = await Promise.all([
       this.vectorStore.search(queryVector, 50),
-      this.keywordSearch.search(query, 50)
+      this.fullTextStore.search(query, 50)
     ])
 
     // 3. RRF Fusion

@@ -2,7 +2,7 @@ import { ipcMain } from 'electron'
 import { IngestionService } from '../services/ingestion/FileLoader'
 import { EmbeddingService } from '../services/vector/EmbeddingService'
 import { VectorStore } from '../services/storage/VectorStore'
-import { FullIndexStore } from '../services/storage/FullIndexStore'
+import { FullTextStore } from '../services/storage/FullTextStore'
 import { HybridSearch } from '../services/search/HybridSearch'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -48,8 +48,8 @@ export function registerHandlers() {
       })
 
       // 4. Index in FlexSearch
-      const fullIndexStore = FullIndexStore.getInstance()
-      await fullIndexStore.addDocuments(chunks)
+      const fullTextStore = FullTextStore.getInstance()
+      await fullTextStore.addDocuments(chunks)
 
       return { success: true, count: chunks.length }
     } catch (error: any) {

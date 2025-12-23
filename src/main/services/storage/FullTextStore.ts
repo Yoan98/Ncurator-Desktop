@@ -2,8 +2,8 @@ import { Document, Charset } from 'flexsearch'
 import { FULL_TEXT_DB_PATH } from '../../utils/paths'
 import fs from 'fs'
 
-export class FullIndexStore {
-  private static instance: FullIndexStore
+export class FullTextStore {
+  private static instance: FullTextStore
   private index: any // FlexSearch types are tricky, using any for now or I need to import specific types
 
   private constructor() {
@@ -18,11 +18,11 @@ export class FullIndexStore {
     })
   }
 
-  public static getInstance(): FullIndexStore {
-    if (!FullIndexStore.instance) {
-      FullIndexStore.instance = new FullIndexStore()
+  public static getInstance(): FullTextStore {
+    if (!FullTextStore.instance) {
+      FullTextStore.instance = new FullTextStore()
     }
-    return FullIndexStore.instance
+    return FullTextStore.instance
   }
 
   public async initialize() {
