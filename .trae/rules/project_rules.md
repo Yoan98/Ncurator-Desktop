@@ -31,7 +31,7 @@ NCurator-Desktop 是一个基于 Electron-Vite 构建的本地知识库搜索应
 
 ### 3.1 数据摄入管道
 1.  **解析**: 使用 LangChain JS 加载器从 `.pdf` 和 `.docx` 文件中提取文本。
-2.  **分片**: 使用 LangChain 文本分片器将文本分割成可管理的块。
+2.  **分片**: 使用 LangChain 文本分片器将文本分割成可管理的块,分为大块和小块。
 3.  **向量化**:
     - 使用 Transformers.js 为文本块生成嵌入。
     - **模型**:

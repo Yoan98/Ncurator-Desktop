@@ -2,6 +2,7 @@ import { PDFLoader } from '@langchain/community/document_loaders/fs/pdf'
 import { DocxLoader } from '@langchain/community/document_loaders/fs/docx'
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters'
 import { Document } from '@langchain/core/documents'
+import { SPLITTER_BIG_CHUNK_SETTING, SPLITTER_MINI_CHUNK_SIZE } from '../../utils/constant'
 
 export class IngestionService {
   private static instance: IngestionService
@@ -18,10 +19,7 @@ export class IngestionService {
   public async loadFile(filePath: string): Promise<Document[]> {
     let loader
     if (filePath.endsWith('.pdf')) {
-      loader = new PDFLoader(filePath, {
-        splitPages: false // Combine pages or keep separate? Usually separate is better for granular chunks, but let's see.
-        // Langchain default is one doc per page.
-      })
+      loader = new PDFLoader(filePath)
     } else if (filePath.endsWith('.docx')) {
       loader = new DocxLoader(filePath)
     } else {
@@ -32,24 +30,35 @@ export class IngestionService {
     return docs
   }
 
-  public async splitDocuments(docs: Document[]): Promise<Document[]> {
-    const splitter = new RecursiveCharacterTextSplitter({
-      chunkSize: 500,
-      chunkOverlap: 50
+  public async splitDocuments(docs: Document[]): Promise<{
+    bigSplitDocs: Document[]
+    miniSplitDocs: Document[]
+  }> {
+    const bigSplitter = new RecursiveCharacterTextSplitter({
+      chunkSize: SPLITTER_BIG_CHUNK_SETTING.chunkSize,
+      chunkOverlap: SPLITTER_BIG_CHUNK_SETTING.chunkOverlap
     })
 
-    const splitDocs = await splitter.splitDocuments(docs)
-    return splitDocs
+    const miniSplitter = new RecursiveCharacterTextSplitter({
+      chunkSize: SPLITTER_MINI_CHUNK_SIZE.chunkSize,
+      chunkOverlap: SPLITTER_MINI_CHUNK_SIZE.chunkOverlap
+    })
+
+    const bigSplitDocs = await bigSplitter.splitDocuments(docs)
+    const miniSplitDocs = await miniSplitter.splitDocuments(docs)
+    return {
+      bigSplitDocs,
+      miniSplitDocs
+    }
   }
 
   public async processFile(filePath: string) {
     const docs = await this.loadFile(filePath)
-    const chunks = await this.splitDocuments(docs)
-    // Add metadata
-    chunks.forEach((chunk) => {
-      chunk.metadata.source = filePath
-      chunk.metadata.filename = filePath.split('/').pop()
-    })
-    return chunks
+    const { bigSplitDocs, miniSplitDocs } = await this.splitDocuments(docs)
+
+    return {
+      bigSplitDocs,
+      miniSplitDocs
+    }
   }
 }

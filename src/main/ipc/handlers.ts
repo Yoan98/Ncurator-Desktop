@@ -13,42 +13,43 @@ export function registerHandlers() {
 
       // 1. Load and Split
       const ingestionService = IngestionService.getInstance()
-      const chunks = await ingestionService.processFile(filePath)
+      const splitDocs = await ingestionService.processFile(filePath)
 
-      console.log(`Split into ${chunks.length} chunks`)
+      console.log(
+        `Split into ${splitDocs.bigSplitDocs.length} big chunks and ${splitDocs.miniSplitDocs.length} mini chunks`
+      )
 
       // 2. Embed
       const embeddingService = EmbeddingService.getInstance()
-      const texts = chunks.map((c) => c.pageContent)
+      const bigChunkTexts = splitDocs.bigSplitDocs.map((c) => c.pageContent)
+      const miniChunkTexts = splitDocs.miniSplitDocs.map((c) => c.pageContent)
+      const allChunkTexts = [...bigChunkTexts, ...miniChunkTexts]
 
       // Embed in batches if needed, but for now simple loop or all at once (transformers.js might handle batching or single)
       // Transformers.js pipe usually takes string or array of strings.
       // But our embed method takes string. Let's do parallel or sequential.
 
-      const vectors: number[][] = []
-      for (const text of texts) {
+      const allChunkVectors: number[][] = []
+      for (const text of allChunkTexts) {
         const vector = await embeddingService.embed(text)
-        vectors.push(vector)
+        allChunkVectors.push(vector)
       }
 
       // 3. Store in LanceDB
       const vectorStore = VectorStore.getInstance()
-      const ids = chunks.map(() => uuidv4())
-      const metadatas = chunks.map((c) => ({
-        content: c.pageContent,
-        ...c.metadata
+      const chunks = allChunkVectors.map((vector, i) => ({
+        text: allChunkTexts[i],
+        id: uuidv4()
       }))
 
-      await vectorStore.addDocuments(vectors, metadatas, ids)
+      await vectorStore.addDocuments({
+        vectors: allChunkVectors,
+        chunks
+      })
 
       // 4. Index in FlexSearch
       const keywordSearch = KeywordSearch.getInstance()
-      const searchDocs = chunks.map((c, i) => ({
-        id: ids[i],
-        content: c.pageContent,
-        ...c.metadata
-      }))
-      await keywordSearch.addDocuments(searchDocs)
+      await keywordSearch.addDocuments(chunks)
 
       return { success: true, count: chunks.length }
     } catch (error: any) {
