@@ -1,10 +1,15 @@
 import { Document, Charset } from 'flexsearch'
+import Sqlite from 'flexsearch/db/sqlite'
 import { FULL_TEXT_DB_PATH } from '../../utils/paths'
 import fs from 'fs'
+import path from 'path'
 
 export class FullTextStore {
   private static instance: FullTextStore
-  private index: any // FlexSearch types are tricky, using any for now or I need to import specific types
+  private index: Document
+  private db: InstanceType<typeof Sqlite> | null = null
+  private mountTask: Promise<void> | null = null
+  private initialized = false
 
   private constructor() {
     this.index = new Document({
@@ -13,7 +18,7 @@ export class FullTextStore {
         index: ['text', 'filename'],
         store: true
       },
-      tokenize: 'forward', // good for partial matches
+      tokenize: 'forward',
       encoder: Charset.CJK
     })
   }
@@ -26,47 +31,66 @@ export class FullTextStore {
   }
 
   public async initialize() {
+    if (this.initialized) return
+    if (this.mountTask) return this.mountTask
+
     if (!fs.existsSync(FULL_TEXT_DB_PATH)) {
       fs.mkdirSync(FULL_TEXT_DB_PATH, { recursive: true })
     }
-    await this.loadIndex()
+
+    const dbName = path.join(FULL_TEXT_DB_PATH, 'flexsearch')
+    this.db = new Sqlite(dbName)
+
+    this.mountTask = this.index
+      .mount(this.db)
+      .then(() => {
+        this.initialized = true
+      })
+      .catch((error) => {
+        this.db = null
+        this.mountTask = null
+        throw error
+      })
+
+    return this.mountTask
   }
 
   public async addDocuments(
     chunks: {
       text: string
       id: string
+      filename?: string
     }[]
   ) {
+    await this.initialize()
     for (const chunk of chunks) {
       this.index.add(chunk)
     }
-    await this.saveIndex()
+    await this.index.commit()
   }
 
   public async search(query: string, limit = 50) {
+    await this.initialize()
     const results = await this.index.search(query, {
       limit,
-      enrich: true // Get stored content
+      enrich: true
     })
 
     return results
   }
 
-  private async saveIndex() {
-    // FlexSearch export is a bit complex for Document.
-    // We need to export each key.
-    // For simplicity in this demo, we might skip full persistence implementation
-    // or just export keys to JSON files.
-    // This is a placeholder for persistence.
-    // Real implementation requires iterating keys and writing files.
-    /*
-    const keys = await this.index.export();
-    // Write keys to disk
-    */
+  public async flush() {
+    await this.initialize()
+    await this.index.commit()
   }
 
-  private async loadIndex() {
-    // Load from disk
+  public async close() {
+    if (!this.initialized) return
+    await this.index.commit()
+    const db = this.db
+    await db?.close()
+    this.db = null
+    this.mountTask = null
+    this.initialized = false
   }
 }

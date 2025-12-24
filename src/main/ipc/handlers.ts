@@ -7,7 +7,7 @@ import { HybridSearch } from '../services/search/HybridSearch'
 import { v4 as uuidv4 } from 'uuid'
 
 export function registerHandlers() {
-  ipcMain.handle('ingest-file', async (_event, filePath: string) => {
+  ipcMain.handle('ingest-file', async (_event, filePath: string, filename: string) => {
     try {
       console.log('Ingesting file:', filePath)
 
@@ -21,25 +21,24 @@ export function registerHandlers() {
 
       // 2. Embed
       const embeddingService = EmbeddingService.getInstance()
-      const bigChunkTexts = splitDocs.bigSplitDocs.map((c) => c.pageContent)
-      const miniChunkTexts = splitDocs.miniSplitDocs.map((c) => c.pageContent)
-      const allChunkTexts = [...bigChunkTexts, ...miniChunkTexts]
+      const allSplitDocs = [...splitDocs.bigSplitDocs, ...splitDocs.miniSplitDocs]
 
       // Embed in batches if needed, but for now simple loop or all at once (transformers.js might handle batching or single)
       // Transformers.js pipe usually takes string or array of strings.
       // But our embed method takes string. Let's do parallel or sequential.
 
       const allChunkVectors: number[][] = []
-      for (const text of allChunkTexts) {
-        const vector = await embeddingService.embed(text)
+      for (const doc of allSplitDocs) {
+        const vector = await embeddingService.embed(doc.pageContent)
         allChunkVectors.push(vector)
       }
 
       // 3. Store in LanceDB
       const vectorStore = VectorStore.getInstance()
       const chunks = allChunkVectors.map((vector, i) => ({
-        text: allChunkTexts[i],
-        id: uuidv4()
+        text: allSplitDocs[i].pageContent,
+        id: uuidv4(),
+        filename: filename
       }))
 
       await vectorStore.addDocuments({
