@@ -5,7 +5,8 @@ declare global {
     electron: ElectronAPI
     api: {
       ingestFile: (
-        filePath: string
+        filePath: string,
+        filename: string
       ) => Promise<{ success: boolean; count?: number; error?: string }>
       search: (query: string) => Promise<any[]>
     }

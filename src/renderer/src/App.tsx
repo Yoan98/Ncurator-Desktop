@@ -33,7 +33,7 @@ function App(): React.JSX.Element {
 
     try {
       message.loading({ content: 'Ingesting file...', key: 'ingest', duration: 0 })
-      const result = await window.api.ingestFile(filePath)
+      const result = await window.api.ingestFile(filePath, file.name)
       if (result.success) {
         message.success({ content: `Ingested ${result.count} chunks`, key: 'ingest' })
       } else {
