@@ -23,11 +23,11 @@ export class VectorStore {
     this.db = await lancedb.connect(VECTOR_DB_PATH)
   }
 
-  public async addDocuments({
+  public async addChunks({
     vectors,
     chunks
   }: {
-    vectors: number[][]
+    vectors: Float32Array[]
     chunks: {
       text: string
       id: string
@@ -51,7 +51,7 @@ export class VectorStore {
     }
   }
 
-  public async search(queryVector: number[], limit = 50) {
+  public async search(queryVector: Float32Array, limit = 50) {
     if (!this.db) await this.initialize()
 
     const tableNames = await this.db!.tableNames()

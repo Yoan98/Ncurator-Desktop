@@ -55,7 +55,7 @@ export class FullTextStore {
     return this.mountTask
   }
 
-  public async addDocuments(
+  public async addChunks(
     chunks: {
       text: string
       id: string

@@ -30,7 +30,7 @@ export class HybridSearch {
 
   public async search(query: string, limit = 20): Promise<SearchResult[]> {
     // 1. Generate embedding
-    const queryVector = await this.embeddingService.embed(query)
+    const { data: queryVector } = await this.embeddingService.embed(query)
 
     // 2. Parallel search
     const [vectorResults, keywordResults] = await Promise.all([

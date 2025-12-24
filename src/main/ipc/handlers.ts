@@ -27,9 +27,9 @@ export function registerHandlers() {
       // Transformers.js pipe usually takes string or array of strings.
       // But our embed method takes string. Let's do parallel or sequential.
 
-      const allChunkVectors: number[][] = []
+      const allChunkVectors: Float32Array[] = []
       for (const doc of allSplitDocs) {
-        const vector = await embeddingService.embed(doc.pageContent)
+        const { data: vector } = await embeddingService.embed(doc.pageContent)
         allChunkVectors.push(vector)
       }
 
@@ -41,14 +41,14 @@ export function registerHandlers() {
         filename: filename
       }))
 
-      await vectorStore.addDocuments({
+      await vectorStore.addChunks({
         vectors: allChunkVectors,
         chunks
       })
 
       // 4. Index in FlexSearch
       const fullTextStore = FullTextStore.getInstance()
-      await fullTextStore.addDocuments(chunks)
+      await fullTextStore.addChunks(chunks)
 
       return { success: true, count: chunks.length }
     } catch (error: any) {
