@@ -22,7 +22,7 @@ NCurator-Desktop 是一个基于 Electron-Vite 构建的本地知识库搜索应
 ### 后端 / 逻辑 (Node.js / 主进程)
 - **文档解析**: `langchain` (JS 版本) 用于解析 PDF 和 DOCX。
 - **文本分片**: `langchain` 分片器。
-- **向量化**: `@xenova/transformers` (Transformers.js) 用于本地嵌入生成。
+- **向量化**: `@huggingface/transformers` (Transformers.js) 用于本地嵌入生成。
 - **向量数据库**: `lancedb` 用于本地向量存储。
 - **关键词搜索**: `flexsearch` 用于倒排索引和关键词匹配。
 - **重排序**: 自定义实现的 RRF (Reciprocal Rank Fusion) 算法。

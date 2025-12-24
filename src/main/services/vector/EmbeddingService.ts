@@ -10,7 +10,7 @@ env.allowLocalModels = true
 export class EmbeddingService {
   private static instance: EmbeddingService
   private extractor: any = null
-  private modelName: string = 'Xenova/jina-embeddings-v2-base-zh' // Using a Chinese model as default for now
+  private modelName: string = 'jinaai/jina-embeddings-v2-base-zh' // Using a Chinese model as default for now
 
   private constructor() {}
 
