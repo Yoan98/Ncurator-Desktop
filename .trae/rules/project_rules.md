@@ -1,71 +1,38 @@
-# NCurator-Desktop 项目规则与指南
+# NCurator-Desktop 开发指南
 
-## 1. 项目概述
-NCurator-Desktop 是一个基于 Electron-Vite 构建的本地知识库搜索应用程序。它专注于隐私和离线能力，通过本地处理文档。
-- **目标文件**: PDF (`.pdf`), Word (`.docx`)。
-- **核心功能**: 摄入、索引和混合搜索（向量 + 关键词）。
+## 1. 技术栈与版本
+请严格遵守以下核心库及其版本进行开发，以确保代码兼容性：
 
-## 2. 技术栈
+### 核心环境
+- **Runtime**: Electron **v39**
+- **Language**: TypeScript **v5**
+- **Build**: Electron-Vite **v5**
+- **Package Manager**: pnpm
 
-### 核心 & 桌面
-- **运行时**: Electron (主进程负责逻辑，渲染进程负责 UI)。
-- **语言**: TypeScript。
-- **构建工具**: Electron-Vite。
-- **包管理**: pnpm。
+### 前端 (Renderer)
+- **Framework**: React **v19**
+- **UI Kit**: Ant Design **v5**
+- **Styling**: Tailwind CSS **v4** + Less
 
-### 前端 (渲染器)
-- **框架**: React。
-- **UI 库**: Ant Design (antd)。
-- **样式**: Tailwind CSS + LESS。
-- **状态管理**: React Hooks / Context (或用户首选)。
+### 后端逻辑 (Main Process)
+- **Orchestration**: LangChain JS (Core/Community/TextSplitters)
+- **Embedding**: @huggingface/transformers **v3** (本地运行)
+- **Vector DB**: LanceDB **v0.23**
+- **Search Engine**: FlexSearch **v0.8**
+- **Storage**: SQLite3 **v5**
+- **Parsers**: `pdf-parse` (PDF), `mammoth` (DOCX)
 
-### 后端 / 逻辑 (Node.js / 主进程)
-- **文档解析**: `langchain` (JS 版本) 用于解析 PDF 和 DOCX。
-- **文本分片**: `langchain` 分片器。
-- **向量化**: `@huggingface/transformers` (Transformers.js) 用于本地嵌入生成。
-- **向量数据库**: `lancedb` 用于本地向量存储。
-- **关键词搜索**: `flexsearch` 用于倒排索引和关键词匹配。
-- **重排序**: 自定义实现的 RRF (Reciprocal Rank Fusion) 算法。
+## 2. 核心架构
+- **本地优先**: 所有文档处理（解析、嵌入、搜索）均在本地完成，不依赖云端 API。
+- **混合搜索**:
+  1. **召回**: 同时查询 LanceDB (向量) 和 FlexSearch (关键词)。
+  2. **排序**: 使用 **RRF (Reciprocal Rank Fusion)** 算法融合结果。
+- **进程模型**:
+  - **Main**: 负责繁重的计算（解析、嵌入、数据库操作）。
+  - **Renderer**: 仅负责 UI 展示，通过 IPC 通信。
 
-## 3. 架构与实现流程
-
-### 3.1 数据摄入管道
-1.  **解析**: 使用 LangChain JS 加载器从 `.pdf` 和 `.docx` 文件中提取文本。
-2.  **分片**: 使用 LangChain 文本分片器将文本分割成可管理的块,分为大块和小块。
-3.  **向量化**:
-    - 使用 Transformers.js 为文本块生成嵌入。
-    - **模型**:
-        - 中文内容: `jinaai/jina-embeddings-v2-base-zh`
-        - 英文内容: `nomic-ai/nomic-embed-text-v1`
-4.  **存储**:
-    - **向量存储**: 将向量和元数据保存到 LanceDB。
-    - **倒排索引**: 将文本块索引到 FlexSearch 以进行关键词检索。
-    - **普通信息存储**: 将元数据（如文件名、页码等），flexsearch索引放入sqlite。
-
-### 3.2 搜索管道
-1.  **召回 (混合)**:
-    - **关键词搜索**: 查询 FlexSearch -> 获取 Top 50 结果。
-    - **向量搜索**: 查询 LanceDB (Bi-Encoder) -> 获取 Top 50 结果。
-2.  **粗排 (融合)**:
-    - 应用 **RRF (Reciprocal Rank Fusion)** 算法对来自两个来源的结果进行合并和排序。
-3.  **重排 (未来/优化)**:
-    - *注: 目前推迟，但架构应允许实现。*
-    - 从 RRF 结果中选择 Top 10-20。
-    - 使用 Cross-Encoder (`Xenova/bge-reranker-base`) 进行精细打分。
-
-## 4. 用户配置
-- 用户必须能够在设置中选择模型。
-- 默认为上述指定的中文/英文推荐模型。
-
-## 5. 编码规范
-- **语言**: 始终使用 TypeScript。
-- **异步/等待**: 对文件 I/O 和模型推理使用现代异步模式。
-- **IPC**: 使用 `ipcMain` and `ipcRenderer` (通过 `preload`) 在 UI 和主进程中的繁重处理逻辑之间进行通信。
-- **模块化**: 将解析、索引和搜索逻辑与 UI 组件分离。
-- **注释**: 注释复杂的逻辑，特别是 RRF 算法和模型加载步骤。
-- **类型**: 禁止使用 `any` 类型，必须使用明确的类型注解。
-
-## 6. AI 交互规则
-- 生成代码时，优先考虑技术栈中列出的库。
-- 除非明确要求，否则不要建议基于云的 API (OpenAI 等)；专注于本地执行。
-- 确保所有繁重的计算（解析、嵌入）都卸载到主进程或 Worker，而不是渲染线程，以保持 UI 响应。
+## 3. 编码规范
+- **类型安全**: 严禁使用 `any`，必须定义完整的 TypeScript 接口。
+- **异步处理**: 文件 I/O 和模型推理必须使用 `async/await`。
+- **IPC 通信**: 使用 `ipcMain` / `ipcRenderer` 进行前后端交互。
+- **库的使用**: 优先使用上述指定版本的库，避免引入不必要的第三方依赖。
