@@ -9,8 +9,9 @@ import { v4 as uuidv4 } from 'uuid'
 export function registerHandlers() {
   ipcMain.handle('ingest-file', async (_event, filePath: string, filename: string) => {
     try {
-      console.log('File path:', filePath)
+      console.log('filename:', filename)
 
+      console.log('split docs')
       // 1. Load and Split
       const ingestionService = IngestionService.getInstance()
       const splitDocs = await ingestionService.processFile(filePath)
@@ -19,6 +20,7 @@ export function registerHandlers() {
         `Split into ${splitDocs.bigSplitDocs.length} big chunks and ${splitDocs.miniSplitDocs.length} mini chunks`
       )
 
+      console.log('embedding docs')
       // 2. Embed
       const embeddingService = EmbeddingService.getInstance()
       const allSplitDocs = [...splitDocs.bigSplitDocs, ...splitDocs.miniSplitDocs]
@@ -32,7 +34,9 @@ export function registerHandlers() {
         const { data: vector } = await embeddingService.embed(doc.pageContent)
         allChunkVectors.push(vector)
       }
+      console.log('allChunkVectors.length:', allChunkVectors.length)
 
+      console.log('storing docs')
       // 3. Store in LanceDB
       const vectorStore = VectorStore.getInstance()
       const chunks = allChunkVectors.map((vector, i) => ({
@@ -45,10 +49,13 @@ export function registerHandlers() {
         vectors: allChunkVectors,
         chunks
       })
+      console.log('stored docs in lancedb')
 
+      console.log('storing docs in flexsearch')
       // 4. Index in FlexSearch
       const fullTextStore = FullTextStore.getInstance()
       await fullTextStore.addChunks(chunks)
+      console.log('stored docs in flexsearch')
 
       return { success: true, count: chunks.length }
     } catch (error: any) {
