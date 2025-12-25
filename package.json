@@ -25,6 +25,7 @@
     "@electron-toolkit/utils": "^4.0.0",
     "@huggingface/transformers": "^3.8.1",
     "@lancedb/lancedb": "^0.23.0",
+    "@lancedb/lancedb-darwin-arm64": "^0.22.3",
     "@langchain/community": "^1.1.1",
     "@langchain/core": "^1.1.8",
     "@langchain/textsplitters": "^1.0.1",
