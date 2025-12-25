@@ -22,18 +22,15 @@ function App(): React.JSX.Element {
     }
   }
 
-  const handleUpload = async (file: any) => {
-    // In Electron, File object has a 'path' property
-    const filePath = file.path
-
-    if (!filePath) {
+  const handleUpload = async (file: File) => {
+    if (!file) {
       message.error('Could not get file path')
       return Upload.LIST_IGNORE
     }
 
     try {
       message.loading({ content: 'Ingesting file...', key: 'ingest', duration: 0 })
-      const result = await window.api.ingestFile(filePath, file.name)
+      const result = await window.api.ingestFile(file)
       if (result.success) {
         message.success({ content: `Ingested ${result.count} chunks`, key: 'ingest' })
       } else {

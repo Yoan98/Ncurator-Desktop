@@ -9,7 +9,7 @@ import { v4 as uuidv4 } from 'uuid'
 export function registerHandlers() {
   ipcMain.handle('ingest-file', async (_event, filePath: string, filename: string) => {
     try {
-      console.log('Ingesting file:', filePath)
+      console.log('File path:', filePath)
 
       // 1. Load and Split
       const ingestionService = IngestionService.getInstance()

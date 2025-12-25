@@ -1,10 +1,10 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 
 // Custom APIs for renderer
 const api = {
-  ingestFile: (filePath: string): Promise<{ success: boolean; count?: number; error?: string }> =>
-    ipcRenderer.invoke('ingest-file', filePath),
+  ingestFile: (file: File): Promise<{ success: boolean; count?: number; error?: string }> =>
+    ipcRenderer.invoke('ingest-file', webUtils.getPathForFile(file), file.name),
   search: (query: string): Promise<any[]> => ipcRenderer.invoke('search', query)
 }
 
