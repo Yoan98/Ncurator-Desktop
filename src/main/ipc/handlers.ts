@@ -1,8 +1,7 @@
 import { ipcMain } from 'electron'
 import { IngestionService } from '../services/ingestion/FileLoader'
 import { EmbeddingService } from '../services/vector/EmbeddingService'
-import { VectorStore } from '../services/storage/VectorStore'
-import { FullTextStore } from '../services/storage/FullTextStore'
+import { UnifiedStore } from '../services/storage/UnifiedStore'
 import { HybridSearch } from '../services/search/HybridSearch'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -37,25 +36,19 @@ export function registerHandlers() {
       console.log('allChunkVectors.length:', allChunkVectors.length)
 
       console.log('storing docs')
-      // 3. Store in LanceDB
-      const vectorStore = VectorStore.getInstance()
-      const chunks = allChunkVectors.map((vector, i) => ({
+      // 3. Store in LanceDB (Unified)
+      const unifiedStore = UnifiedStore.getInstance()
+      const chunks = allChunkVectors.map((_, i) => ({
         text: allSplitDocs[i].pageContent,
         id: uuidv4(),
         filename: filename
       }))
 
-      await vectorStore.addChunks({
+      await unifiedStore.addChunks({
         vectors: allChunkVectors,
         chunks
       })
-      console.log('stored docs in lancedb')
-
-      console.log('storing docs in flexsearch')
-      // 4. Index in FlexSearch
-      const fullTextStore = FullTextStore.getInstance()
-      await fullTextStore.addChunks(chunks)
-      console.log('stored docs in flexsearch')
+      console.log('stored docs in unified lancedb')
 
       return { success: true, count: chunks.length }
     } catch (error: any) {

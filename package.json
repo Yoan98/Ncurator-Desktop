@@ -31,10 +31,8 @@
     "@langchain/textsplitters": "^1.0.1",
     "antd": "5.22.1",
     "electron-updater": "^6.3.9",
-    "flexsearch": "^0.8.212",
     "mammoth": "^1.11.0",
-    "pdf-parse": "^2.4.5",
-    "sqlite3": "5.1.7"
+    "pdf-parse": "^2.4.5"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",
