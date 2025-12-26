@@ -74,9 +74,10 @@ export class UnifiedStore {
           new arrow.Field('filename', new arrow.Utf8()),
           new arrow.Field('createdAt', new arrow.Int64())
         ]),
-        vectorIndexConfig: {
-          column: 'vector'
-        },
+        // 暂时先不使用向量索引
+        // vectorIndexConfig: {
+        //   column: 'vector'
+        // },
         ftsIndexConfig: {
           column: 'text',
           options: { config: lancedb.Index.fts() }
