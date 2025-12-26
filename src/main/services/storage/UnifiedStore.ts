@@ -3,8 +3,6 @@ import { LANCE_DB_PATH } from '../../utils/paths'
 import fs from 'fs'
 import * as arrow from 'apache-arrow'
 import type { TableConfig, ChunkInput } from '../../types/store'
-import { config } from 'process'
-
 /**
  * UnifiedStore - Single source of truth for all LanceDB operations
  * Handles vector storage, FTS indexing, and metadata management

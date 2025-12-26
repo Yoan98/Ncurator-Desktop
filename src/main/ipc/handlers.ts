@@ -2,7 +2,6 @@ import { ipcMain } from 'electron'
 import { IngestionService } from '../services/ingestion/FileLoader'
 import { EmbeddingService } from '../services/vector/EmbeddingService'
 import { UnifiedStore } from '../services/storage/UnifiedStore'
-import { HybridSearch } from '../services/search/HybridSearch'
 import { v4 as uuidv4 } from 'uuid'
 
 export function registerHandlers() {
@@ -59,8 +58,14 @@ export function registerHandlers() {
 
   ipcMain.handle('search', async (_event, query: string) => {
     try {
-      const hybridSearch = HybridSearch.getInstance()
-      const results = await hybridSearch.search(query)
+      const unifiedStore = UnifiedStore.getInstance()
+
+      const embeddingService = EmbeddingService.getInstance()
+      const { data: queryVector } = await embeddingService.embed(query)
+
+      const results = await unifiedStore.hybridSearch(queryVector, query)
+
+      console.log('search results:', results)
       return results
     } catch (error: any) {
       console.error('Search error:', error)
