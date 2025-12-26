@@ -3,6 +3,7 @@ import { LANCE_DB_PATH } from '../../utils/paths'
 import fs from 'fs'
 import * as arrow from 'apache-arrow'
 import type { TableConfig, ChunkInput } from '../../types/store'
+import { config } from 'process'
 
 /**
  * UnifiedStore - Single source of truth for all LanceDB operations
@@ -76,7 +77,8 @@ export class UnifiedStore {
         ]),
         // 暂时先不使用向量索引
         // vectorIndexConfig: {
-        //   column: 'vector'
+        //   column: 'vector',
+        //   options: { config: lancedb.Index.hnswSq() }
         // },
         ftsIndexConfig: {
           column: 'text',
@@ -158,7 +160,11 @@ export class UnifiedStore {
     if (!tableNames.includes(this.TABLE_DOCUMENTS)) return []
 
     const table = await this.db!.openTable(this.TABLE_DOCUMENTS)
-    const results = await table.vectorSearch(queryVector).limit(limit).toArray()
+    const results = await table
+      .vectorSearch(queryVector)
+      .distanceType('cosine')
+      .limit(limit)
+      .toArray()
 
     return results
   }
