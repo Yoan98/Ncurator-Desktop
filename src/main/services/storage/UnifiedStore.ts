@@ -19,6 +19,8 @@ export class UnifiedStore {
   // private readonly TABLE_METADATA = 'metadata'
   // private readonly TABLE_COLLECTIONS = 'collections'
 
+  private reranker: lancedb.rerankers.RRFReranker | null = null
+
   private constructor() {}
 
   public static getInstance(): UnifiedStore {
@@ -55,6 +57,13 @@ export class UnifiedStore {
     for (const config of tableConfigs) {
       await this.ensureTable(config)
     }
+  }
+
+  private async getRRFReranker(): Promise<lancedb.rerankers.RRFReranker> {
+    if (this.reranker) return this.reranker
+
+    this.reranker = await lancedb.rerankers.RRFReranker.create()
+    return this.reranker
   }
 
   /**
@@ -190,7 +199,7 @@ export class UnifiedStore {
     const tableNames = await this.db!.tableNames()
     if (!tableNames.includes(this.TABLE_DOCUMENTS)) return []
 
-    const reranker = await lancedb.rerankers.RRFReranker.create()
+    const reranker = await this.getRRFReranker()
     const table = await this.db!.openTable(this.TABLE_DOCUMENTS)
     const results = await table
       .query()
