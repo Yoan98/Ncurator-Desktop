@@ -184,7 +184,7 @@ export class UnifiedStore {
     return results
   }
 
-  public async hubridSearch(queryVector: Float32Array, query: string, limit = 50) {
+  public async hybridSearch(queryVector: Float32Array, query: string, limit = 50) {
     if (!this.db) await this.initialize()
 
     const tableNames = await this.db!.tableNames()
