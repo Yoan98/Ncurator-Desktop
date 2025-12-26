@@ -184,6 +184,25 @@ export class UnifiedStore {
     return results
   }
 
+  public async hubridSearch(queryVector: Float32Array, query: string, limit = 50) {
+    if (!this.db) await this.initialize()
+
+    const tableNames = await this.db!.tableNames()
+    if (!tableNames.includes(this.TABLE_DOCUMENTS)) return []
+
+    const reranker = await lancedb.rerankers.RRFReranker.create()
+    const table = await this.db!.openTable(this.TABLE_DOCUMENTS)
+    const results = await table
+      .query()
+      .fullTextSearch(query)
+      .nearestTo(queryVector)
+      .rerank(reranker)
+      .limit(limit)
+      .toArray()
+
+    return results
+  }
+
   /**
    * Get database connection (for advanced operations)
    */
