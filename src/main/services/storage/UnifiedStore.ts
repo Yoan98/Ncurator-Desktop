@@ -1,11 +1,22 @@
 import * as lancedb from '@lancedb/lancedb'
 import { LANCE_DB_PATH } from '../../utils/paths'
 import fs from 'fs'
+import * as arrow from 'apache-arrow'
+import type { TableConfig, ChunkInput } from '../../types/store'
 
+/**
+ * UnifiedStore - Single source of truth for all LanceDB operations
+ * Handles vector storage, FTS indexing, and metadata management
+ */
 export class UnifiedStore {
   private static instance: UnifiedStore
   private db: lancedb.Connection | null = null
-  private tableName = 'documents'
+
+  // Table name constants
+  private readonly TABLE_DOCUMENTS = 'documents'
+  // Add more table names here as needed
+  // private readonly TABLE_METADATA = 'metadata'
+  // private readonly TABLE_COLLECTIONS = 'collections'
 
   private constructor() {}
 
@@ -16,72 +27,168 @@ export class UnifiedStore {
     return UnifiedStore.instance
   }
 
-  public async initialize() {
+  /**
+   * Initialize database connection and all tables
+   */
+  public async initialize(): Promise<void> {
     if (!fs.existsSync(LANCE_DB_PATH)) {
       fs.mkdirSync(LANCE_DB_PATH, { recursive: true })
     }
+
     this.db = await lancedb.connect(LANCE_DB_PATH)
+
+    // Initialize all tables
+    await this.initializeTables()
   }
 
+  /**
+   * Initialize all required tables with their schemas
+   */
+  private async initializeTables(): Promise<void> {
+    if (!this.db) {
+      throw new Error('Database connection not established')
+    }
+
+    const tableConfigs = this.getTableConfigs()
+
+    for (const config of tableConfigs) {
+      await this.ensureTable(config)
+    }
+  }
+
+  /**
+   * Define all table configurations with Arrow schemas
+   */
+  private getTableConfigs(): TableConfig[] {
+    return [
+      // Documents table for storing document chunks with embeddings
+      {
+        name: this.TABLE_DOCUMENTS,
+        schema: new arrow.Schema([
+          new arrow.Field(
+            'vector',
+            new arrow.FixedSizeList(384, new arrow.Field('item', new arrow.Float32()))
+          ),
+          new arrow.Field('text', new arrow.Utf8()),
+          new arrow.Field('id', new arrow.Utf8()),
+          new arrow.Field('filename', new arrow.Utf8()),
+          new arrow.Field('createdAt', new arrow.Int64())
+        ]),
+        vectorIndexConfig: {
+          column: 'vector'
+        },
+        ftsIndexConfig: {
+          column: 'text',
+          options: { config: lancedb.Index.fts() }
+        }
+      }
+      // Add more table configurations here as needed
+      // {
+      //   name: this.TABLE_METADATA,
+      //   schema: new arrow.Schema([...]),
+      //   ...
+      // }
+    ]
+  }
+
+  /**
+   * Ensure a table exists, create if not, and set up indices
+   */
+  private async ensureTable(config: TableConfig): Promise<void> {
+    if (!this.db) {
+      throw new Error('Database connection not established')
+    }
+
+    const tableNames = await this.db.tableNames()
+
+    if (!tableNames.includes(config.name)) {
+      console.log(`Creating table: ${config.name}`)
+
+      // Create table with Arrow schema (empty table)
+      const table = await this.db.createEmptyTable(config.name, config.schema)
+
+      // Create vector index if configured
+      if (config.vectorIndexConfig) {
+        console.log(`Creating vector index on ${config.name}.${config.vectorIndexConfig.column}`)
+        await table.createIndex(config.vectorIndexConfig.column, config.vectorIndexConfig.options)
+      }
+
+      // Create FTS index if configured
+      if (config.ftsIndexConfig) {
+        console.log(`Creating FTS index on ${config.name}.${config.ftsIndexConfig.column}`)
+        await table.createIndex(config.ftsIndexConfig.column, config.ftsIndexConfig.options)
+      }
+    } else {
+      console.log(`Table ${config.name} already exists`)
+    }
+  }
+
+  /**
+   * Add document chunks with embeddings to the documents table
+   */
   public async addChunks({
     vectors,
     chunks
   }: {
     vectors: Float32Array[]
-    chunks: {
-      text: string
-      id: string
-      filename: string
-    }[]
-  }) {
+    chunks: ChunkInput[]
+  }): Promise<void> {
     if (!this.db) await this.initialize()
 
     const data = vectors.map((vector, i) => ({
       vector,
       text: chunks[i].text,
       id: chunks[i].id,
-      filename: chunks[i].filename
+      filename: chunks[i].filename,
+      createdAt: Date.now()
     }))
 
-    const tableNames = await this.db!.tableNames()
-    let table: lancedb.Table
-    if (tableNames.includes(this.tableName)) {
-      table = await this.db!.openTable(this.tableName)
-      await table.add(data)
-    } else {
-      table = await this.db!.createTable(this.tableName, data)
-      // Create indices after table creation for the first time
-      await table.createIndex('vector') // Default vector index
-      await table.createIndex('text', { config: lancedb.Index.fts() }) // FTS index
-    }
+    const table = await this.db!.openTable(this.TABLE_DOCUMENTS)
+    await table.add(data)
   }
 
+  /**
+   * Vector similarity search
+   */
   public async search(queryVector: Float32Array, limit = 50) {
     if (!this.db) await this.initialize()
 
     const tableNames = await this.db!.tableNames()
-    if (!tableNames.includes(this.tableName)) return []
+    if (!tableNames.includes(this.TABLE_DOCUMENTS)) return []
 
-    const table = await this.db!.openTable(this.tableName)
+    const table = await this.db!.openTable(this.TABLE_DOCUMENTS)
     const results = await table.vectorSearch(queryVector).limit(limit).toArray()
 
     return results
   }
 
+  /**
+   * Full-text search
+   */
   public async ftsSearch(query: string, limit = 50) {
     if (!this.db) await this.initialize()
 
     const tableNames = await this.db!.tableNames()
-    if (!tableNames.includes(this.tableName)) return []
+    if (!tableNames.includes(this.TABLE_DOCUMENTS)) return []
 
-    const table = await this.db!.openTable(this.tableName)
-    // LanceDB FTS usage: .search(query, 'fts')... or similar depending on version.
-    // Checking docs or assuming standard lancedb API.
-    // In lancedb 0.x, it's typically table.search(query).limit(limit).toArray() which does FTS if it's a string query?
-    // Or table.query().search(query).limit(limit)...
-    // Let's rely on standard search API.
+    const table = await this.db!.openTable(this.TABLE_DOCUMENTS)
     const results = await table.search(query).limit(limit).toArray()
 
     return results
+  }
+
+  /**
+   * Get database connection (for advanced operations)
+   */
+  public getConnection(): lancedb.Connection | null {
+    return this.db
+  }
+
+  /**
+   * Close database connection
+   */
+  public async close(): Promise<void> {
+    // LanceDB connections are typically auto-managed, but we can null the reference
+    this.db = null
   }
 }

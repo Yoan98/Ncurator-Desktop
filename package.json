@@ -30,6 +30,7 @@
     "@langchain/core": "^1.1.8",
     "@langchain/textsplitters": "^1.0.1",
     "antd": "5.22.1",
+    "apache-arrow": "^17.0.0",
     "electron-updater": "^6.3.9",
     "mammoth": "^1.11.0",
     "pdf-parse": "^2.4.5"

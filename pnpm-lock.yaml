@@ -19,13 +19,13 @@ importers:
         version: 3.8.1
       '@lancedb/lancedb':
         specifier: ^0.23.0
-        version: 0.23.0(apache-arrow@18.1.0)
+        version: 0.23.0(apache-arrow@17.0.0)
       '@lancedb/lancedb-darwin-arm64':
         specifier: ^0.22.3
         version: 0.22.3
       '@langchain/community':
         specifier: ^1.1.1
-        version: 1.1.1(@browserbasehq/sdk@2.6.0(encoding@0.1.13))(@browserbasehq/stagehand@1.14.0(@playwright/test@1.57.0)(deepmerge@4.3.1)(dotenv@16.6.1)(encoding@0.1.13)(openai@6.15.0(ws@8.18.3)(zod@4.2.1))(zod@4.2.1))(@huggingface/transformers@3.8.1)(@ibm-cloud/watsonx-ai@1.7.5)(@lancedb/lancedb@0.23.0(apache-arrow@18.1.0))(@langchain/core@1.1.8(openai@6.15.0(ws@8.18.3)(zod@4.2.1)))(ibm-cloud-sdk-core@5.4.5)(ignore@5.3.2)(jsonwebtoken@9.0.3)(lodash@4.17.21)(mammoth@1.11.0)(openai@6.15.0(ws@8.18.3)(zod@4.2.1))(pdf-parse@2.4.5)(playwright@1.57.0)(ws@8.18.3)
+        version: 1.1.1(@browserbasehq/sdk@2.6.0(encoding@0.1.13))(@browserbasehq/stagehand@1.14.0(@playwright/test@1.57.0)(deepmerge@4.3.1)(dotenv@16.6.1)(encoding@0.1.13)(openai@6.15.0(ws@8.18.3)(zod@4.2.1))(zod@4.2.1))(@huggingface/transformers@3.8.1)(@ibm-cloud/watsonx-ai@1.7.5)(@lancedb/lancedb@0.23.0(apache-arrow@17.0.0))(@langchain/core@1.1.8(openai@6.15.0(ws@8.18.3)(zod@4.2.1)))(ibm-cloud-sdk-core@5.4.5)(ignore@5.3.2)(jsonwebtoken@9.0.3)(lodash@4.17.21)(mammoth@1.11.0)(openai@6.15.0(ws@8.18.3)(zod@4.2.1))(pdf-parse@2.4.5)(playwright@1.57.0)(ws@8.18.3)
       '@langchain/core':
         specifier: ^1.1.8
         version: 1.1.8(openai@6.15.0(ws@8.18.3)(zod@4.2.1))
@@ -35,6 +35,9 @@ importers:
       antd:
         specifier: 5.22.1
         version: 5.22.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      apache-arrow:
+        specifier: ^17.0.0
+        version: 17.0.0
       electron-updater:
         specifier: ^6.3.9
         version: 6.6.2
@@ -1963,8 +1966,8 @@ packages:
       react: '>=16.9.0'
       react-dom: '>=16.9.0'
 
-  apache-arrow@18.1.0:
-    resolution: {integrity: sha512-v/ShMp57iBnBp4lDgV8Jx3d3Q5/Hac25FWmQ98eMahUiHPXcvwIMKJD0hBIgclm/FCG+LwPkAKtkRO1O/W0YGg==}
+  apache-arrow@17.0.0:
+    resolution: {integrity: sha512-X0p7auzdnGuhYMVKYINdQssS4EcKec9TCXyez/qtJt32DrIMGbzqiaMiQ0X6fQlQpw8Fl0Qygcv4dfRAr5Gu9Q==}
     hasBin: true
 
   app-builder-bin@5.0.0-alpha.12:
@@ -5450,9 +5453,9 @@ snapshots:
 
   '@lancedb/lancedb-darwin-arm64@0.22.3': {}
 
-  '@lancedb/lancedb@0.23.0(apache-arrow@18.1.0)':
+  '@lancedb/lancedb@0.23.0(apache-arrow@17.0.0)':
     dependencies:
-      apache-arrow: 18.1.0
+      apache-arrow: 17.0.0
       reflect-metadata: 0.2.2
 
   '@langchain/classic@1.0.7(@langchain/core@1.1.8(openai@6.15.0(ws@8.18.3)(zod@4.2.1)))(openai@6.15.0(ws@8.18.3)(zod@4.2.1))(ws@8.18.3)':
@@ -5476,7 +5479,7 @@ snapshots:
       - openai
       - ws
 
-  '@langchain/community@1.1.1(@browserbasehq/sdk@2.6.0(encoding@0.1.13))(@browserbasehq/stagehand@1.14.0(@playwright/test@1.57.0)(deepmerge@4.3.1)(dotenv@16.6.1)(encoding@0.1.13)(openai@6.15.0(ws@8.18.3)(zod@4.2.1))(zod@4.2.1))(@huggingface/transformers@3.8.1)(@ibm-cloud/watsonx-ai@1.7.5)(@lancedb/lancedb@0.23.0(apache-arrow@18.1.0))(@langchain/core@1.1.8(openai@6.15.0(ws@8.18.3)(zod@4.2.1)))(ibm-cloud-sdk-core@5.4.5)(ignore@5.3.2)(jsonwebtoken@9.0.3)(lodash@4.17.21)(mammoth@1.11.0)(openai@6.15.0(ws@8.18.3)(zod@4.2.1))(pdf-parse@2.4.5)(playwright@1.57.0)(ws@8.18.3)':
+  '@langchain/community@1.1.1(@browserbasehq/sdk@2.6.0(encoding@0.1.13))(@browserbasehq/stagehand@1.14.0(@playwright/test@1.57.0)(deepmerge@4.3.1)(dotenv@16.6.1)(encoding@0.1.13)(openai@6.15.0(ws@8.18.3)(zod@4.2.1))(zod@4.2.1))(@huggingface/transformers@3.8.1)(@ibm-cloud/watsonx-ai@1.7.5)(@lancedb/lancedb@0.23.0(apache-arrow@17.0.0))(@langchain/core@1.1.8(openai@6.15.0(ws@8.18.3)(zod@4.2.1)))(ibm-cloud-sdk-core@5.4.5)(ignore@5.3.2)(jsonwebtoken@9.0.3)(lodash@4.17.21)(mammoth@1.11.0)(openai@6.15.0(ws@8.18.3)(zod@4.2.1))(pdf-parse@2.4.5)(playwright@1.57.0)(ws@8.18.3)':
     dependencies:
       '@browserbasehq/stagehand': 1.14.0(@playwright/test@1.57.0)(deepmerge@4.3.1)(dotenv@16.6.1)(encoding@0.1.13)(openai@6.15.0(ws@8.18.3)(zod@4.2.1))(zod@4.2.1)
       '@ibm-cloud/watsonx-ai': 1.7.5
@@ -5494,7 +5497,7 @@ snapshots:
     optionalDependencies:
       '@browserbasehq/sdk': 2.6.0(encoding@0.1.13)
       '@huggingface/transformers': 3.8.1
-      '@lancedb/lancedb': 0.23.0(apache-arrow@18.1.0)
+      '@lancedb/lancedb': 0.23.0(apache-arrow@17.0.0)
       ignore: 5.3.2
       jsonwebtoken: 9.0.3
       lodash: 4.17.21
@@ -6170,7 +6173,7 @@ snapshots:
       - luxon
       - moment
 
-  apache-arrow@18.1.0:
+  apache-arrow@17.0.0:
     dependencies:
       '@swc/helpers': 0.5.17
       '@types/command-line-args': 5.2.3
@@ -7453,7 +7456,7 @@ snapshots:
       isstream: 0.1.2
       jsonwebtoken: 9.0.3
       mime-types: 2.1.35
-      retry-axios: 2.6.0(axios@1.13.2(debug@4.4.3))
+      retry-axios: 2.6.0(axios@1.13.2)
       tough-cookie: 4.1.4
     transitivePeerDependencies:
       - supports-color
@@ -8744,7 +8747,7 @@ snapshots:
       onetime: 5.1.2
       signal-exit: 3.0.7
 
-  retry-axios@2.6.0(axios@1.13.2(debug@4.4.3)):
+  retry-axios@2.6.0(axios@1.13.2):
     dependencies:
       axios: 1.13.2(debug@4.4.3)
 
