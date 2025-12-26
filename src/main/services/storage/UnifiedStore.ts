@@ -1,5 +1,5 @@
 import * as lancedb from '@lancedb/lancedb'
-import { VECTOR_DB_PATH } from '../../utils/paths'
+import { LANCE_DB_PATH } from '../../utils/paths'
 import fs from 'fs'
 
 export class UnifiedStore {
@@ -17,10 +17,10 @@ export class UnifiedStore {
   }
 
   public async initialize() {
-    if (!fs.existsSync(VECTOR_DB_PATH)) {
-      fs.mkdirSync(VECTOR_DB_PATH, { recursive: true })
+    if (!fs.existsSync(LANCE_DB_PATH)) {
+      fs.mkdirSync(LANCE_DB_PATH, { recursive: true })
     }
-    this.db = await lancedb.connect(VECTOR_DB_PATH)
+    this.db = await lancedb.connect(LANCE_DB_PATH)
   }
 
   public async addChunks({
