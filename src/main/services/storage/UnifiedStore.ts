@@ -3,6 +3,13 @@ import { LANCE_DB_PATH } from '../../utils/paths'
 import fs from 'fs'
 import * as arrow from 'apache-arrow'
 import type { TableConfig, ChunkInput } from '../../types/store'
+enum ServiceState {
+  UNINITIALIZED = 'uninitialized',
+  INITIALIZING = 'initializing',
+  READY = 'ready',
+  ERROR = 'error'
+}
+
 /**
  * UnifiedStore - Single source of truth for all LanceDB operations
  * Handles vector storage, FTS indexing, and metadata management
@@ -19,6 +26,8 @@ export class UnifiedStore {
 
   private reranker: lancedb.rerankers.RRFReranker | null = null
 
+  private state: ServiceState = ServiceState.UNINITIALIZED
+
   private constructor() {}
 
   public static getInstance(): UnifiedStore {
@@ -32,14 +41,27 @@ export class UnifiedStore {
    * Initialize database connection and all tables
    */
   public async initialize(): Promise<void> {
-    if (!fs.existsSync(LANCE_DB_PATH)) {
-      fs.mkdirSync(LANCE_DB_PATH, { recursive: true })
+    if (this.state === ServiceState.READY) return
+
+    if (this.state === ServiceState.INITIALIZING) {
+      return
     }
 
-    this.db = await lancedb.connect(LANCE_DB_PATH)
+    this.state = ServiceState.INITIALIZING
+    try {
+      if (!fs.existsSync(LANCE_DB_PATH)) {
+        fs.mkdirSync(LANCE_DB_PATH, { recursive: true })
+      }
 
-    // Initialize all tables
-    await this.initializeTables()
+      this.db = await lancedb.connect(LANCE_DB_PATH)
+
+      // Initialize all tables
+      await this.initializeTables()
+      this.state = ServiceState.READY
+    } catch (error) {
+      this.state = ServiceState.ERROR
+      throw error
+    }
   }
 
   /**
@@ -143,7 +165,11 @@ export class UnifiedStore {
     vectors: Float32Array[]
     chunks: ChunkInput[]
   }): Promise<void> {
-    if (!this.db) await this.initialize()
+    if (this.state !== ServiceState.READY) {
+      throw new Error(
+        `UnifiedStore is not ready. Current state: ${this.state}. Please wait for initialization.`
+      )
+    }
 
     const data = vectors.map((vector, i) => ({
       vector,
@@ -161,7 +187,11 @@ export class UnifiedStore {
    * Vector similarity search
    */
   public async search(queryVector: Float32Array, limit = 50) {
-    if (!this.db) await this.initialize()
+    if (this.state !== ServiceState.READY) {
+      throw new Error(
+        `UnifiedStore is not ready. Current state: ${this.state}. Please wait for initialization.`
+      )
+    }
 
     const tableNames = await this.db!.tableNames()
     if (!tableNames.includes(this.TABLE_DOCUMENTS)) return []
@@ -180,7 +210,11 @@ export class UnifiedStore {
    * Full-text search
    */
   public async ftsSearch(query: string, limit = 50) {
-    if (!this.db) await this.initialize()
+    if (this.state !== ServiceState.READY) {
+      throw new Error(
+        `UnifiedStore is not ready. Current state: ${this.state}. Please wait for initialization.`
+      )
+    }
 
     const tableNames = await this.db!.tableNames()
     if (!tableNames.includes(this.TABLE_DOCUMENTS)) return []
@@ -192,7 +226,11 @@ export class UnifiedStore {
   }
 
   public async hybridSearch(queryVector: Float32Array, query: string, limit = 50) {
-    if (!this.db) await this.initialize()
+    if (this.state !== ServiceState.READY) {
+      throw new Error(
+        `UnifiedStore is not ready. Current state: ${this.state}. Please wait for initialization.`
+      )
+    }
 
     const tableNames = await this.db!.tableNames()
     if (!tableNames.includes(this.TABLE_DOCUMENTS)) return []

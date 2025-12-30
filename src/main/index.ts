@@ -3,6 +3,9 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { registerHandlers } from './ipc/handlers'
+import { IngestionService } from './services/ingestion/FileLoader'
+import { EmbeddingService } from './services/vector/EmbeddingService'
+import { UnifiedStore } from './services/storage/UnifiedStore'
 
 function createWindow(): void {
   // Create the browser window.
@@ -39,7 +42,7 @@ function createWindow(): void {
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
 
@@ -53,7 +56,19 @@ app.whenReady().then(() => {
   // IPC test
   ipcMain.on('ping', () => console.log('pong'))
 
-  registerHandlers()
+  // Initialize services
+  const ingestionService = IngestionService.getInstance()
+  const embeddingService = EmbeddingService.getInstance()
+  const unifiedStore = UnifiedStore.getInstance()
+
+  // Start initialization in background (don't await)
+  console.log('Starting background initialization of services...')
+  embeddingService
+    .initialize()
+    .catch((err) => console.error('Failed to initialize EmbeddingService:', err))
+  unifiedStore.initialize().catch((err) => console.error('Failed to initialize UnifiedStore:', err))
+
+  registerHandlers({ ingestionService, embeddingService, unifiedStore })
 
   createWindow()
 

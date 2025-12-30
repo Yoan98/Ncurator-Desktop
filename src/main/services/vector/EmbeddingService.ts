@@ -7,10 +7,18 @@ env.localModelPath = MODELS_PATH
 env.allowRemoteModels = false
 env.allowLocalModels = true
 
+enum ServiceState {
+  UNINITIALIZED = 'uninitialized',
+  INITIALIZING = 'initializing',
+  READY = 'ready',
+  ERROR = 'error'
+}
+
 export class EmbeddingService {
   private static instance: EmbeddingService
   private extractor: any = null
   private modelName: string = 'jinaai/jina-embeddings-v2-base-zh' // Using a Chinese model as default for now
+  private state: ServiceState = ServiceState.UNINITIALIZED
 
   private constructor() {}
 
@@ -22,18 +30,33 @@ export class EmbeddingService {
   }
 
   public async initialize() {
-    if (this.extractor) return
+    if (this.state === ServiceState.READY) return
 
-    // Feature extraction pipeline
-    this.extractor = await pipeline('feature-extraction', this.modelName, {
-      dtype: 'fp32'
-    })
+    if (this.state === ServiceState.INITIALIZING) {
+      return
+    }
+
+    this.state = ServiceState.INITIALIZING
+    try {
+      // Feature extraction pipeline
+      this.extractor = await pipeline('feature-extraction', this.modelName, {
+        dtype: 'fp32'
+      })
+      this.state = ServiceState.READY
+    } catch (error) {
+      this.state = ServiceState.ERROR
+      throw error
+    }
   }
 
   public async embed(
     texts: string | string[]
   ): Promise<{ data: Float32Array; dims: [number, number] }> {
-    if (!this.extractor) await this.initialize()
+    if (this.state !== ServiceState.READY) {
+      throw new Error(
+        `EmbeddingService is not ready. Current state: ${this.state}. Please wait for initialization.`
+      )
+    }
 
     const inputTexts = Array.isArray(texts) ? texts : [texts]
 

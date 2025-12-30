@@ -4,14 +4,19 @@ import { EmbeddingService } from '../services/vector/EmbeddingService'
 import { UnifiedStore } from '../services/storage/UnifiedStore'
 import { v4 as uuidv4 } from 'uuid'
 
-export function registerHandlers() {
+export function registerHandlers(services: {
+  ingestionService: IngestionService
+  embeddingService: EmbeddingService
+  unifiedStore: UnifiedStore
+}) {
+  const { ingestionService, embeddingService, unifiedStore } = services
+
   ipcMain.handle('ingest-file', async (_event, filePath: string, filename: string) => {
     try {
       console.log('filename:', filename)
 
       console.log('split docs')
       // 1. Load and Split
-      const ingestionService = IngestionService.getInstance()
       const splitDocs = await ingestionService.processFile(filePath)
 
       console.log(
@@ -20,7 +25,6 @@ export function registerHandlers() {
 
       console.log('embedding docs')
       // 2. Embed
-      const embeddingService = EmbeddingService.getInstance()
       const allSplitDocs = [...splitDocs.bigSplitDocs, ...splitDocs.miniSplitDocs]
 
       // Embed in batches if needed, but for now simple loop or all at once (transformers.js might handle batching or single)
@@ -36,7 +40,6 @@ export function registerHandlers() {
 
       console.log('storing docs')
       // 3. Store in LanceDB (Unified)
-      const unifiedStore = UnifiedStore.getInstance()
       const chunks = allChunkVectors.map((_, i) => ({
         text: allSplitDocs[i].pageContent,
         id: uuidv4(),
@@ -58,9 +61,6 @@ export function registerHandlers() {
 
   ipcMain.handle('search', async (_event, query: string) => {
     try {
-      const unifiedStore = UnifiedStore.getInstance()
-
-      const embeddingService = EmbeddingService.getInstance()
       const { data: queryVector } = await embeddingService.embed(query)
 
       const results = await unifiedStore.hybridSearch(queryVector, query)
