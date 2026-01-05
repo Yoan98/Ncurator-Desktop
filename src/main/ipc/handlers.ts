@@ -65,8 +65,15 @@ export function registerHandlers(services: {
 
       const results = await unifiedStore.hybridSearch(queryVector, query)
 
-      console.log('🔎 [SEARCH] RESULTS:', results)
-      return results
+      const noVectorResults = results.map((item) => {
+        const newItem = {
+          ...item
+        }
+        delete newItem.vector
+        return newItem
+      })
+      console.log('🔎 [SEARCH] RESULTS:', noVectorResults)
+      return noVectorResults
     } catch (error: any) {
       console.error('❌ [SEARCH] ERROR:', error)
       return []
