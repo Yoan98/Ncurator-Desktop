@@ -186,7 +186,7 @@ export class UnifiedStore {
   /**
    * Vector similarity search
    */
-  public async search(queryVector: Float32Array, limit = 50) {
+  public async vectorSearch(queryVector: Float32Array, limit = 50) {
     if (this.status !== ServiceStatus.READY) {
       throw new Error(
         `UnifiedStore is not ready. Current status: ${this.status}. Please wait for initialization.`
