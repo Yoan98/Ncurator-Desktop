@@ -97,7 +97,7 @@ export class UnifiedStore {
         schema: new arrow.Schema([
           new arrow.Field(
             'vector',
-            new arrow.FixedSizeList(384, new arrow.Field('item', new arrow.Float32()))
+            new arrow.FixedSizeList(768, new arrow.Field('item', new arrow.Float32()))
           ),
           new arrow.Field('text', new arrow.Utf8()),
           new arrow.Field('id', new arrow.Utf8()),
