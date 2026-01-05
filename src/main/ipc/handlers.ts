@@ -63,7 +63,7 @@ export function registerHandlers(services: {
     try {
       const { data: queryVector } = await embeddingService.embed(query)
 
-      const results = await unifiedStore.hybridSearch(queryVector, query)
+      const results = await unifiedStore.hybridSearch(queryVector, query, 5)
 
       const noVectorResults = results.map((item) => {
         const newItem = {

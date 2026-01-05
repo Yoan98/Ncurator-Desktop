@@ -1,11 +1,12 @@
 import React, { useState } from 'react'
+import type { RendererSearchResult } from './types/global'
 import { Input, Button, Upload, message, List, Card, Typography } from 'antd'
 import { UploadOutlined } from '@ant-design/icons'
 
 const { Paragraph } = Typography
 
 function App(): React.JSX.Element {
-  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [searchResults, setSearchResults] = useState<RendererSearchResult[]>([])
   const [loading, setLoading] = useState(false)
 
   const handleSearch = async (value: string) => {
@@ -13,6 +14,7 @@ function App(): React.JSX.Element {
     setLoading(true)
     try {
       const results = await window.api.search(value)
+      console.log('🔎 [SEARCH] RESULTS APP:', results)
       setSearchResults(results)
     } catch (error) {
       console.error(error)
@@ -68,19 +70,25 @@ function App(): React.JSX.Element {
           renderItem={(item) => (
             <List.Item>
               <Card
-                title={
-                  <span className="text-sm text-gray-500">Score: {item.score?.toFixed(4)}</span>
-                }
+                title={<span className="text-sm text-gray-800">{item.filename}</span>}
                 className="w-full shadow-sm hover:shadow-md transition-shadow"
               >
                 <Paragraph ellipsis={{ rows: 3, expandable: true, symbol: 'more' }}>
-                  {item.content}
+                  {item.text}
                 </Paragraph>
-                {item.metadata && (
-                  <div className="text-xs text-gray-400 mt-2">
-                    Source: {item.metadata.filename || 'Unknown'}
-                  </div>
-                )}
+                <div className="text-xs text-gray-500 mt-3 flex flex-wrap gap-4">
+                  <span>ID: {item.id}</span>
+                  <span>Created: {item.createdAt ? new Date(item.createdAt).toLocaleString() : 'N/A'}</span>
+                  <span>
+                    _score: {typeof item._score === 'number' ? item._score.toFixed(6) : 'N/A'}
+                  </span>
+                  <span>
+                    _relevance_score:{' '}
+                    {typeof item._relevance_score === 'number'
+                      ? item._relevance_score.toFixed(6)
+                      : 'N/A'}
+                  </span>
+                </div>
               </Card>
             </List.Item>
           )}

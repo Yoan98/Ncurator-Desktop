@@ -43,8 +43,10 @@ export interface SearchResult {
   id: string
   text: string
   filename: string
-  score?: number
   _distance?: number
+  createdAt?: number
+  _score?: number
+  _relevance_score?: number
 }
 
 /**
