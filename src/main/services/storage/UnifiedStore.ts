@@ -3,7 +3,7 @@ import { LANCE_DB_PATH } from '../../utils/paths'
 import fs from 'fs'
 import * as arrow from 'apache-arrow'
 import type { TableConfig, ChunkInput } from '../../types/store'
-enum ServiceState {
+enum ServiceStatus {
   UNINITIALIZED = 'uninitialized',
   INITIALIZING = 'initializing',
   READY = 'ready',
@@ -26,7 +26,7 @@ export class UnifiedStore {
 
   private reranker: lancedb.rerankers.RRFReranker | null = null
 
-  private state: ServiceState = ServiceState.UNINITIALIZED
+  private status: ServiceStatus = ServiceStatus.UNINITIALIZED
 
   private constructor() {}
 
@@ -41,13 +41,13 @@ export class UnifiedStore {
    * Initialize database connection and all tables
    */
   public async initialize(): Promise<void> {
-    if (this.state === ServiceState.READY) return
+    if (this.status === ServiceStatus.READY) return
 
-    if (this.state === ServiceState.INITIALIZING) {
+    if (this.status === ServiceStatus.INITIALIZING) {
       return
     }
 
-    this.state = ServiceState.INITIALIZING
+    this.status = ServiceStatus.INITIALIZING
     try {
       if (!fs.existsSync(LANCE_DB_PATH)) {
         fs.mkdirSync(LANCE_DB_PATH, { recursive: true })
@@ -57,9 +57,9 @@ export class UnifiedStore {
 
       // Initialize all tables
       await this.initializeTables()
-      this.state = ServiceState.READY
+      this.status = ServiceStatus.READY
     } catch (error) {
-      this.state = ServiceState.ERROR
+      this.status = ServiceStatus.ERROR
       throw error
     }
   }
@@ -165,9 +165,9 @@ export class UnifiedStore {
     vectors: Float32Array[]
     chunks: ChunkInput[]
   }): Promise<void> {
-    if (this.state !== ServiceState.READY) {
+    if (this.status !== ServiceStatus.READY) {
       throw new Error(
-        `UnifiedStore is not ready. Current state: ${this.state}. Please wait for initialization.`
+        `UnifiedStore is not ready. Current status: ${this.status}. Please wait for initialization.`
       )
     }
 
@@ -187,9 +187,9 @@ export class UnifiedStore {
    * Vector similarity search
    */
   public async search(queryVector: Float32Array, limit = 50) {
-    if (this.state !== ServiceState.READY) {
+    if (this.status !== ServiceStatus.READY) {
       throw new Error(
-        `UnifiedStore is not ready. Current state: ${this.state}. Please wait for initialization.`
+        `UnifiedStore is not ready. Current status: ${this.status}. Please wait for initialization.`
       )
     }
 
@@ -210,9 +210,9 @@ export class UnifiedStore {
    * Full-text search
    */
   public async ftsSearch(query: string, limit = 50) {
-    if (this.state !== ServiceState.READY) {
+    if (this.status !== ServiceStatus.READY) {
       throw new Error(
-        `UnifiedStore is not ready. Current state: ${this.state}. Please wait for initialization.`
+        `UnifiedStore is not ready. Current status: ${this.status}. Please wait for initialization.`
       )
     }
 
@@ -226,9 +226,9 @@ export class UnifiedStore {
   }
 
   public async hybridSearch(queryVector: Float32Array, query: string, limit = 50) {
-    if (this.state !== ServiceState.READY) {
+    if (this.status !== ServiceStatus.READY) {
       throw new Error(
-        `UnifiedStore is not ready. Current state: ${this.state}. Please wait for initialization.`
+        `UnifiedStore is not ready. Current status: ${this.status}. Please wait for initialization.`
       )
     }
 

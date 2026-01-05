@@ -13,17 +13,17 @@ export function registerHandlers(services: {
 
   ipcMain.handle('ingest-file', async (_event, filePath: string, filename: string) => {
     try {
-      console.log('filename:', filename)
+      console.log('📄 [INGEST-FILE] FILENAME:', filename)
 
-      console.log('split docs')
+      console.log('🔧 [INGEST-FILE] STEP 1: SPLIT DOCS')
       // 1. Load and Split
       const splitDocs = await ingestionService.processFile(filePath)
 
       console.log(
-        `Split into ${splitDocs.bigSplitDocs.length} big chunks and ${splitDocs.miniSplitDocs.length} mini chunks`
+        `✅ [INGEST-FILE] STEP 1 DONE: BIG=${splitDocs.bigSplitDocs.length} MINI=${splitDocs.miniSplitDocs.length}`
       )
 
-      console.log('embedding docs')
+      console.log('🧠 [INGEST-FILE] STEP 2: EMBEDDING DOCS')
       // 2. Embed
       const allSplitDocs = [...splitDocs.bigSplitDocs, ...splitDocs.miniSplitDocs]
 
@@ -36,9 +36,9 @@ export function registerHandlers(services: {
         const { data: vector } = await embeddingService.embed(doc.pageContent)
         allChunkVectors.push(vector)
       }
-      console.log('allChunkVectors.length:', allChunkVectors.length)
+      console.log('🧠 [INGEST-FILE] EMBEDDING COUNT:', allChunkVectors.length)
 
-      console.log('storing docs')
+      console.log('💾 [INGEST-FILE] STEP 3: STORING DOCS')
       // 3. Store in LanceDB (Unified)
       const chunks = allChunkVectors.map((_, i) => ({
         text: allSplitDocs[i].pageContent,
@@ -50,11 +50,11 @@ export function registerHandlers(services: {
         vectors: allChunkVectors,
         chunks
       })
-      console.log('stored docs in unified lancedb')
+      console.log('✅ [INGEST-FILE] STORED DOCS IN UNIFIED LANCEDB')
 
       return { success: true, count: chunks.length }
     } catch (error: any) {
-      console.error('Ingestion error:', error)
+      console.error('❌ [INGEST-FILE] ERROR:', error)
       return { success: false, error: error.message }
     }
   })
@@ -65,10 +65,10 @@ export function registerHandlers(services: {
 
       const results = await unifiedStore.hybridSearch(queryVector, query)
 
-      console.log('search results:', results)
+      console.log('🔎 [SEARCH] RESULTS:', results)
       return results
     } catch (error: any) {
-      console.error('Search error:', error)
+      console.error('❌ [SEARCH] ERROR:', error)
       return []
     }
   })
