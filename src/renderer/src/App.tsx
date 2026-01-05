@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import type { RendererSearchResult } from './types/global'
-import { Input, Button, Upload, message, List, Card, Typography } from 'antd'
+import { Input, Button, Upload, message, List, Card, Typography, Segmented } from 'antd'
 import { UploadOutlined } from '@ant-design/icons'
 
 const { Paragraph } = Typography
@@ -8,12 +8,20 @@ const { Paragraph } = Typography
 function App(): React.JSX.Element {
   const [searchResults, setSearchResults] = useState<RendererSearchResult[]>([])
   const [loading, setLoading] = useState(false)
+  const [mode, setMode] = useState<'ftsSearch' | 'vectorSearch' | 'hybridSearch'>('hybridSearch')
 
   const handleSearch = async (value: string) => {
     if (!value.trim()) return
     setLoading(true)
     try {
-      const results = await window.api.search(value)
+      let results: RendererSearchResult[] = []
+      if (mode === 'ftsSearch') {
+        results = await window.api.ftsSearch(value)
+      } else if (mode === 'vectorSearch') {
+        results = await window.api.vectorSearch(value)
+      } else {
+        results = await window.api.hybridSearch(value)
+      }
       console.log('🔎 [SEARCH] RESULTS APP:', results)
       setSearchResults(results)
     } catch (error) {
@@ -54,6 +62,16 @@ function App(): React.JSX.Element {
           <Button icon={<UploadOutlined />}>Upload Document</Button>
         </Upload>
 
+        <Segmented
+          options={[
+            { label: 'Hybrid', value: 'hybridSearch' },
+            { label: 'FTS', value: 'ftsSearch' },
+            { label: 'Vector', value: 'vectorSearch' }
+          ]}
+          value={mode}
+          onChange={(val) => setMode(val as typeof mode)}
+        />
+
         <Input.Search
           placeholder="Search knowledge base..."
           enterButton="Search"
@@ -67,6 +85,7 @@ function App(): React.JSX.Element {
       <div className="flex-1 overflow-auto">
         <List
           dataSource={searchResults}
+          rowKey="id"
           renderItem={(item) => (
             <List.Item>
               <Card
@@ -79,15 +98,22 @@ function App(): React.JSX.Element {
                 <div className="text-xs text-gray-500 mt-3 flex flex-wrap gap-4">
                   <span>ID: {item.id}</span>
                   <span>Created: {item.createdAt ? new Date(item.createdAt).toLocaleString() : 'N/A'}</span>
-                  <span>
-                    _score: {typeof item._score === 'number' ? item._score.toFixed(6) : 'N/A'}
-                  </span>
-                  <span>
-                    _relevance_score:{' '}
-                    {typeof item._relevance_score === 'number'
-                      ? item._relevance_score.toFixed(6)
-                      : 'N/A'}
-                  </span>
+                  {mode !== 'vectorSearch' && (
+                    <span>_score: {typeof item._score === 'number' ? item._score.toFixed(6) : 'N/A'}</span>
+                  )}
+                  {mode === 'hybridSearch' && (
+                    <span>
+                      _relevance_score:{' '}
+                      {typeof item._relevance_score === 'number'
+                        ? item._relevance_score.toFixed(6)
+                        : 'N/A'}
+                    </span>
+                  )}
+                  {mode === 'vectorSearch' && (
+                    <span>
+                      _distance: {typeof item._distance === 'number' ? item._distance.toFixed(6) : 'N/A'}
+                    </span>
+                  )}
                 </div>
               </Card>
             </List.Item>

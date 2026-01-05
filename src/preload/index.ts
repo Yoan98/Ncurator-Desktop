@@ -1,11 +1,17 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
+import type { SearchResult } from '../main/types/store'
 
 // Custom APIs for renderer
 const api = {
   ingestFile: (file: File): Promise<{ success: boolean; count?: number; error?: string }> =>
     ipcRenderer.invoke('ingest-file', webUtils.getPathForFile(file), file.name),
-  search: (query: string): Promise<any[]> => ipcRenderer.invoke('search', query)
+  search: (query: string): Promise<SearchResult[]> => ipcRenderer.invoke('search', query),
+  ftsSearch: (query: string): Promise<SearchResult[]> => ipcRenderer.invoke('fts-search', query),
+  vectorSearch: (query: string): Promise<SearchResult[]> =>
+    ipcRenderer.invoke('vector-search', query),
+  hybridSearch: (query: string): Promise<SearchResult[]> =>
+    ipcRenderer.invoke('hybrid-search', query)
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

@@ -3,6 +3,7 @@ import { IngestionService } from '../services/ingestion/FileLoader'
 import { EmbeddingService } from '../services/vector/EmbeddingService'
 import { UnifiedStore } from '../services/storage/UnifiedStore'
 import { v4 as uuidv4 } from 'uuid'
+import type { SearchResult } from '../types/store'
 
 export function registerHandlers(services: {
   ingestionService: IngestionService
@@ -76,6 +77,78 @@ export function registerHandlers(services: {
       return noVectorResults
     } catch (error: any) {
       console.error('❌ [SEARCH] ERROR:', error)
+      return []
+    }
+  })
+
+  ipcMain.handle('fts-search', async (_event, query: string): Promise<SearchResult[]> => {
+    try {
+      const results = await unifiedStore.ftsSearch(query, 20)
+      const normalized = results.map((item) => {
+        const obj = item as Record<string, unknown>
+        const out: SearchResult = {
+          id: String(obj.id ?? ''),
+          text: String(obj.text ?? ''),
+          filename: String(obj.filename ?? ''),
+          createdAt: typeof obj.createdAt === 'number' ? (obj.createdAt as number) : undefined,
+          _score: typeof obj._score === 'number' ? (obj._score as number) : undefined,
+          _relevance_score:
+            typeof obj._relevance_score === 'number' ? (obj._relevance_score as number) : undefined
+        }
+        return out
+      })
+      console.log('🔎 [FTS-SEARCH] RESULTS:', normalized)
+      return normalized
+    } catch (error: any) {
+      console.error('❌ [FTS-SEARCH] ERROR:', error)
+      return []
+    }
+  })
+
+  ipcMain.handle('vector-search', async (_event, query: string): Promise<SearchResult[]> => {
+    try {
+      const { data: queryVector } = await embeddingService.embed(query)
+      const results = await unifiedStore.vectorSearch(queryVector, 20)
+      const normalized = results.map((item) => {
+        const obj = item as Record<string, unknown>
+        const out: SearchResult = {
+          id: String(obj.id ?? ''),
+          text: String(obj.text ?? ''),
+          filename: String(obj.filename ?? ''),
+          createdAt: typeof obj.createdAt === 'number' ? (obj.createdAt as number) : undefined,
+          _distance: typeof obj._distance === 'number' ? (obj._distance as number) : undefined
+        }
+        return out
+      })
+      console.log('🔎 [VECTOR-SEARCH] RESULTS:', normalized)
+      return normalized
+    } catch (error: any) {
+      console.error('❌ [VECTOR-SEARCH] ERROR:', error)
+      return []
+    }
+  })
+
+  ipcMain.handle('hybrid-search', async (_event, query: string): Promise<SearchResult[]> => {
+    try {
+      const { data: queryVector } = await embeddingService.embed(query)
+      const results = await unifiedStore.hybridSearch(queryVector, query, 20)
+      const normalized = results.map((item) => {
+        const obj = item as Record<string, unknown>
+        const out: SearchResult = {
+          id: String(obj.id ?? ''),
+          text: String(obj.text ?? ''),
+          filename: String(obj.filename ?? ''),
+          createdAt: typeof obj.createdAt === 'number' ? (obj.createdAt as number) : undefined,
+          _score: typeof obj._score === 'number' ? (obj._score as number) : undefined,
+          _relevance_score:
+            typeof obj._relevance_score === 'number' ? (obj._relevance_score as number) : undefined
+        }
+        return out
+      })
+      console.log('🔎 [HYBRID-SEARCH] RESULTS:', normalized)
+      return normalized
+    } catch (error: any) {
+      console.error('❌ [HYBRID-SEARCH] ERROR:', error)
       return []
     }
   })
