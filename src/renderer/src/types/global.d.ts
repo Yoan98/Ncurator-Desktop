@@ -10,6 +10,14 @@ export interface RendererSearchResult {
   _distance?: number
 }
 
+export interface RendererDocumentItem {
+  id: string
+  filename: string
+  text: string
+  createdAt?: number
+  vector: number[]
+}
+
 declare global {
   interface Window {
     electron: ElectronAPI
@@ -19,6 +27,11 @@ declare global {
       ftsSearch: (query: string) => Promise<RendererSearchResult[]>
       vectorSearch: (query: string) => Promise<RendererSearchResult[]>
       hybridSearch: (query: string) => Promise<RendererSearchResult[]>
+      listDocuments: (payload: {
+        keyword?: string
+        page: number
+        pageSize: number
+      }) => Promise<{ items: RendererDocumentItem[]; total: number }>
     }
   }
 }

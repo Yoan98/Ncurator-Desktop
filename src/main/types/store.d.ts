@@ -56,3 +56,16 @@ export interface SearchResult {
 export namespace VectorStoreTable {
   export type Chunk = DocumentChunk
 }
+
+export interface DocumentListItem {
+  id: string
+  text: string
+  filename: string
+  createdAt?: number
+  vector: number[]
+}
+
+export interface DocumentListResponse {
+  items: DocumentListItem[]
+  total: number
+}

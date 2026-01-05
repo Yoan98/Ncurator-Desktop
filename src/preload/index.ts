@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { SearchResult } from '../main/types/store'
+import type { SearchResult, DocumentListResponse } from '../main/types/store'
 
 // Custom APIs for renderer
 const api = {
@@ -11,7 +11,12 @@ const api = {
   vectorSearch: (query: string): Promise<SearchResult[]> =>
     ipcRenderer.invoke('vector-search', query),
   hybridSearch: (query: string): Promise<SearchResult[]> =>
-    ipcRenderer.invoke('hybrid-search', query)
+    ipcRenderer.invoke('hybrid-search', query),
+  listDocuments: (payload: {
+    keyword?: string
+    page: number
+    pageSize: number
+  }): Promise<DocumentListResponse> => ipcRenderer.invoke('list-documents', payload)
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

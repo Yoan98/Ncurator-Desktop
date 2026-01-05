@@ -206,6 +206,18 @@ export class UnifiedStore {
     return results
   }
 
+  private buildWhereFromKeyword(keyword?: string): string | undefined {
+    const trimmed = (keyword || '').trim()
+    if (!trimmed) return undefined
+    const isSql =
+      /(\bAND\b|\bOR\b|\bNOT\b|=|>=|<=|>|<|\bLIKE\b|\bNOT LIKE\b|\bIN\b|\bIS NULL\b|\bIS NOT NULL\b|regexp_match\s*\()/i.test(
+        trimmed
+      )
+    if (isSql) return trimmed
+    const kw = trimmed.replace(/'/g, "''")
+    return `(text LIKE '%${kw}%' OR filename LIKE '%${kw}%')`
+  }
+
   /**
    * Full-text search
    */
@@ -247,6 +259,52 @@ export class UnifiedStore {
       .toArray()
 
     return results
+  }
+
+  public async listDocuments({
+    keyword,
+    page,
+    pageSize
+  }: {
+    keyword?: string
+    page: number
+    pageSize: number
+  }): Promise<{
+    items: Array<{
+      id: string
+      text: string
+      filename: string
+      createdAt?: number
+      vector: number[]
+    }>
+    total: number
+  }> {
+    if (this.status !== ServiceStatus.READY) {
+      throw new Error(
+        `UnifiedStore is not ready. Current status: ${this.status}. Please wait for initialization.`
+      )
+    }
+    const tableNames = await this.db!.tableNames()
+    if (!tableNames.includes(this.TABLE_DOCUMENTS)) return { items: [], total: 0 }
+    const table = await this.db!.openTable(this.TABLE_DOCUMENTS)
+    const where = this.buildWhereFromKeyword(keyword)
+    const total = await table.countRows(where)
+    const skip = Math.max(0, (page - 1) * pageSize)
+    const query = table.query()
+    if (where && where.trim().length > 0) {
+      query.where(where)
+    }
+    const rows = await query.limit(pageSize).offset(skip).toArray()
+    const pageItems = rows.map((item) => ({
+      id: item.id,
+      text: item.text,
+      filename: item.filename,
+      createdAt: item.createdAt,
+      vector: Array.isArray(item.vector)
+        ? (item.vector as number[])
+        : Array.from((item.vector || []) as Float32Array)
+    }))
+    return { items: pageItems, total }
   }
 
   /**
