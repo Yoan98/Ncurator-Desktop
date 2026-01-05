@@ -85,17 +85,9 @@ export function registerHandlers(services: {
     try {
       const results = await unifiedStore.ftsSearch(query, 20)
       const normalized = results.map((item) => {
-        const obj = item as Record<string, unknown>
-        const out: SearchResult = {
-          id: String(obj.id ?? ''),
-          text: String(obj.text ?? ''),
-          filename: String(obj.filename ?? ''),
-          createdAt: typeof obj.createdAt === 'number' ? (obj.createdAt as number) : undefined,
-          _score: typeof obj._score === 'number' ? (obj._score as number) : undefined,
-          _relevance_score:
-            typeof obj._relevance_score === 'number' ? (obj._relevance_score as number) : undefined
-        }
-        return out
+        const newItem = { ...item }
+        delete (newItem as any).vector
+        return newItem as unknown as SearchResult
       })
       console.log('🔎 [FTS-SEARCH] RESULTS:', normalized)
       return normalized
@@ -110,15 +102,9 @@ export function registerHandlers(services: {
       const { data: queryVector } = await embeddingService.embed(query)
       const results = await unifiedStore.vectorSearch(queryVector, 20)
       const normalized = results.map((item) => {
-        const obj = item as Record<string, unknown>
-        const out: SearchResult = {
-          id: String(obj.id ?? ''),
-          text: String(obj.text ?? ''),
-          filename: String(obj.filename ?? ''),
-          createdAt: typeof obj.createdAt === 'number' ? (obj.createdAt as number) : undefined,
-          _distance: typeof obj._distance === 'number' ? (obj._distance as number) : undefined
-        }
-        return out
+        const newItem = { ...item }
+        delete (newItem as any).vector
+        return newItem as unknown as SearchResult
       })
       console.log('🔎 [VECTOR-SEARCH] RESULTS:', normalized)
       return normalized
@@ -133,17 +119,9 @@ export function registerHandlers(services: {
       const { data: queryVector } = await embeddingService.embed(query)
       const results = await unifiedStore.hybridSearch(queryVector, query, 20)
       const normalized = results.map((item) => {
-        const obj = item as Record<string, unknown>
-        const out: SearchResult = {
-          id: String(obj.id ?? ''),
-          text: String(obj.text ?? ''),
-          filename: String(obj.filename ?? ''),
-          createdAt: typeof obj.createdAt === 'number' ? (obj.createdAt as number) : undefined,
-          _score: typeof obj._score === 'number' ? (obj._score as number) : undefined,
-          _relevance_score:
-            typeof obj._relevance_score === 'number' ? (obj._relevance_score as number) : undefined
-        }
-        return out
+        const newItem = { ...item }
+        delete (newItem as any).vector
+        return newItem as unknown as SearchResult
       })
       console.log('🔎 [HYBRID-SEARCH] RESULTS:', normalized)
       return normalized
