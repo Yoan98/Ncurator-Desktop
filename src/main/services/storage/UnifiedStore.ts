@@ -241,6 +241,7 @@ export class UnifiedStore {
       .query()
       .fullTextSearch(query)
       .nearestTo(queryVector)
+      .distanceType('cosine')
       .rerank(reranker)
       .limit(limit)
       .toArray()
