@@ -172,7 +172,7 @@ export class UnifiedStore {
     }
 
     const data = vectors.map((vector, i) => ({
-      vector,
+      vector: Array.from(vector),
       text: chunks[i].text,
       id: chunks[i].id,
       filename: chunks[i].filename,
