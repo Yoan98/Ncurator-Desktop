@@ -19,31 +19,32 @@ function App(): React.JSX.Element {
   const [detailOpen, setDetailOpen] = useState<boolean>(false)
   const [detailText, setDetailText] = useState<string>('')
   const [detailTitle, setDetailTitle] = useState<string>('')
+  const [dropOpen, setDropOpen] = useState<boolean>(false)
+  const [dropLoading, setDropLoading] = useState<boolean>(false)
 
   const handleDropDocuments = () => {
-    Modal.confirm({
-      title: '确认删除 document 表',
-      content: '该操作将清空所有已索引数据，且不可恢复。',
-      okText: '删除',
-      cancelText: '取消',
-      okType: 'danger',
-      async onOk() {
-        try {
-          const res = await window.api.dropDocumentsTable()
-          if (res.success) {
-            message.success('已删除 document 表')
-            setSearchResults([])
-            setDataItems([])
-            setDataTotal(0)
-          } else {
-            message.error(res.error || '删除失败')
-          }
-        } catch (error) {
-          console.error(error)
-          message.error('删除出错')
-        }
+    setDropOpen(true)
+  }
+
+  const handleConfirmDrop = async () => {
+    setDropLoading(true)
+    try {
+      const res = await window.api.dropDocumentsTable()
+      if (res.success) {
+        message.success('已删除 document 表')
+        setSearchResults([])
+        setDataItems([])
+        setDataTotal(0)
+        setDropOpen(false)
+      } else {
+        message.error(res.error || '删除失败')
       }
-    })
+    } catch (error) {
+      console.error(error)
+      message.error('删除出错')
+    } finally {
+      setDropLoading(false)
+    }
   }
 
   const openTextModal = (text: string, title?: string) => {
@@ -283,6 +284,17 @@ function App(): React.JSX.Element {
           />
         </div>
       )}
+      <Modal
+        open={dropOpen}
+        title="确认删除 document 表"
+        onOk={handleConfirmDrop}
+        okText="删除"
+        cancelText="取消"
+        okButtonProps={{ danger: true, loading: dropLoading }}
+        onCancel={() => setDropOpen(false)}
+      >
+        该操作将清空所有已索引数据，且不可恢复。
+      </Modal>
       <Modal
         open={detailOpen}
         title={detailTitle}
