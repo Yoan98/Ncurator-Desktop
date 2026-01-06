@@ -272,6 +272,7 @@ export class UnifiedStore {
 
     const table = await this.db!.openTable(this.TABLE_DOCUMENTS)
     const q = this.tokenize(query)
+    console.log('tokenize query:', q)
     const results = await table.search(q).limit(limit).toArray()
 
     return results.map((item) => ({
