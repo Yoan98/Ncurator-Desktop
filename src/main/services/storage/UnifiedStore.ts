@@ -1,9 +1,10 @@
 import * as lancedb from '@lancedb/lancedb'
 import { LANCE_DB_PATH } from '../../utils/paths'
 import fs from 'fs'
-import path from 'path'
 import * as arrow from 'apache-arrow'
 import type { TableConfig, ChunkInput } from '../../types/store'
+import { Jieba } from '@node-rs/jieba'
+import { dict } from '@node-rs/jieba/dict'
 enum ServiceStatus {
   UNINITIALIZED = 'uninitialized',
   INITIALIZING = 'initializing',
@@ -26,6 +27,7 @@ export class UnifiedStore {
   // private readonly TABLE_COLLECTIONS = 'collections'
 
   private reranker: lancedb.rerankers.RRFReranker | null = null
+  private jieba: Jieba | null = null
 
   private status: ServiceStatus = ServiceStatus.UNINITIALIZED
 
@@ -85,6 +87,27 @@ export class UnifiedStore {
 
     this.reranker = await lancedb.rerankers.RRFReranker.create()
     return this.reranker
+  }
+
+  private getJieba(): Jieba {
+    if (this.jieba) return this.jieba
+    this.jieba = Jieba.withDict(dict)
+    return this.jieba
+  }
+
+  private containsChinese(text: string): boolean {
+    return /[\u4E00-\u9FFF]/.test(text)
+  }
+
+  private segmentChinese(text: string): string {
+    const j = this.getJieba()
+    const tokens = j.cut(text, false)
+    return tokens.join(' ')
+  }
+
+  private tokenize(text: string): string {
+    if (!text) return text
+    return this.containsChinese(text) ? this.segmentChinese(text) : text
   }
 
   /**
@@ -174,7 +197,7 @@ export class UnifiedStore {
 
     const data = vectors.map((vector, i) => ({
       vector: Array.from(vector),
-      text: chunks[i].text,
+      text: this.tokenize(chunks[i].text),
       id: chunks[i].id,
       filename: chunks[i].filename,
       createdAt: Date.now()
@@ -219,6 +242,18 @@ export class UnifiedStore {
       )
     if (isSql) return trimmed
     const kw = trimmed.replace(/'/g, "''")
+    if (this.containsChinese(kw)) {
+      const seg = this.segmentChinese(kw)
+      const tokens = seg.split(/\s+/).filter(Boolean)
+      if (tokens.length === 0) {
+        return `(text LIKE '%${kw}%' OR filename LIKE '%${kw}%')`
+      }
+      const parts = tokens.map((t) => {
+        const e = t.replace(/'/g, "''")
+        return `(text LIKE '%${e}%' OR filename LIKE '%${e}%')`
+      })
+      return parts.join(' OR ')
+    }
     return `(text LIKE '%${kw}%' OR filename LIKE '%${kw}%')`
   }
 
@@ -236,7 +271,8 @@ export class UnifiedStore {
     if (!tableNames.includes(this.TABLE_DOCUMENTS)) return []
 
     const table = await this.db!.openTable(this.TABLE_DOCUMENTS)
-    const results = await table.search(query).limit(limit).toArray()
+    const q = this.tokenize(query)
+    const results = await table.search(q).limit(limit).toArray()
 
     return results.map((item) => ({
       ...item,
@@ -258,7 +294,7 @@ export class UnifiedStore {
     const table = await this.db!.openTable(this.TABLE_DOCUMENTS)
     const results = await table
       .query()
-      .fullTextSearch(query)
+      .fullTextSearch(this.tokenize(query))
       .nearestTo(queryVector)
       .distanceType('cosine')
       .rerank(reranker)
