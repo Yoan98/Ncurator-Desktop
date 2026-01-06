@@ -147,4 +147,15 @@ export function registerHandlers(services: {
       }
     }
   )
+
+  ipcMain.handle('drop-documents-table', async () => {
+    try {
+      const result = await unifiedStore.dropDocumentsTable()
+      console.log('🗑️ [DROP-DOCUMENTS] DONE:', result)
+      return { success: true, existed: result.existed }
+    } catch (error: any) {
+      console.error('❌ [DROP-DOCUMENTS] ERROR:', error)
+      return { success: false, error: error.message }
+    }
+  })
 }

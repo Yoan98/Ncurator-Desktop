@@ -1,6 +1,7 @@
 import * as lancedb from '@lancedb/lancedb'
 import { LANCE_DB_PATH } from '../../utils/paths'
 import fs from 'fs'
+import path from 'path'
 import * as arrow from 'apache-arrow'
 import type { TableConfig, ChunkInput } from '../../types/store'
 enum ServiceStatus {
@@ -314,6 +315,38 @@ export class UnifiedStore {
         : Array.from((item.vector || []) as Float32Array)
     }))
     return { items: pageItems, total }
+  }
+
+  /**
+   * Drop a table completely (remove its storage and indices)
+   */
+  public async dropTable(tableName: string): Promise<{ existed: boolean }> {
+    if (this.status !== ServiceStatus.READY) {
+      throw new Error(
+        `UnifiedStore is not ready. Current status: ${this.status}. Please wait for initialization.`
+      )
+    }
+    if (!this.db) {
+      throw new Error('Database connection not established')
+    }
+
+    const tableNames = await this.db.tableNames()
+    const existed = tableNames.includes(tableName)
+    if (!existed) {
+      return { existed: false }
+    }
+
+    const dbWithMaybeDrop = this.db
+
+    await dbWithMaybeDrop.dropTable(tableName)
+    return { existed: true }
+  }
+
+  /**
+   * Convenience: drop the documents table
+   */
+  public async dropDocumentsTable(): Promise<{ existed: boolean }> {
+    return this.dropTable(this.TABLE_DOCUMENTS)
   }
 
   /**

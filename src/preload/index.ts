@@ -16,7 +16,9 @@ const api = {
     keyword?: string
     page: number
     pageSize: number
-  }): Promise<DocumentListResponse> => ipcRenderer.invoke('list-documents', payload)
+  }): Promise<DocumentListResponse> => ipcRenderer.invoke('list-documents', payload),
+  dropDocumentsTable: (): Promise<{ success: boolean; existed?: boolean; error?: string }> =>
+    ipcRenderer.invoke('drop-documents-table')
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

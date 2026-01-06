@@ -20,6 +20,32 @@ function App(): React.JSX.Element {
   const [detailText, setDetailText] = useState<string>('')
   const [detailTitle, setDetailTitle] = useState<string>('')
 
+  const handleDropDocuments = () => {
+    Modal.confirm({
+      title: '确认删除 document 表',
+      content: '该操作将清空所有已索引数据，且不可恢复。',
+      okText: '删除',
+      cancelText: '取消',
+      okType: 'danger',
+      async onOk() {
+        try {
+          const res = await window.api.dropDocumentsTable()
+          if (res.success) {
+            message.success('已删除 document 表')
+            setSearchResults([])
+            setDataItems([])
+            setDataTotal(0)
+          } else {
+            message.error(res.error || '删除失败')
+          }
+        } catch (error) {
+          console.error(error)
+          message.error('删除出错')
+        }
+      }
+    })
+  }
+
   const openTextModal = (text: string, title?: string) => {
     setDetailText(text || '')
     setDetailTitle(title || '全文')
@@ -119,6 +145,8 @@ function App(): React.JSX.Element {
           value={mode}
           onChange={(val) => setMode(val as typeof mode)}
         />
+
+        <Button danger onClick={handleDropDocuments}>删除 document 表</Button>
 
         {view === 'search' ? (
           <Input.Search

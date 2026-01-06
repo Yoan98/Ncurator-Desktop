@@ -32,6 +32,7 @@ declare global {
         page: number
         pageSize: number
       }) => Promise<{ items: RendererDocumentItem[]; total: number }>
+      dropDocumentsTable: () => Promise<{ success: boolean; existed?: boolean; error?: string }>
     }
   }
 }
