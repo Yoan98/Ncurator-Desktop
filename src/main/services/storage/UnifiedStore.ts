@@ -203,7 +203,10 @@ export class UnifiedStore {
       .limit(limit)
       .toArray()
 
-    return results
+    return results.map((item) => ({
+      ...item,
+      createdAt: Number(item.createdAt)
+    }))
   }
 
   private buildWhereFromKeyword(keyword?: string): string | undefined {
@@ -234,7 +237,10 @@ export class UnifiedStore {
     const table = await this.db!.openTable(this.TABLE_DOCUMENTS)
     const results = await table.search(query).limit(limit).toArray()
 
-    return results
+    return results.map((item) => ({
+      ...item,
+      createdAt: Number(item.createdAt)
+    }))
   }
 
   public async hybridSearch(queryVector: Float32Array, query: string, limit = 50) {
@@ -258,7 +264,10 @@ export class UnifiedStore {
       .limit(limit)
       .toArray()
 
-    return results
+    return results.map((item) => ({
+      ...item,
+      createdAt: Number(item.createdAt)
+    }))
   }
 
   public async listDocuments({
@@ -299,7 +308,7 @@ export class UnifiedStore {
       id: item.id,
       text: item.text,
       filename: item.filename,
-      createdAt: item.createdAt,
+      createdAt: Number(item.createdAt),
       vector: Array.isArray(item.vector)
         ? (item.vector as number[])
         : Array.from((item.vector || []) as Float32Array)
