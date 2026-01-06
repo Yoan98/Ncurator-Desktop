@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import type { RendererSearchResult, RendererDocumentItem } from './types/global'
-import { Input, Button, Upload, message, List, Card, Typography, Segmented, Table } from 'antd'
+import { Input, Button, Upload, message, List, Card, Typography, Segmented, Table, Modal } from 'antd'
 import { UploadOutlined } from '@ant-design/icons'
 
 const { Paragraph } = Typography
@@ -16,6 +16,15 @@ function App(): React.JSX.Element {
   const [dataPageSize, setDataPageSize] = useState<number>(10)
   const [dataTotal, setDataTotal] = useState<number>(0)
   const [dataLoading, setDataLoading] = useState<boolean>(false)
+  const [detailOpen, setDetailOpen] = useState<boolean>(false)
+  const [detailText, setDetailText] = useState<string>('')
+  const [detailTitle, setDetailTitle] = useState<string>('')
+
+  const openTextModal = (text: string, title?: string) => {
+    setDetailText(text || '')
+    setDetailTitle(title || '全文')
+    setDetailOpen(true)
+  }
 
   const handleSearch = async (value: string) => {
     if (!value.trim()) return
@@ -146,7 +155,11 @@ function App(): React.JSX.Element {
                   title={<span className="text-sm text-gray-800">{item.filename}</span>}
                   className="w-full shadow-sm hover:shadow-md transition-shadow"
                 >
-                  <Paragraph ellipsis={{ rows: 3, expandable: true, symbol: 'more' }}>
+                  <Paragraph
+                    ellipsis={{ rows: 3, expandable: true, symbol: 'more' }}
+                    onClick={() => openTextModal(item.text, item.filename)}
+                    style={{ cursor: 'pointer' }}
+                  >
                     {item.text}
                   </Paragraph>
                   <div className="text-xs text-gray-500 mt-3 flex flex-wrap gap-4">
@@ -214,8 +227,12 @@ function App(): React.JSX.Element {
                 title: 'Text',
                 dataIndex: 'text',
                 key: 'text',
-                render: (text: string) => (
-                  <Paragraph ellipsis={{ rows: 2, expandable: true, symbol: 'more' }}>
+                render: (text: string, record: RendererDocumentItem) => (
+                  <Paragraph
+                    ellipsis={{ rows: 2, expandable: true, symbol: 'more' }}
+                    onClick={() => openTextModal(text, record.filename)}
+                    style={{ cursor: 'pointer' }}
+                  >
                     {text}
                   </Paragraph>
                 )
@@ -238,6 +255,20 @@ function App(): React.JSX.Element {
           />
         </div>
       )}
+      <Modal
+        open={detailOpen}
+        title={detailTitle}
+        onCancel={() => setDetailOpen(false)}
+        footer={null}
+        width={800}
+      >
+        <Paragraph
+          copyable={{ text: detailText }}
+          style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+        >
+          {detailText}
+        </Paragraph>
+      </Modal>
     </div>
   )
 }
