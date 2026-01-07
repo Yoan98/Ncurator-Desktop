@@ -5,6 +5,7 @@ import * as arrow from 'apache-arrow'
 import type { TableConfig, ChunkInput, DocumentListResponse } from '../../types/store'
 import { Jieba } from '@node-rs/jieba'
 import { dict } from '@node-rs/jieba/dict'
+import { ZH_STOP_WORDS } from '../../utils/constant'
 enum ServiceStatus {
   UNINITIALIZED = 'uninitialized',
   INITIALIZING = 'initializing',
@@ -102,7 +103,7 @@ export class UnifiedStore {
   private segmentChinese(text: string, isCutMore: boolean = true): string {
     const j = this.getJieba()
     const tokens = isCutMore ? j.cutForSearch(text, false) : j.cut(text, false)
-    return tokens.join(' ')
+    return tokens.filter((token) => !ZH_STOP_WORDS.includes(token)).join(' ')
   }
 
   private tokenize(text: string, isCutMore: boolean = true): string {
@@ -199,7 +200,7 @@ export class UnifiedStore {
     const data = vectors.map((vector, i) => ({
       vector: Array.from(vector),
       text: chunks[i].text,
-      tokenizedText: this.tokenize(chunks[i].text, false),
+      tokenizedText: this.tokenize(chunks[i].text, true),
       id: chunks[i].id,
       filename: chunks[i].filename,
       createdAt: Date.now()
