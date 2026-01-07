@@ -308,7 +308,7 @@ export class UnifiedStore {
     const table = await this.db!.openTable(this.TABLE_CHUNK)
     const results = await table
       .query()
-      .fullTextSearch(this.tokenize(query, false))
+      .fullTextSearch(query)
       .nearestTo(queryVector)
       .distanceType('cosine')
       .rerank(reranker)
