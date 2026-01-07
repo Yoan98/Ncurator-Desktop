@@ -17,17 +17,6 @@ export interface TableConfig {
 }
 
 /**
- * Document chunk stored in LanceDB
- */
-export interface DocumentChunk {
-  vector: Float32Array
-  text: string
-  id: string
-  filename: string
-  createdAt?: number
-}
-
-/**
  * Document chunk input for indexing
  */
 export interface ChunkInput {
@@ -47,14 +36,6 @@ export interface SearchResult {
   createdAt?: number
   _score?: number
   _relevance_score?: number
-}
-
-/**
- * Namespace for backward compatibility
- * @deprecated Use named exports instead
- */
-export namespace VectorStoreTable {
-  export type Chunk = DocumentChunk
 }
 
 export interface DocumentListItem {

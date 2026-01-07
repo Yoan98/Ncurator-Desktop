@@ -21,7 +21,7 @@ export class UnifiedStore {
   private db: lancedb.Connection | null = null
 
   // Table name constants
-  private readonly TABLE_DOCUMENTS = 'documents'
+  private readonly TABLE_CHUNK = 'chunk'
   // Add more table names here as needed
   // private readonly TABLE_METADATA = 'metadata'
   // private readonly TABLE_COLLECTIONS = 'collections'
@@ -117,13 +117,14 @@ export class UnifiedStore {
     return [
       // Documents table for storing document chunks with embeddings
       {
-        name: this.TABLE_DOCUMENTS,
+        name: this.TABLE_CHUNK,
         schema: new arrow.Schema([
           new arrow.Field(
             'vector',
             new arrow.FixedSizeList(768, new arrow.Field('item', new arrow.Float32()))
           ),
           new arrow.Field('text', new arrow.Utf8()),
+          new arrow.Field('tokenizedText', new arrow.Utf8()),
           new arrow.Field('id', new arrow.Utf8()),
           new arrow.Field('filename', new arrow.Utf8()),
           new arrow.Field('createdAt', new arrow.Int64())
@@ -134,7 +135,7 @@ export class UnifiedStore {
         //   options: { config: lancedb.Index.hnswSq() }
         // },
         ftsIndexConfig: {
-          column: 'text',
+          column: 'tokenizedText',
           options: { config: lancedb.Index.fts() }
         }
       }
@@ -197,13 +198,14 @@ export class UnifiedStore {
 
     const data = vectors.map((vector, i) => ({
       vector: Array.from(vector),
-      text: this.tokenize(chunks[i].text),
+      text: chunks[i].text,
+      tokenizedText: this.tokenize(chunks[i].text),
       id: chunks[i].id,
       filename: chunks[i].filename,
       createdAt: Date.now()
     }))
 
-    const table = await this.db!.openTable(this.TABLE_DOCUMENTS)
+    const table = await this.db!.openTable(this.TABLE_CHUNK)
     await table.add(data)
   }
 
@@ -218,9 +220,9 @@ export class UnifiedStore {
     }
 
     const tableNames = await this.db!.tableNames()
-    if (!tableNames.includes(this.TABLE_DOCUMENTS)) return []
+    if (!tableNames.includes(this.TABLE_CHUNK)) return []
 
-    const table = await this.db!.openTable(this.TABLE_DOCUMENTS)
+    const table = await this.db!.openTable(this.TABLE_CHUNK)
     const results = await table
       .vectorSearch(queryVector)
       .distanceType('cosine')
@@ -268,9 +270,9 @@ export class UnifiedStore {
     }
 
     const tableNames = await this.db!.tableNames()
-    if (!tableNames.includes(this.TABLE_DOCUMENTS)) return []
+    if (!tableNames.includes(this.TABLE_CHUNK)) return []
 
-    const table = await this.db!.openTable(this.TABLE_DOCUMENTS)
+    const table = await this.db!.openTable(this.TABLE_CHUNK)
     const q = this.tokenize(query)
     console.log('tokenize query:', q)
     const results = await table.search(q).limit(limit).toArray()
@@ -289,10 +291,10 @@ export class UnifiedStore {
     }
 
     const tableNames = await this.db!.tableNames()
-    if (!tableNames.includes(this.TABLE_DOCUMENTS)) return []
+    if (!tableNames.includes(this.TABLE_CHUNK)) return []
 
     const reranker = await this.getRRFReranker()
-    const table = await this.db!.openTable(this.TABLE_DOCUMENTS)
+    const table = await this.db!.openTable(this.TABLE_CHUNK)
     const results = await table
       .query()
       .fullTextSearch(this.tokenize(query))
@@ -332,8 +334,8 @@ export class UnifiedStore {
       )
     }
     const tableNames = await this.db!.tableNames()
-    if (!tableNames.includes(this.TABLE_DOCUMENTS)) return { items: [], total: 0 }
-    const table = await this.db!.openTable(this.TABLE_DOCUMENTS)
+    if (!tableNames.includes(this.TABLE_CHUNK)) return { items: [], total: 0 }
+    const table = await this.db!.openTable(this.TABLE_CHUNK)
     const where = this.buildWhereFromKeyword(keyword)
     const total = await table.countRows(where)
     const skip = Math.max(0, (page - 1) * pageSize)
@@ -383,7 +385,7 @@ export class UnifiedStore {
    * Convenience: drop the documents table
    */
   public async dropDocumentsTable(): Promise<{ existed: boolean }> {
-    return this.dropTable(this.TABLE_DOCUMENTS)
+    return this.dropTable(this.TABLE_CHUNK)
   }
 
   /**
