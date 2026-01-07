@@ -137,7 +137,13 @@ export class UnifiedStore {
         // },
         ftsIndexConfig: {
           column: 'tokenizedText',
-          options: { config: lancedb.Index.fts() }
+          options: {
+            config: lancedb.Index.fts({
+              baseTokenizer: 'ngram',
+              ngramMinLength: 2,
+              ngramMaxLength: 3
+            })
+          }
         }
       }
       // Add more table configurations here as needed
@@ -200,7 +206,7 @@ export class UnifiedStore {
     const data = vectors.map((vector, i) => ({
       vector: Array.from(vector),
       text: chunks[i].text,
-      tokenizedText: this.tokenize(chunks[i].text, true),
+      tokenizedText: chunks[i].text,
       id: chunks[i].id,
       filename: chunks[i].filename,
       createdAt: Date.now()
@@ -274,9 +280,13 @@ export class UnifiedStore {
     if (!tableNames.includes(this.TABLE_CHUNK)) return []
 
     const table = await this.db!.openTable(this.TABLE_CHUNK)
-    const q = this.tokenize(query, false)
-    console.log('tokenize query:', q)
-    const results = await table.search(q).limit(limit).toArray()
+    const results = await table
+      .query()
+      .fullTextSearch(query, {
+        columns: ['tokenizedText']
+      })
+      .limit(limit)
+      .toArray()
 
     return results.map((item) => ({
       ...item,
