@@ -99,15 +99,15 @@ export class UnifiedStore {
     return /[\u4E00-\u9FFF]/.test(text)
   }
 
-  private segmentChinese(text: string): string {
+  private segmentChinese(text: string, isCutMore: boolean = true): string {
     const j = this.getJieba()
-    const tokens = j.cut(text, false)
+    const tokens = isCutMore ? j.cutForSearch(text, false) : j.cut(text, false)
     return tokens.join(' ')
   }
 
-  private tokenize(text: string): string {
+  private tokenize(text: string, isCutMore: boolean = true): string {
     if (!text) return text
-    return this.containsChinese(text) ? this.segmentChinese(text) : text
+    return this.containsChinese(text) ? this.segmentChinese(text, isCutMore) : text
   }
 
   /**
@@ -199,7 +199,7 @@ export class UnifiedStore {
     const data = vectors.map((vector, i) => ({
       vector: Array.from(vector),
       text: chunks[i].text,
-      tokenizedText: this.tokenize(chunks[i].text),
+      tokenizedText: this.tokenize(chunks[i].text, true),
       id: chunks[i].id,
       filename: chunks[i].filename,
       createdAt: Date.now()
@@ -273,7 +273,7 @@ export class UnifiedStore {
     if (!tableNames.includes(this.TABLE_CHUNK)) return []
 
     const table = await this.db!.openTable(this.TABLE_CHUNK)
-    const q = this.tokenize(query)
+    const q = this.tokenize(query, false)
     console.log('tokenize query:', q)
     const results = await table.search(q).limit(limit).toArray()
 
@@ -297,7 +297,7 @@ export class UnifiedStore {
     const table = await this.db!.openTable(this.TABLE_CHUNK)
     const results = await table
       .query()
-      .fullTextSearch(this.tokenize(query))
+      .fullTextSearch(this.tokenize(query, false))
       .nearestTo(queryVector)
       .distanceType('cosine')
       .rerank(reranker)

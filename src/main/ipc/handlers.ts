@@ -89,7 +89,7 @@ export function registerHandlers(services: {
         delete (newItem as any).vector
         return newItem as unknown as SearchResult
       })
-      console.log('🔎 [FTS-SEARCH] RESULTS:', normalized)
+      // console.log('🔎 [FTS-SEARCH] RESULTS:', normalized)
       return normalized
     } catch (error: any) {
       console.error('❌ [FTS-SEARCH] ERROR:', error)
