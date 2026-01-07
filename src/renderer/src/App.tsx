@@ -267,6 +267,20 @@ function App(): React.JSX.Element {
                 )
               },
               {
+                title: 'TokenizedText',
+                dataIndex: 'tokenizedText',
+                key: 'tokenizedText',
+                render: (text: string, record: RendererDocumentItem) => (
+                  <Paragraph
+                    ellipsis={{ rows: 2, expandable: true, symbol: 'more' }}
+                    onClick={() => openTextModal(text, record.filename)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    {text}
+                  </Paragraph>
+                )
+              },
+              {
                 title: 'Created',
                 dataIndex: 'createdAt',
                 key: 'createdAt',

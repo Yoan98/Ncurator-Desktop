@@ -14,6 +14,7 @@ export interface RendererDocumentItem {
   id: string
   filename: string
   text: string
+  tokenizedText: string
   createdAt?: number
   vector: number[]
 }

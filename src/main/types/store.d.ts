@@ -41,6 +41,7 @@ export interface SearchResult {
 export interface DocumentListItem {
   id: string
   text: string
+  tokenizedText: string
   filename: string
   createdAt?: number
   vector: number[]

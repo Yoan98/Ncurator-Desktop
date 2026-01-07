@@ -2,7 +2,7 @@ import * as lancedb from '@lancedb/lancedb'
 import { LANCE_DB_PATH } from '../../utils/paths'
 import fs from 'fs'
 import * as arrow from 'apache-arrow'
-import type { TableConfig, ChunkInput } from '../../types/store'
+import type { TableConfig, ChunkInput, DocumentListResponse } from '../../types/store'
 import { Jieba } from '@node-rs/jieba'
 import { dict } from '@node-rs/jieba/dict'
 enum ServiceStatus {
@@ -199,7 +199,7 @@ export class UnifiedStore {
     const data = vectors.map((vector, i) => ({
       vector: Array.from(vector),
       text: chunks[i].text,
-      tokenizedText: this.tokenize(chunks[i].text, true),
+      tokenizedText: this.tokenize(chunks[i].text, false),
       id: chunks[i].id,
       filename: chunks[i].filename,
       createdAt: Date.now()
@@ -318,16 +318,7 @@ export class UnifiedStore {
     keyword?: string
     page: number
     pageSize: number
-  }): Promise<{
-    items: Array<{
-      id: string
-      text: string
-      filename: string
-      createdAt?: number
-      vector: number[]
-    }>
-    total: number
-  }> {
+  }): Promise<DocumentListResponse> {
     if (this.status !== ServiceStatus.READY) {
       throw new Error(
         `UnifiedStore is not ready. Current status: ${this.status}. Please wait for initialization.`
@@ -347,6 +338,7 @@ export class UnifiedStore {
     const pageItems = rows.map((item) => ({
       id: item.id,
       text: item.text,
+      tokenizedText: item.tokenizedText,
       filename: item.filename,
       createdAt: Number(item.createdAt),
       vector: Array.isArray(item.vector)
