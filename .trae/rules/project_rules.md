@@ -14,6 +14,16 @@
 - **Routing**: React Router DOM **v7**
 - **UI Kit**: Ant Design **v5**
 - **Styling**: Tailwind CSS **v4** + Less
+- **UI Design**:
+  - **Style**: Minimalist Black & White (Monochrome).
+  - **Typography**: Clean, sans-serif fonts (Inter or System UI) for readability.
+  - **Layout**: Spacious, card-based layout for search results.
+  - **Elements**: 
+    - High contrast borders and buttons.
+    - Subtle shadows for depth.
+    - Native desktop application feel.
+  - **Theme**: Light mode default, dark mode support (optional but good practice).
+  - **Goal**: A refined, professional local knowledge base aesthetics.
 
 ### 后端逻辑 (Main Process)
 - **Orchestration**: LangChain JS (Core/Community/TextSplitters)

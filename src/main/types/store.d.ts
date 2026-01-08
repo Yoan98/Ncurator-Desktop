@@ -38,8 +38,12 @@ export interface DocumentRecord {
 export interface ChunkInput {
   text: string
   id: string
-  document_id: string
-  document_name: string
+  documentId: string
+  documentName: string
+  sourceType: string
+  metadata: {
+    page: number
+  }
 }
 
 /**
@@ -48,8 +52,12 @@ export interface ChunkInput {
 export interface SearchResult {
   id: string
   text: string
-  document_name: string
-  document_id?: string
+  documentName: string
+  documentId?: string
+  sourceType?: string
+  metadata?: {
+    page: number
+  }
   _distance?: number
   createdAt?: number
   _score?: number
@@ -60,8 +68,12 @@ export interface SearchResult {
 export interface DocumentListItem {
   id: string
   text: string
-  document_name: string
-  document_id?: string
+  documentName: string
+  documentId?: string
+  sourceType?: string
+  metadata?: {
+    page: number
+  }
   createdAt?: number
   vector: number[]
 }

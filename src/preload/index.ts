@@ -6,7 +6,8 @@ import type { SearchResult, DocumentListResponse } from '../main/types/store'
 const api = {
   ingestFile: (file: File): Promise<{ success: boolean; count?: number; error?: string }> =>
     ipcRenderer.invoke('ingest-file', webUtils.getPathForFile(file), file.name),
-  search: (query: string): Promise<SearchResult[]> => ipcRenderer.invoke('search', query),
+  search: (query: string): Promise<{ results: SearchResult[]; tokens: string[] }> =>
+    ipcRenderer.invoke('search', query),
   ftsSearch: (query: string): Promise<SearchResult[]> => ipcRenderer.invoke('fts-search', query),
   vectorSearch: (query: string): Promise<SearchResult[]> =>
     ipcRenderer.invoke('vector-search', query),

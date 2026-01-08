@@ -105,8 +105,13 @@ export class UnifiedStore {
           ),
           new arrow.Field('text', new arrow.Utf8()),
           new arrow.Field('id', new arrow.Utf8()),
-          new arrow.Field('document_id', new arrow.Utf8()),
-          new arrow.Field('document_name', new arrow.Utf8()),
+          new arrow.Field('documentId', new arrow.Utf8()),
+          new arrow.Field('documentName', new arrow.Utf8()),
+          new arrow.Field('sourceType', new arrow.Utf8()),
+          new arrow.Field(
+            'metadata',
+            new arrow.Struct([new arrow.Field('page', new arrow.Int32())])
+          ),
           new arrow.Field('createdAt', new arrow.Int64())
         ]),
         // 暂时先不使用向量索引
@@ -207,8 +212,10 @@ export class UnifiedStore {
       vector: Array.from(vector),
       text: chunks[i].text,
       id: chunks[i].id,
-      document_id: chunks[i].document_id,
-      document_name: chunks[i].document_name,
+      documentId: chunks[i].documentId,
+      documentName: chunks[i].documentName,
+      sourceType: chunks[i].sourceType,
+      metadata: chunks[i].metadata,
       createdAt: Date.now()
     }))
 
@@ -255,7 +262,7 @@ export class UnifiedStore {
 
     // 2. Extract unique document IDs
     const documentIds = Array.from(
-      new Set(results.map((r) => r.document_id).filter(Boolean))
+      new Set(results.map((r) => r.documentId).filter(Boolean))
     ) as string[]
     if (documentIds.length === 0) return results
 
@@ -284,7 +291,7 @@ export class UnifiedStore {
     // 5. Attach document info to results
     return results.map((item) => ({
       ...item,
-      document: item.document_id ? docMap.get(item.document_id) : undefined
+      document: item.documentId ? docMap.get(item.documentId) : undefined
     }))
   }
 
@@ -299,7 +306,7 @@ export class UnifiedStore {
 
     // Simple keyword matching for now
     const kw = trimmed.replace(/'/g, "''")
-    return `(text LIKE '%${kw}%' OR document_name LIKE '%${kw}%')`
+    return `(text LIKE '%${kw}%' OR documentName LIKE '%${kw}%')`
   }
 
   /**
@@ -379,8 +386,10 @@ export class UnifiedStore {
     const pageItems = rows.map((item) => ({
       id: item.id,
       text: item.text,
-      document_name: item.document_name,
-      document_id: item.document_id,
+      documentName: item.documentName,
+      documentId: item.documentId,
+      sourceType: item.sourceType,
+      metadata: item.metadata,
       createdAt: Number(item.createdAt),
       vector: Array.isArray(item.vector)
         ? (item.vector as number[])

@@ -7,6 +7,10 @@ import type { SearchResult, DocumentListResponse } from '../types/store'
 import path from 'path'
 import fs from 'fs'
 import { DOCUMENTS_PATH } from '../utils/paths'
+import { Jieba } from '@node-rs/jieba'
+import { dict } from '@node-rs/jieba/dict'
+
+const jieba = Jieba.withDict(dict)
 
 export function registerHandlers(services: {
   ingestionService: IngestionService
@@ -71,8 +75,12 @@ export function registerHandlers(services: {
       const chunks = allChunkVectors.map((_, i) => ({
         text: allSplitDocs[i].pageContent,
         id: uuidv4(),
-        document_id: documentId,
-        document_name: filename
+        documentId: documentId,
+        documentName: filename,
+        sourceType: 'file',
+        metadata: {
+          page: allSplitDocs[i].metadata.loc?.pageNumber || 1
+        }
       }))
 
       await unifiedStore.addChunks({
@@ -94,18 +102,22 @@ export function registerHandlers(services: {
 
       const results = await unifiedStore.search(queryVector, query, 5)
 
-      const noVectorResults = results.map((item) => {
-        const newItem = {
-          ...item
-        }
-        delete (newItem as any).vector
+      const tokens = jieba.cutForSearch(query, true)
+
+      const finalResults = results.map((item) => {
+        // Only keep serializable data
+        const newItem = { ...item }
+        delete newItem.vector
         return newItem
       })
-      console.log('🔎 [SEARCH] RESULTS:', noVectorResults)
-      return noVectorResults
+
+      return {
+        results: finalResults,
+        tokens
+      }
     } catch (error: any) {
       console.error('❌ [SEARCH] ERROR:', error)
-      return []
+      throw error
     }
   })
 
