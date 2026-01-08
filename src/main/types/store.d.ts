@@ -54,6 +54,7 @@ export interface SearchResult {
   createdAt?: number
   _score?: number
   _relevance_score?: number
+  document?: DocumentRecord
 }
 
 export interface DocumentListItem {

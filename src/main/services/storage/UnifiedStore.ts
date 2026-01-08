@@ -124,13 +124,17 @@ export class UnifiedStore {
             })
           }
         }
+      },
+      {
+        name: this.TABLE_DOCUMENT,
+        schema: new arrow.Schema([
+          new arrow.Field('id', new arrow.Utf8()),
+          new arrow.Field('name', new arrow.Utf8()),
+          new arrow.Field('sourceType', new arrow.Utf8()),
+          new arrow.Field('filePath', new arrow.Utf8(), true),
+          new arrow.Field('createdAt', new arrow.Int64())
+        ])
       }
-      // Add more table configurations here as needed
-      // {
-      //   name: this.TABLE_METADATA,
-      //   schema: new arrow.Schema([...]),
-      //   ...
-      // }
     ]
   }
 
@@ -235,6 +239,52 @@ export class UnifiedStore {
     return results.map((item) => ({
       ...item,
       createdAt: Number(item.createdAt)
+    }))
+  }
+
+  public async search(queryVector: Float32Array, query: string, limit = 50) {
+    if (this.status !== ServiceStatus.READY) {
+      throw new Error(
+        `UnifiedStore is not ready. Current status: ${this.status}. Please wait for initialization.`
+      )
+    }
+
+    // 1. Get hybrid search results
+    const results = await this.hybridSearch(queryVector, query, limit)
+    if (results.length === 0) return []
+
+    // 2. Extract unique document IDs
+    const documentIds = Array.from(
+      new Set(results.map((r) => r.document_id).filter(Boolean))
+    ) as string[]
+    if (documentIds.length === 0) return results
+
+    // 3. Query documents details
+    // We check if the document table exists first to be safe, though it should exist if initialized
+    const tableNames = await this.db!.tableNames()
+    if (!tableNames.includes(this.TABLE_DOCUMENT)) return results
+
+    const docTable = await this.db!.openTable(this.TABLE_DOCUMENT)
+
+    // Construct SQL-like IN clause
+    const whereClause = `id IN (${documentIds.map((id) => `'${id}'`).join(',')})`
+    const documents = await docTable.query().where(whereClause).toArray()
+
+    // 4. Map documents by ID
+    const docMap = new Map(
+      documents.map((d) => [
+        d.id,
+        {
+          ...d,
+          createdAt: Number(d.createdAt)
+        }
+      ])
+    )
+
+    // 5. Attach document info to results
+    return results.map((item) => ({
+      ...item,
+      document: item.document_id ? docMap.get(item.document_id) : undefined
     }))
   }
 
