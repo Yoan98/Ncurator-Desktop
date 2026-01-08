@@ -17,12 +17,29 @@ export interface TableConfig {
 }
 
 /**
+ * Document source type
+ */
+export type DocumentSourceType = 'file' | 'web'
+
+/**
+ * Document record
+ */
+export interface DocumentRecord {
+  id: string
+  name: string
+  sourceType: DocumentSourceType
+  filePath?: string
+  createdAt: number
+}
+
+/**
  * Document chunk input for indexing
  */
 export interface ChunkInput {
   text: string
   id: string
-  filename: string
+  document_id: string
+  document_name: string
 }
 
 /**
@@ -31,7 +48,8 @@ export interface ChunkInput {
 export interface SearchResult {
   id: string
   text: string
-  filename: string
+  document_name: string
+  document_id?: string
   _distance?: number
   createdAt?: number
   _score?: number
@@ -41,8 +59,8 @@ export interface SearchResult {
 export interface DocumentListItem {
   id: string
   text: string
-  tokenizedText: string
-  filename: string
+  document_name: string
+  document_id?: string
   createdAt?: number
   vector: number[]
 }

@@ -4,6 +4,9 @@ import { EmbeddingService } from '../services/vector/EmbeddingService'
 import { UnifiedStore } from '../services/storage/UnifiedStore'
 import { v4 as uuidv4 } from 'uuid'
 import type { SearchResult, DocumentListResponse } from '../types/store'
+import path from 'path'
+import fs from 'fs'
+import { DOCUMENTS_PATH } from '../utils/paths'
 
 export function registerHandlers(services: {
   ingestionService: IngestionService
@@ -15,6 +18,30 @@ export function registerHandlers(services: {
   ipcMain.handle('ingest-file', async (_event, filePath: string, filename: string) => {
     try {
       console.log('📄 [INGEST-FILE] FILENAME:', filename)
+
+      const documentId = uuidv4()
+      const docsDir = DOCUMENTS_PATH
+      // Ensure directory exists
+      if (!fs.existsSync(docsDir)) {
+        fs.mkdirSync(docsDir, { recursive: true })
+      }
+
+      // Generate saved file path (using ID to avoid collisions, or keeping filename)
+      // Strategy: documentId_filename to ensure uniqueness while keeping readability
+      const savedFileName = `${filename}_${documentId}`
+      const savedFilePath = path.join(docsDir, savedFileName)
+
+      console.log('💾 [INGEST-FILE] COPYING FILE TO:', savedFilePath)
+      fs.copyFileSync(filePath, savedFilePath)
+
+      console.log('📝 [INGEST-FILE] ADDING DOCUMENT RECORD')
+      await unifiedStore.addDocument({
+        id: documentId,
+        name: filename,
+        sourceType: 'file',
+        filePath: savedFilePath,
+        createdAt: Date.now()
+      })
 
       console.log('🔧 [INGEST-FILE] STEP 1: SPLIT DOCS')
       // 1. Load and Split
@@ -44,7 +71,8 @@ export function registerHandlers(services: {
       const chunks = allChunkVectors.map((_, i) => ({
         text: allSplitDocs[i].pageContent,
         id: uuidv4(),
-        filename: filename
+        document_id: documentId,
+        document_name: filename
       }))
 
       await unifiedStore.addChunks({
@@ -70,7 +98,7 @@ export function registerHandlers(services: {
         const newItem = {
           ...item
         }
-        delete newItem.vector
+        delete (newItem as any).vector
         return newItem
       })
       console.log('🔎 [SEARCH] RESULTS:', noVectorResults)

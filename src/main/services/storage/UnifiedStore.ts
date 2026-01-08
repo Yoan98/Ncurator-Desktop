@@ -2,10 +2,13 @@ import * as lancedb from '@lancedb/lancedb'
 import { LANCE_DB_PATH } from '../../utils/paths'
 import fs from 'fs'
 import * as arrow from 'apache-arrow'
-import type { TableConfig, ChunkInput, DocumentListResponse } from '../../types/store'
-import { Jieba } from '@node-rs/jieba'
-import { dict } from '@node-rs/jieba/dict'
-import { ZH_STOP_WORDS } from '../../utils/constant'
+import type {
+  TableConfig,
+  ChunkInput,
+  DocumentListResponse,
+  DocumentRecord
+} from '../../types/store'
+
 enum ServiceStatus {
   UNINITIALIZED = 'uninitialized',
   INITIALIZING = 'initializing',
@@ -23,12 +26,9 @@ export class UnifiedStore {
 
   // Table name constants
   private readonly TABLE_CHUNK = 'chunk'
-  // Add more table names here as needed
-  // private readonly TABLE_METADATA = 'metadata'
-  // private readonly TABLE_COLLECTIONS = 'collections'
+  private readonly TABLE_DOCUMENT = 'document'
 
   private reranker: lancedb.rerankers.RRFReranker | null = null
-  private jieba: Jieba | null = null
 
   private status: ServiceStatus = ServiceStatus.UNINITIALIZED
 
@@ -90,27 +90,6 @@ export class UnifiedStore {
     return this.reranker
   }
 
-  private getJieba(): Jieba {
-    if (this.jieba) return this.jieba
-    this.jieba = Jieba.withDict(dict)
-    return this.jieba
-  }
-
-  private containsChinese(text: string): boolean {
-    return /[\u4E00-\u9FFF]/.test(text)
-  }
-
-  private segmentChinese(text: string, isCutMore: boolean = true): string {
-    const j = this.getJieba()
-    const tokens = isCutMore ? j.cutForSearch(text, false) : j.cut(text, false)
-    return tokens.filter((token) => !ZH_STOP_WORDS.includes(token)).join(' ')
-  }
-
-  private tokenize(text: string, isCutMore: boolean = true): string {
-    if (!text) return text
-    return this.containsChinese(text) ? this.segmentChinese(text, isCutMore) : text
-  }
-
   /**
    * Define all table configurations with Arrow schemas
    */
@@ -125,9 +104,9 @@ export class UnifiedStore {
             new arrow.FixedSizeList(768, new arrow.Field('item', new arrow.Float32()))
           ),
           new arrow.Field('text', new arrow.Utf8()),
-          new arrow.Field('tokenizedText', new arrow.Utf8()),
           new arrow.Field('id', new arrow.Utf8()),
-          new arrow.Field('filename', new arrow.Utf8()),
+          new arrow.Field('document_id', new arrow.Utf8()),
+          new arrow.Field('document_name', new arrow.Utf8()),
           new arrow.Field('createdAt', new arrow.Int64())
         ]),
         // 暂时先不使用向量索引
@@ -136,7 +115,7 @@ export class UnifiedStore {
         //   options: { config: lancedb.Index.hnswSq() }
         // },
         ftsIndexConfig: {
-          column: 'tokenizedText',
+          column: 'text',
           options: {
             config: lancedb.Index.fts({
               baseTokenizer: 'ngram',
@@ -184,7 +163,24 @@ export class UnifiedStore {
       }
     } else {
       console.log(`Table ${config.name} already exists`)
+      // Check if schema matches and update if necessary - logic omitted for simplicity
+      // In a real app we might want to migrate schema
     }
+  }
+
+  /**
+   * Add a document record
+   */
+  public async addDocument(doc: DocumentRecord): Promise<void> {
+    if (this.status !== ServiceStatus.READY) {
+      throw new Error(
+        `UnifiedStore is not ready. Current status: ${this.status}. Please wait for initialization.`
+      )
+    }
+
+    const table = await this.db!.openTable(this.TABLE_DOCUMENT)
+    // @ts-ignore 类型没问题
+    await table.add([doc])
   }
 
   /**
@@ -206,9 +202,9 @@ export class UnifiedStore {
     const data = vectors.map((vector, i) => ({
       vector: Array.from(vector),
       text: chunks[i].text,
-      tokenizedText: chunks[i].text,
       id: chunks[i].id,
-      filename: chunks[i].filename,
+      document_id: chunks[i].document_id,
+      document_name: chunks[i].document_name,
       createdAt: Date.now()
     }))
 
@@ -250,20 +246,10 @@ export class UnifiedStore {
         trimmed
       )
     if (isSql) return trimmed
+
+    // Simple keyword matching for now
     const kw = trimmed.replace(/'/g, "''")
-    if (this.containsChinese(kw)) {
-      const seg = this.segmentChinese(kw)
-      const tokens = seg.split(/\s+/).filter(Boolean)
-      if (tokens.length === 0) {
-        return `(text LIKE '%${kw}%' OR filename LIKE '%${kw}%')`
-      }
-      const parts = tokens.map((t) => {
-        const e = t.replace(/'/g, "''")
-        return `(text LIKE '%${e}%' OR filename LIKE '%${e}%')`
-      })
-      return parts.join(' OR ')
-    }
-    return `(text LIKE '%${kw}%' OR filename LIKE '%${kw}%')`
+    return `(text LIKE '%${kw}%' OR document_name LIKE '%${kw}%')`
   }
 
   /**
@@ -280,13 +266,7 @@ export class UnifiedStore {
     if (!tableNames.includes(this.TABLE_CHUNK)) return []
 
     const table = await this.db!.openTable(this.TABLE_CHUNK)
-    const results = await table
-      .query()
-      .fullTextSearch(query, {
-        columns: ['tokenizedText']
-      })
-      .limit(limit)
-      .toArray()
+    const results = await table.query().fullTextSearch(query).limit(limit).toArray()
 
     return results.map((item) => ({
       ...item,
@@ -349,8 +329,8 @@ export class UnifiedStore {
     const pageItems = rows.map((item) => ({
       id: item.id,
       text: item.text,
-      tokenizedText: item.tokenizedText,
-      filename: item.filename,
+      document_name: item.document_name,
+      document_id: item.document_id,
       createdAt: Number(item.createdAt),
       vector: Array.isArray(item.vector)
         ? (item.vector as number[])
@@ -388,7 +368,10 @@ export class UnifiedStore {
    * Convenience: drop the documents table
    */
   public async dropDocumentsTable(): Promise<{ existed: boolean }> {
-    return this.dropTable(this.TABLE_CHUNK)
+    // Drop both chunk and document tables
+    const chunkRes = await this.dropTable(this.TABLE_CHUNK)
+    const docRes = await this.dropTable(this.TABLE_DOCUMENT)
+    return { existed: chunkRes.existed || docRes.existed }
   }
 
   /**
