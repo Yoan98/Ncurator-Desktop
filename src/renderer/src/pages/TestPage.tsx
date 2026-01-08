@@ -1,16 +1,16 @@
 import React, { useEffect, useState } from 'react'
-import type { RendererSearchResult, RendererDocumentItem } from '../types/global'
+import type { SearchResult, DocumentListItem } from '../../../shared/types'
 import { Input, Button, Upload, message, List, Card, Typography, Segmented, Table, Modal } from 'antd'
 import { UploadOutlined } from '@ant-design/icons'
 
 const { Paragraph } = Typography
 
 function TestPage(): React.JSX.Element {
-  const [searchResults, setSearchResults] = useState<RendererSearchResult[]>([])
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [loading, setLoading] = useState(false)
   const [mode, setMode] = useState<'ftsSearch' | 'vectorSearch' | 'hybridSearch'>('hybridSearch')
   const [view, setView] = useState<'search' | 'data'>('search')
-  const [dataItems, setDataItems] = useState<RendererDocumentItem[]>([])
+  const [dataItems, setDataItems] = useState<DocumentListItem[]>([])
   const [dataKeyword, setDataKeyword] = useState<string>('')
   const [dataPage, setDataPage] = useState<number>(1)
   const [dataPageSize, setDataPageSize] = useState<number>(10)
@@ -57,7 +57,7 @@ function TestPage(): React.JSX.Element {
     if (!value.trim()) return
     setLoading(true)
     try {
-      let results: RendererSearchResult[] = []
+      let results: SearchResult[] = []
       if (mode === 'ftsSearch') {
         results = await window.api.ftsSearch(value)
       } else if (mode === 'vectorSearch') {
@@ -181,12 +181,12 @@ function TestPage(): React.JSX.Element {
             renderItem={(item) => (
               <List.Item>
                 <Card
-                  title={<span className="text-sm text-gray-800">{item.filename}</span>}
+                  title={<span className="text-sm text-gray-800">{item.documentName}</span>}
                   className="w-full shadow-sm hover:shadow-md transition-shadow"
                 >
                   <Paragraph
                     ellipsis={{ rows: 3, expandable: true, symbol: 'more' }}
-                    onClick={() => openTextModal(item.text, item.filename)}
+                    onClick={() => openTextModal(item.text, item.documentName)}
                     style={{ cursor: 'pointer' }}
                   >
                     {item.text}
@@ -227,7 +227,7 @@ function TestPage(): React.JSX.Element {
         </div>
       ) : (
         <div className="flex-1 overflow-auto">
-          <Table<RendererDocumentItem>
+          <Table<DocumentListItem>
             dataSource={dataItems}
             rowKey="id"
             loading={dataLoading}
@@ -247,33 +247,19 @@ function TestPage(): React.JSX.Element {
                 render: (text: string) => <Typography.Text copyable={{ text }}>{text}</Typography.Text>
               },
               {
-                title: 'Filename',
-                dataIndex: 'filename',
-                key: 'filename',
+                title: 'Document Name',
+                dataIndex: 'documentName',
+                key: 'documentName',
                 ellipsis: true
               },
               {
                 title: 'Text',
                 dataIndex: 'text',
                 key: 'text',
-                render: (text: string, record: RendererDocumentItem) => (
+                render: (text: string, record: DocumentListItem) => (
                   <Paragraph
                     ellipsis={{ rows: 2, expandable: true, symbol: 'more' }}
-                    onClick={() => openTextModal(text, record.filename)}
-                    style={{ cursor: 'pointer' }}
-                  >
-                    {text}
-                  </Paragraph>
-                )
-              },
-              {
-                title: 'TokenizedText',
-                dataIndex: 'tokenizedText',
-                key: 'tokenizedText',
-                render: (text: string, record: RendererDocumentItem) => (
-                  <Paragraph
-                    ellipsis={{ rows: 2, expandable: true, symbol: 'more' }}
-                    onClick={() => openTextModal(text, record.filename)}
+                    onClick={() => openTextModal(text, record.documentName)}
                     style={{ cursor: 'pointer' }}
                   >
                     {text}
@@ -290,7 +276,7 @@ function TestPage(): React.JSX.Element {
                 title: 'Vector',
                 dataIndex: 'vector',
                 key: 'vector',
-                render: (_: number[], record: RendererDocumentItem) => (
+                render: (_: number[], record: DocumentListItem) => (
                   <Typography.Text copyable={{ text: JSON.stringify(record.vector) }}>...</Typography.Text>
                 )
               }

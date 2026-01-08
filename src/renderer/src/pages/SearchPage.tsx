@@ -5,7 +5,7 @@ import { Document, Page, pdfjs } from 'react-pdf'
 import DocViewer, { DocViewerRenderers } from 'react-doc-viewer'
 import 'react-pdf/dist/esm/Page/AnnotationLayer.css'
 import 'react-pdf/dist/esm/Page/TextLayer.css'
-import type { SearchResult } from '../types/global'
+import type { SearchResult } from '../../../shared/types'
 
 // Configure PDF worker
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(

@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { SearchResult, DocumentListResponse } from '../main/types/store'
+import type { SearchResult, DocumentListResponse } from '../shared/types'
 
 // Custom APIs for renderer
 const api = {
