@@ -26,7 +26,7 @@ function App(): React.JSX.Element {
           Button: {
             primaryShadow: 'none'
           },
-          
+
         }
       }}
     >
@@ -44,13 +44,13 @@ const MainLayout: React.FC = () => {
 
   return (
     <Layout className="min-h-screen bg-[#fafafa]">
-      <Header className="bg-[#fafafa] px-4 flex items-center justify-between sticky top-0 z-10 h-16 border-b border-gray-200">
+      <Header className="!bg-[#fafafa] px-4 flex items-center justify-between sticky top-0 z-10 h-16 border-b border-gray-200">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/')}>
-            <div className="w-8 h-8 bg-[#404040] rounded-md flex items-center justify-center text-white font-bold text-lg">
+            <div className="w-8 h-8 rounded-md flex items-center justify-center text-white font-bold text-lg">
               <img src={brandIcon} alt="N" className="w-6 h-6" />
             </div>
-            <span className="font-semibold text-lg tracking-tight text-[#404040]">NCurator</span>
+            <span className="font-semibold text-lg tracking-tight text-[#404040]">Ncurator</span>
           </div>
 
           {!isSearchPage && (
@@ -63,7 +63,7 @@ const MainLayout: React.FC = () => {
           )}
         </div>
 
-        
+
         <div className="flex items-center gap-3">
           <Button
             icon={<SettingOutlined />}
