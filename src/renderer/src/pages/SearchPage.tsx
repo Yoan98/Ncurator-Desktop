@@ -3,8 +3,8 @@ import { Input, List, Card, Modal, Empty, Typography, Tag, Button } from 'antd'
 import { SearchOutlined, FileTextOutlined, FilePdfOutlined } from '@ant-design/icons'
 import { Document, Page, pdfjs } from 'react-pdf'
 import DocViewer, { DocViewerRenderers } from 'react-doc-viewer'
-import 'react-pdf/dist/esm/Page/AnnotationLayer.css'
-import 'react-pdf/dist/esm/Page/TextLayer.css'
+import 'react-pdf/dist/Page/AnnotationLayer.css'
+import 'react-pdf/dist/Page/TextLayer.css'
 import type { SearchResult } from '../../../shared/types'
 
 // Configure PDF worker
