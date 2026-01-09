@@ -15,15 +15,15 @@
 - **UI Kit**: Ant Design **v5**
 - **Styling**: Tailwind CSS **v4** + Less
 - **UI Design**:
-  - **Style**: Minimalist Black & White (Monochrome).
-  - **Typography**: Clean, sans-serif fonts (Inter or System UI) for readability.
-  - **Layout**: Spacious, card-based layout for search results.
-  - **Elements**: 
-    - High contrast borders and buttons.
-    - Subtle shadows for depth.
-    - Native desktop application feel.
-  - **Theme**: Light mode default, dark mode support (optional but good practice).
-  - **Goal**: A refined, professional local knowledge base aesthetics.
+  - **风格**: 极简黑白灰（单色调），主色调为 `#404040`。
+  - **排版**: 清晰的无衬线字体（Inter 或 System UI），注重可读性。
+  - **布局**: 宽敞的卡片式布局，用于展示搜索结果。
+  - **元素**: 
+    - 高对比度的边框和按钮。
+    - 微妙的阴影以增加深度感。
+    - 原生桌面应用的感觉。
+  - **主题**: 默认浅色模式，支持深色模式（可选但推荐）。
+  - **目标**: 精致、专业的本地知识库美学。
 
 ### 后端逻辑 (Main Process)
 - **Orchestration**: LangChain JS (Core/Community/TextSplitters)

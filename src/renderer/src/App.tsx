@@ -1,9 +1,9 @@
 import React from 'react'
-import { HashRouter, Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom'
+import { HashRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom'
 import { Layout, ConfigProvider, theme, Button, Segmented, Avatar } from 'antd'
-import { 
-  ArrowLeftOutlined, 
-  SettingOutlined, 
+import {
+  ArrowLeftOutlined,
+  SettingOutlined,
   TranslationOutlined,
   SearchOutlined,
   MessageOutlined
@@ -19,8 +19,8 @@ function App(): React.JSX.Element {
       theme={{
         algorithm: theme.defaultAlgorithm,
         token: {
-          colorPrimary: '#000000',
-          colorLink: '#000000',
+          colorPrimary: '#404040',
+          colorLink: '#404040',
           borderRadius: 6,
           fontFamily: 'Inter, system-ui, sans-serif'
         },
@@ -29,7 +29,7 @@ function App(): React.JSX.Element {
             primaryShadow: 'none'
           },
           Segmented: {
-            itemSelectedBg: '#000000',
+            itemSelectedBg: '#404040',
             itemSelectedColor: '#ffffff',
             trackBg: '#f5f5f5'
           }
@@ -53,16 +53,16 @@ const MainLayout: React.FC = () => {
       <Header className="bg-white px-4 flex items-center justify-between sticky top-0 z-10 h-16 border-none">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/')}>
-            <div className="w-8 h-8 bg-black rounded-md flex items-center justify-center text-white font-bold text-lg">
+            <div className="w-8 h-8 bg-[#404040] rounded-md flex items-center justify-center text-white font-bold text-lg">
               <img src="/src/assets/icon.png" alt="N" className="w-6 h-6 invert filter brightness-0 invert" onError={(e) => {e.currentTarget.style.display='none'; e.currentTarget.parentElement!.innerText='N'}} />
             </div>
-            <span className="font-semibold text-lg tracking-tight text-black">NCurator</span>
+            <span className="font-semibold text-lg tracking-tight text-[#404040]">NCurator</span>
           </div>
-          
+
           {!isSearchPage && (
-            <Button 
-              type="text" 
-              icon={<ArrowLeftOutlined />} 
+            <Button
+              type="text"
+              icon={<ArrowLeftOutlined />}
               onClick={() => navigate(-1)}
               className="ml-2"
             />
@@ -87,14 +87,14 @@ const MainLayout: React.FC = () => {
             <span className="text-sm">zh-CN</span>
             <TranslationOutlined className="text-xs" />
           </div>
-          <Button 
-            icon={<SettingOutlined />} 
+          <Button
+            icon={<SettingOutlined />}
             onClick={() => navigate('/import')} // Temporary link to Import page via Settings for now
           />
-          <Avatar 
-            shape="square" 
-            size="small" 
-            className="bg-white border border-gray-200 text-black font-medium"
+          <Avatar
+            shape="square"
+            size="small"
+            className="bg-white border border-gray-200 text-[#404040] font-medium"
           >
             S
           </Avatar>
