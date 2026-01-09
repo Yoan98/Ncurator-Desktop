@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
-import { Input, List, Card, Modal, Empty, Typography, Tag, Button } from 'antd'
-import { SearchOutlined, FileTextOutlined, FilePdfOutlined } from '@ant-design/icons'
+import { Input, List, Card, Modal, Empty, Typography, Tag, Button, Switch, Dropdown, Space } from 'antd'
+import { FileTextOutlined, FilePdfOutlined, SendOutlined, DownOutlined } from '@ant-design/icons'
 import { Document, Page, pdfjs } from 'react-pdf'
 import DocViewer, { DocViewerRenderers } from 'react-doc-viewer'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
@@ -13,7 +13,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   import.meta.url
 ).toString()
 
-const { Search } = Input
+const { TextArea } = Input
 const { Title, Paragraph } = Typography
 
 const SearchPage: React.FC = () => {
@@ -22,6 +22,8 @@ const SearchPage: React.FC = () => {
   const [tokens, setTokens] = useState<string[]>([])
   const [previewVisible, setPreviewVisible] = useState(false)
   const [currentDoc, setCurrentDoc] = useState<SearchResult | null>(null)
+  const [searchValue, setSearchValue] = useState('')
+  const [aiAnswerEnabled, setAiAnswerEnabled] = useState(false)
 
   const handleSearch = async (value: string) => {
     if (!value.trim()) return
@@ -72,10 +74,6 @@ const SearchPage: React.FC = () => {
     if (!currentDoc || !currentDoc.document?.filePath) return <Empty description="Document not found" />
 
     const filePath = currentDoc.document.filePath
-    // In Electron, we might need to use 'file://' protocol or handle it via a custom protocol if needed.
-    // Usually local paths work if webSecurity is disabled or via `file://`.
-    // Since we are in Electron renderer with nodeIntegration: false (default in electron-toolkit),
-    // we might need to convert path to URL.
     const fileUrl = `file://${filePath}`
 
     const isPdf = filePath.toLowerCase().endsWith('.pdf')
@@ -112,52 +110,100 @@ const SearchPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-white text-black p-8 font-sans">
-      <div className="max-w-5xl mx-auto">
-        <div className="mb-12 text-center">
-          <Title level={2} className="mb-8 font-light tracking-tight">
-            Knowledge Base
-          </Title>
-          <Search
-            placeholder="Search documents..."
-            allowClear
-            enterButton={<Button type="primary" size="large" icon={<SearchOutlined />}>Search</Button>}
-            size="large"
-            onSearch={handleSearch}
-            loading={loading}
-            className="max-w-2xl mx-auto custom-search"
+    <div className="min-h-screen bg-white text-black p-4 font-sans">
+      <div className="max-w-3xl mx-auto pt-8">
+        {/* Search Box */}
+        <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 shadow-sm mb-6 focus-within:ring-2 focus-within:ring-black/5 transition-all">
+          <TextArea 
+             placeholder="基于您的资源搜索..." 
+             autoSize={{ minRows: 2, maxRows: 6 }}
+             bordered={false}
+             className="text-lg bg-transparent mb-4 placeholder:text-gray-400 !px-0"
+             style={{ resize: 'none' }}
+             value={searchValue}
+             onChange={e => setSearchValue(e.target.value)}
+             onKeyDown={e => {
+               if(e.key === 'Enter' && !e.shiftKey) {
+                 e.preventDefault();
+                 handleSearch(searchValue);
+               }
+             }}
           />
+          <div className="flex justify-between items-center">
+            <Dropdown menu={{ items: [{ key: 'all', label: '全部知识库' }] }}>
+              <Button type="text" className="text-gray-500 hover:bg-gray-200/50 px-2">
+                <Space>
+                  全部知识库
+                  <DownOutlined className="text-xs" />
+                </Space>
+              </Button>
+            </Dropdown>
+            
+            <Button 
+              type="primary" 
+              shape="circle" 
+              icon={<SendOutlined />} 
+              size="large"
+              className="bg-black hover:bg-gray-800 border-none shadow-none flex items-center justify-center"
+              onClick={() => handleSearch(searchValue)}
+              loading={loading}
+            />
+          </div>
         </div>
 
-        <List
-          grid={{ gutter: 16, column: 1 }}
-          dataSource={results}
-          loading={loading}
-          renderItem={(item) => (
-            <List.Item>
-              <Card
-                hoverable
-                className="border border-gray-200 shadow-sm hover:shadow-md transition-shadow"
-                onClick={() => openPreview(item)}
-              >
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2 text-gray-500 text-sm">
-                      {item.sourceType === 'file' ? <FileTextOutlined /> : <FilePdfOutlined />}
-                      <span className="font-medium text-black">{item.documentName}</span>
+        {/* AI Answer Toggle */}
+        <div className="border border-gray-200 rounded-lg p-4 mb-8 flex items-center justify-between shadow-sm">
+          <span className="font-bold text-base">AI 回答</span>
+          <Switch checked={aiAnswerEnabled} onChange={setAiAnswerEnabled} />
+        </div>
+
+        {/* Results */}
+        <div>
+          <Title level={4} className="mb-4">搜索结果</Title>
+          <div className="min-h-[200px]">
+             {results.length > 0 ? (
+                <List
+                grid={{ gutter: 16, column: 1 }}
+                dataSource={results}
+                loading={loading}
+                renderItem={(item) => (
+                    <List.Item>
+                    <Card
+                        hoverable
+                        className="border border-gray-200 shadow-sm hover:shadow-md transition-shadow"
+                        onClick={() => openPreview(item)}
+                    >
+                        <div className="flex flex-col gap-2">
+                        <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2 text-gray-500 text-sm">
+                            {item.sourceType === 'file' ? <FileTextOutlined /> : <FilePdfOutlined />}
+                            <span className="font-medium text-black">{item.documentName}</span>
+                            </div>
+                            {item.metadata?.page && (
+                            <Tag color="default">Page {item.metadata.page}</Tag>
+                            )}
+                        </div>
+                        <Paragraph className="text-gray-600 mb-0" ellipsis={{ rows: 3, expandable: false }}>
+                            {highlightText(item.text, tokens)}
+                        </Paragraph>
+                        </div>
+                    </Card>
+                    </List.Item>
+                )}
+                />
+             ) : (
+               !loading && (
+                 <div className="flex flex-col items-center justify-center py-20 opacity-50">
+                    <div className="w-24 h-24 bg-gray-100 rounded-lg mb-4 flex items-center justify-center text-4xl text-gray-300">
+                        <FileTextOutlined />
                     </div>
-                    {item.metadata?.page && (
-                      <Tag color="default">Page {item.metadata.page}</Tag>
-                    )}
-                  </div>
-                  <Paragraph className="text-gray-600 mb-0" ellipsis={{ rows: 3, expandable: false }}>
-                    {highlightText(item.text, tokens)}
-                  </Paragraph>
-                </div>
-              </Card>
-            </List.Item>
-          )}
-        />
+                    <span className="text-gray-400">暂无数据</span>
+                 </div>
+               )
+             )}
+             {loading && <div className="text-center py-10">Searching...</div>}
+          </div>
+        </div>
 
         <Modal
           title={currentDoc?.documentName}
@@ -165,7 +211,7 @@ const SearchPage: React.FC = () => {
           onCancel={() => setPreviewVisible(false)}
           width="90%"
           style={{ top: 20 }}
-          bodyStyle={{ height: '80vh', overflow: 'hidden', padding: 0 }}
+          styles={{ body: { height: '80vh', overflow: 'hidden', padding: 0 } }}
           footer={null}
         >
           {renderPreview()}

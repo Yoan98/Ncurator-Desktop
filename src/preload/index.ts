@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { SearchResult, DocumentListResponse } from '../shared/types'
+import type { SearchResult, DocumentListResponse, ChunkListResponse } from '../shared/types'
 
 // Custom APIs for renderer
 const api = {
@@ -18,6 +18,11 @@ const api = {
     page: number
     pageSize: number
   }): Promise<DocumentListResponse> => ipcRenderer.invoke('list-documents', payload),
+  listChunks: (payload: {
+    keyword?: string
+    page: number
+    pageSize: number
+  }): Promise<ChunkListResponse> => ipcRenderer.invoke('list-chunks', payload),
   dropDocumentsTable: (): Promise<{ success: boolean; existed?: boolean; error?: string }> =>
     ipcRenderer.invoke('drop-documents-table')
 }

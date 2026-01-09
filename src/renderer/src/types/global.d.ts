@@ -1,5 +1,10 @@
 import type { ElectronAPI } from '@electron-toolkit/preload'
-import type { SearchResult, DocumentListItem, SearchResponse } from '../../../shared/types'
+import type {
+  SearchResult,
+  DocumentRecord,
+  SearchResponse,
+  ChunkListItem
+} from '../../../shared/types'
 
 declare global {
   interface Window {
@@ -14,7 +19,12 @@ declare global {
         keyword?: string
         page: number
         pageSize: number
-      }) => Promise<{ items: DocumentListItem[]; total: number }>
+      }) => Promise<{ items: DocumentRecord[]; total: number }>
+      listChunks: (payload: {
+        keyword?: string
+        page: number
+        pageSize: number
+      }) => Promise<{ items: ChunkListItem[]; total: number }>
       dropDocumentsTable: () => Promise<{ success: boolean; existed?: boolean; error?: string }>
     }
   }

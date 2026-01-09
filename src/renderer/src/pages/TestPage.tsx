@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
-import type { SearchResult, DocumentListItem } from '../../../shared/types'
-import { Input, Button, Upload, message, List, Card, Typography, Segmented, Table, Modal } from 'antd'
-import { UploadOutlined } from '@ant-design/icons'
+import type { SearchResult, DocumentRecord, ChunkListItem } from '../../../shared/types'
+import { Input, Button, Upload, message, List, Card, Typography, Segmented, Table, Modal, Space, Tag } from 'antd'
+import { UploadOutlined, FileTextOutlined, BlockOutlined, SearchOutlined } from '@ant-design/icons'
 
 const { Paragraph } = Typography
 
@@ -9,16 +9,29 @@ function TestPage(): React.JSX.Element {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [loading, setLoading] = useState(false)
   const [mode, setMode] = useState<'ftsSearch' | 'vectorSearch' | 'hybridSearch'>('hybridSearch')
-  const [view, setView] = useState<'search' | 'data'>('search')
-  const [dataItems, setDataItems] = useState<DocumentListItem[]>([])
-  const [dataKeyword, setDataKeyword] = useState<string>('')
-  const [dataPage, setDataPage] = useState<number>(1)
-  const [dataPageSize, setDataPageSize] = useState<number>(10)
-  const [dataTotal, setDataTotal] = useState<number>(0)
-  const [dataLoading, setDataLoading] = useState<boolean>(false)
+  
+  const [view, setView] = useState<'search' | 'docs' | 'chunks'>('search')
+  
+  // Documents State
+  const [docItems, setDocItems] = useState<DocumentRecord[]>([])
+  const [docTotal, setDocTotal] = useState<number>(0)
+  const [docLoading, setDocLoading] = useState<boolean>(false)
+  const [docPage, setDocPage] = useState<number>(1)
+  const [docPageSize, setDocPageSize] = useState<number>(10)
+  const [docKeyword, setDocKeyword] = useState<string>('')
+
+  // Chunks State
+  const [chunkItems, setChunkItems] = useState<ChunkListItem[]>([])
+  const [chunkTotal, setChunkTotal] = useState<number>(0)
+  const [chunkLoading, setChunkLoading] = useState<boolean>(false)
+  const [chunkPage, setChunkPage] = useState<number>(1)
+  const [chunkPageSize, setChunkPageSize] = useState<number>(10)
+  const [chunkKeyword, setChunkKeyword] = useState<string>('')
+
   const [detailOpen, setDetailOpen] = useState<boolean>(false)
   const [detailText, setDetailText] = useState<string>('')
   const [detailTitle, setDetailTitle] = useState<string>('')
+  
   const [dropOpen, setDropOpen] = useState<boolean>(false)
   const [dropLoading, setDropLoading] = useState<boolean>(false)
 
@@ -33,8 +46,10 @@ function TestPage(): React.JSX.Element {
       if (res.success) {
         message.success('已删除 document 表')
         setSearchResults([])
-        setDataItems([])
-        setDataTotal(0)
+        setDocItems([])
+        setChunkItems([])
+        setDocTotal(0)
+        setChunkTotal(0)
         setDropOpen(false)
       } else {
         message.error(res.error || '删除失败')
@@ -86,6 +101,9 @@ function TestPage(): React.JSX.Element {
       const result = await window.api.ingestFile(file)
       if (result.success) {
         message.success({ content: `Ingested ${result.count} chunks`, key: 'ingest' })
+        // Refresh lists if active
+        if (view === 'docs') loadDocuments()
+        if (view === 'chunks') loadChunks()
       } else {
         message.error({ content: `Ingestion failed: ${result.error}`, key: 'ingest' })
       }
@@ -96,216 +114,285 @@ function TestPage(): React.JSX.Element {
     return Upload.LIST_IGNORE // Prevent upload
   }
 
-  const loadDocuments = async (page = dataPage, pageSize = dataPageSize, keyword = dataKeyword) => {
-    setDataLoading(true)
+  const loadDocuments = async (page = docPage, pageSize = docPageSize, keyword = docKeyword) => {
+    setDocLoading(true)
     try {
       const res = await window.api.listDocuments({ keyword, page, pageSize })
-      setDataItems(res.items)
-      setDataTotal(res.total)
-      setDataPage(page)
-      setDataPageSize(pageSize)
+      setDocItems(res.items)
+      setDocTotal(res.total)
+      setDocPage(page)
+      setDocPageSize(pageSize)
     } catch (error) {
       console.error(error)
       message.error('Load documents failed')
     } finally {
-      setDataLoading(false)
+      setDocLoading(false)
+    }
+  }
+
+  const loadChunks = async (page = chunkPage, pageSize = chunkPageSize, keyword = chunkKeyword) => {
+    setChunkLoading(true)
+    try {
+      const res = await window.api.listChunks({ keyword, page, pageSize })
+      setChunkItems(res.items)
+      setChunkTotal(res.total)
+      setChunkPage(page)
+      setChunkPageSize(pageSize)
+    } catch (error) {
+      console.error(error)
+      message.error('Load chunks failed')
+    } finally {
+      setChunkLoading(false)
     }
   }
 
   useEffect(() => {
-    if (view === 'data') {
-      loadDocuments(1, dataPageSize, dataKeyword)
+    if (view === 'docs') {
+      loadDocuments(1, docPageSize, docKeyword)
+    } else if (view === 'chunks') {
+      loadChunks(1, chunkPageSize, chunkKeyword)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view])
 
   return (
-    <div className="p-8 max-w-4xl mx-auto h-screen flex flex-col">
-      <h1 className="text-2xl font-bold mb-6 text-gray-800">NCurator Local Search</h1>
+    <div className="p-8 max-w-6xl mx-auto h-screen flex flex-col">
+      <h1 className="text-2xl font-bold mb-6 text-gray-800">NCurator Debug Console</h1>
 
-      <div className="flex gap-4 mb-8">
+      <div className="flex gap-4 mb-6 flex-wrap">
         <Upload beforeUpload={handleUpload} showUploadList={false}>
-          <Button icon={<UploadOutlined />}>Upload Document</Button>
+          <Button icon={<UploadOutlined />}>Upload File</Button>
         </Upload>
 
         <Segmented
           options={[
-            { label: 'Search', value: 'search' },
-            { label: 'Data', value: 'data' }
+            { label: 'Search', value: 'search', icon: <SearchOutlined /> },
+            { label: 'Documents', value: 'docs', icon: <FileTextOutlined /> },
+            { label: 'Chunks', value: 'chunks', icon: <BlockOutlined /> }
           ]}
           value={view}
           onChange={(val) => setView(val as typeof view)}
         />
 
-        <Segmented
-          options={[
-            { label: 'Hybrid', value: 'hybridSearch' },
-            { label: 'FTS', value: 'ftsSearch' },
-            { label: 'Vector', value: 'vectorSearch' }
-          ]}
-          value={mode}
-          onChange={(val) => setMode(val as typeof mode)}
-        />
+        {view === 'search' && (
+          <Segmented
+            options={[
+              { label: 'Hybrid', value: 'hybridSearch' },
+              { label: 'FTS', value: 'ftsSearch' },
+              { label: 'Vector', value: 'vectorSearch' }
+            ]}
+            value={mode}
+            onChange={(val) => setMode(val as typeof mode)}
+          />
+        )}
 
-        <Button danger onClick={handleDropDocuments}>删除 document 表</Button>
+        <div className="flex-1" />
+        
+        <Button danger onClick={handleDropDocuments}>Reset DB</Button>
+      </div>
 
-        {view === 'search' ? (
+      {view === 'search' && (
+        <div className="flex gap-2 mb-4">
           <Input.Search
             placeholder="Search knowledge base..."
             enterButton="Search"
             size="large"
             onSearch={handleSearch}
             loading={loading}
-            className="flex-1"
-          />
-        ) : (
-          <Input.Search
-            placeholder="Filter by keyword..."
-            enterButton="Filter"
-            size="large"
-            onSearch={(v) => {
-              setDataKeyword(v)
-              loadDocuments(1, dataPageSize, v)
-            }}
-            loading={dataLoading}
-            className="flex-1"
-          />
-        )}
-      </div>
-
-      {view === 'search' ? (
-        <div className="flex-1 overflow-auto">
-          <List
-            dataSource={searchResults}
-            rowKey="id"
-            renderItem={(item) => (
-              <List.Item>
-                <Card
-                  title={<span className="text-sm text-gray-800">{item.documentName}</span>}
-                  className="w-full shadow-sm hover:shadow-md transition-shadow"
-                >
-                  <Paragraph
-                    ellipsis={{ rows: 3, expandable: true, symbol: 'more' }}
-                    onClick={() => openTextModal(item.text, item.documentName)}
-                    style={{ cursor: 'pointer' }}
-                  >
-                    {item.text}
-                  </Paragraph>
-                  <div className="text-xs text-gray-500 mt-3 flex flex-wrap gap-4">
-                    <span>ID: {item.id}</span>
-                    <span>
-                      Created:{' '}
-                      {item.createdAt ? new Date(item.createdAt).toLocaleString() : 'N/A'}
-                    </span>
-                    {mode !== 'vectorSearch' && (
-                      <span>
-                        _score:{' '}
-                        {typeof item._score === 'number' ? item._score.toFixed(6) : 'N/A'}
-                      </span>
-                    )}
-                    {mode === 'hybridSearch' && (
-                      <span>
-                        _relevance_score:{' '}
-                        {typeof item._relevance_score === 'number'
-                          ? item._relevance_score.toFixed(6)
-                          : 'N/A'}
-                      </span>
-                    )}
-                    {mode === 'vectorSearch' && (
-                      <span>
-                        _distance:{' '}
-                        {typeof item._distance === 'number'
-                          ? item._distance.toFixed(6)
-                          : 'N/A'}
-                      </span>
-                    )}
-                  </div>
-                </Card>
-              </List.Item>
-            )}
           />
         </div>
-      ) : (
-        <div className="flex-1 overflow-auto">
-          <Table<DocumentListItem>
-            dataSource={dataItems}
+      )}
+
+      {view === 'docs' && (
+        <div className="flex gap-2 mb-4">
+          <Input.Search
+            placeholder="Filter documents by name..."
+            enterButton="Filter"
+            onSearch={(v) => {
+              setDocKeyword(v)
+              loadDocuments(1, docPageSize, v)
+            }}
+            loading={docLoading}
+          />
+        </div>
+      )}
+
+      {view === 'chunks' && (
+        <div className="flex gap-2 mb-4">
+          <Input.Search
+            placeholder="Filter chunks by content..."
+            enterButton="Filter"
+            onSearch={(v) => {
+              setChunkKeyword(v)
+              loadChunks(1, chunkPageSize, v)
+            }}
+            loading={chunkLoading}
+          />
+        </div>
+      )}
+
+      <div className="flex-1 overflow-hidden border border-gray-200 rounded-lg bg-white">
+        {view === 'search' && (
+          <div className="h-full overflow-auto p-4">
+            <List
+              dataSource={searchResults}
+              rowKey="id"
+              renderItem={(item) => (
+                <List.Item>
+                  <Card
+                    title={<span className="text-sm text-gray-800">{item.documentName}</span>}
+                    className="w-full shadow-sm hover:shadow-md transition-shadow"
+                    size="small"
+                  >
+                    <Paragraph
+                      ellipsis={{ rows: 3, expandable: true, symbol: 'more' }}
+                      onClick={() => openTextModal(item.text, item.documentName)}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      {item.text}
+                    </Paragraph>
+                    <div className="text-xs text-gray-500 mt-2 flex flex-wrap gap-4">
+                      <span>ID: {item.id}</span>
+                      {mode !== 'vectorSearch' && (
+                        <Tag color="blue">Score: {item._score?.toFixed(4)}</Tag>
+                      )}
+                      {mode === 'hybridSearch' && (
+                        <Tag color="green">RRF: {item._relevance_score?.toFixed(4)}</Tag>
+                      )}
+                      {mode === 'vectorSearch' && (
+                        <Tag color="orange">Dist: {item._distance?.toFixed(4)}</Tag>
+                      )}
+                    </div>
+                  </Card>
+                </List.Item>
+              )}
+            />
+          </div>
+        )}
+
+        {view === 'docs' && (
+          <Table<DocumentRecord>
+            dataSource={docItems}
             rowKey="id"
-            loading={dataLoading}
+            loading={docLoading}
+            scroll={{ y: 'calc(100vh - 300px)' }}
             pagination={{
-              current: dataPage,
-              pageSize: dataPageSize,
-              total: dataTotal,
-              onChange: (page, pageSize) => {
-                loadDocuments(page, pageSize, dataKeyword)
-              }
+              current: docPage,
+              pageSize: docPageSize,
+              total: docTotal,
+              onChange: (page, pageSize) => loadDocuments(page, pageSize, docKeyword),
+              showTotal: (total) => `Total ${total} docs`
             }}
             columns={[
               {
                 title: 'ID',
                 dataIndex: 'id',
-                key: 'id',
-                render: (text: string) => <Typography.Text copyable={{ text }}>{text}</Typography.Text>
+                width: 100,
+                ellipsis: true,
+                render: (text) => <Typography.Text copyable={{ text }}>{text.substring(0, 8)}...</Typography.Text>
               },
               {
-                title: 'Document Name',
+                title: 'Name',
+                dataIndex: 'name',
+                ellipsis: true
+              },
+              {
+                title: 'Source',
+                dataIndex: 'sourceType',
+                width: 100
+              },
+              {
+                title: 'Created',
+                dataIndex: 'createdAt',
+                width: 180,
+                render: (v) => new Date(v).toLocaleString()
+              }
+            ]}
+          />
+        )}
+
+        {view === 'chunks' && (
+          <Table<ChunkListItem>
+            dataSource={chunkItems}
+            rowKey="id"
+            loading={chunkLoading}
+            scroll={{ y: 'calc(100vh - 300px)' }}
+            pagination={{
+              current: chunkPage,
+              pageSize: chunkPageSize,
+              total: chunkTotal,
+              onChange: (page, pageSize) => loadChunks(page, pageSize, chunkKeyword),
+              showTotal: (total) => `Total ${total} chunks`
+            }}
+            columns={[
+              {
+                title: 'ID',
+                dataIndex: 'id',
+                width: 100,
+                ellipsis: true,
+                render: (text) => <Typography.Text copyable={{ text }}>{text.substring(0, 8)}...</Typography.Text>
+              },
+              {
+                title: 'Doc Name',
                 dataIndex: 'documentName',
-                key: 'documentName',
+                width: 150,
                 ellipsis: true
               },
               {
                 title: 'Text',
                 dataIndex: 'text',
-                key: 'text',
-                render: (text: string, record: DocumentListItem) => (
+                render: (text, record) => (
                   <Paragraph
                     ellipsis={{ rows: 2, expandable: true, symbol: 'more' }}
                     onClick={() => openTextModal(text, record.documentName)}
-                    style={{ cursor: 'pointer' }}
+                    style={{ cursor: 'pointer', marginBottom: 0 }}
                   >
                     {text}
                   </Paragraph>
                 )
               },
               {
-                title: 'Created',
-                dataIndex: 'createdAt',
-                key: 'createdAt',
-                render: (v?: number) => (v ? new Date(v).toLocaleString() : 'N/A')
+                title: 'Metadata',
+                dataIndex: 'metadata',
+                width: 100,
+                render: (meta) => JSON.stringify(meta)
               },
               {
                 title: 'Vector',
                 dataIndex: 'vector',
-                key: 'vector',
-                render: (_: number[], record: DocumentListItem) => (
-                  <Typography.Text copyable={{ text: JSON.stringify(record.vector) }}>...</Typography.Text>
+                width: 80,
+                render: (vec) => (
+                   <Typography.Text copyable={{ text: JSON.stringify(vec) }}>
+                     [{vec?.length}]
+                   </Typography.Text>
                 )
               }
             ]}
           />
-        </div>
-      )}
+        )}
+      </div>
+
       <Modal
         open={dropOpen}
-        title="确认删除 document 表"
+        title="确认重置数据库"
         onOk={handleConfirmDrop}
-        okText="删除"
+        okText="确认重置"
         cancelText="取消"
         okButtonProps={{ danger: true, loading: dropLoading }}
         onCancel={() => setDropOpen(false)}
       >
-        该操作将清空所有已索引数据，且不可恢复。
+        <p>该操作将清空所有已索引的文档和切片数据，且不可恢复。</p>
       </Modal>
+
       <Modal
         open={detailOpen}
         title={detailTitle}
         onCancel={() => setDetailOpen(false)}
         footer={null}
         width={800}
+        bodyStyle={{ maxHeight: '70vh', overflow: 'auto' }}
       >
-        <Paragraph
-          copyable={{ text: detailText }}
-          style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
-        >
+        <Paragraph style={{ whiteSpace: 'pre-wrap' }}>
           {detailText}
         </Paragraph>
       </Modal>

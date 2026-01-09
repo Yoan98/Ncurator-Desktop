@@ -3,10 +3,19 @@ import {
   DocumentRecord,
   SearchResult,
   DocumentListItem,
-  DocumentListResponse
+  DocumentListResponse,
+  ChunkListItem,
+  ChunkListResponse
 } from '../../shared/types'
 
-export type { DocumentRecord, SearchResult, DocumentListItem, DocumentListResponse }
+export type {
+  DocumentRecord,
+  SearchResult,
+  DocumentListItem,
+  DocumentListResponse,
+  ChunkListItem,
+  ChunkListResponse
+}
 
 /**
  * LanceDB Table Configuration

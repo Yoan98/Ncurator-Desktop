@@ -29,7 +29,7 @@ export interface SearchResponse {
   tokens: string[]
 }
 
-export interface DocumentListItem {
+export interface ChunkListItem {
   id: string
   text: string
   documentName: string
@@ -42,7 +42,15 @@ export interface DocumentListItem {
   vector: number[]
 }
 
+export interface ChunkListResponse {
+  items: ChunkListItem[]
+  total: number
+}
+
+// Deprecated: kept for backward compatibility if needed, but should be removed eventually
+export interface DocumentListItem extends ChunkListItem {}
+
 export interface DocumentListResponse {
-  items: DocumentListItem[]
+  items: DocumentRecord[]
   total: number
 }

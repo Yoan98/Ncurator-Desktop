@@ -6,6 +6,7 @@ import type {
   TableConfig,
   ChunkInput,
   DocumentListResponse,
+  ChunkListResponse,
   DocumentRecord
 } from '../../types/store'
 
@@ -373,29 +374,82 @@ export class UnifiedStore {
       )
     }
     const tableNames = await this.db!.tableNames()
+    if (!tableNames.includes(this.TABLE_DOCUMENT)) return { items: [], total: 0 }
+
+    const table = await this.db!.openTable(this.TABLE_DOCUMENT)
+
+    // Build where clause
+    let where = ''
+    if (keyword && keyword.trim().length > 0) {
+      // Escape keyword if needed, simple replacement for now
+      const safeKeyword = keyword.replace(/'/g, "''")
+      where = `name LIKE '%${safeKeyword}%'`
+    }
+
+    const total = await table.countRows(where)
+    const skip = Math.max(0, (page - 1) * pageSize)
+
+    const query = table.query()
+    if (where) {
+      query.where(where)
+    }
+
+    const rows = await query.limit(pageSize).offset(skip).toArray()
+
+    const items = rows.map((item) => ({
+      id: item.id as string,
+      name: item.name as string,
+      sourceType: item.sourceType as any,
+      filePath: item.filePath as string,
+      createdAt: Number(item.createdAt)
+    }))
+
+    return { items, total }
+  }
+
+  public async listChunks({
+    keyword,
+    page,
+    pageSize
+  }: {
+    keyword?: string
+    page: number
+    pageSize: number
+  }): Promise<ChunkListResponse> {
+    if (this.status !== ServiceStatus.READY) {
+      throw new Error(
+        `UnifiedStore is not ready. Current status: ${this.status}. Please wait for initialization.`
+      )
+    }
+    const tableNames = await this.db!.tableNames()
     if (!tableNames.includes(this.TABLE_CHUNK)) return { items: [], total: 0 }
+
     const table = await this.db!.openTable(this.TABLE_CHUNK)
     const where = this.buildWhereFromKeyword(keyword)
     const total = await table.countRows(where)
     const skip = Math.max(0, (page - 1) * pageSize)
+
     const query = table.query()
     if (where && where.trim().length > 0) {
       query.where(where)
     }
+
     const rows = await query.limit(pageSize).offset(skip).toArray()
-    const pageItems = rows.map((item) => ({
-      id: item.id,
-      text: item.text,
-      documentName: item.documentName,
-      documentId: item.documentId,
-      sourceType: item.sourceType,
-      metadata: item.metadata,
+
+    const items = rows.map((item) => ({
+      id: item.id as string,
+      text: item.text as string,
+      documentName: item.documentName as string,
+      documentId: item.documentId as string,
+      sourceType: item.sourceType as any,
+      metadata: item.metadata as any,
       createdAt: Number(item.createdAt),
       vector: Array.isArray(item.vector)
         ? (item.vector as number[])
         : Array.from((item.vector || []) as Float32Array)
     }))
-    return { items: pageItems, total }
+
+    return { items, total }
   }
 
   /**

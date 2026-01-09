@@ -3,7 +3,7 @@ import { IngestionService } from '../services/ingestion/FileLoader'
 import { EmbeddingService } from '../services/vector/EmbeddingService'
 import { UnifiedStore } from '../services/storage/UnifiedStore'
 import { v4 as uuidv4 } from 'uuid'
-import type { SearchResult, DocumentListResponse } from '../types/store'
+import type { SearchResult, DocumentListResponse, ChunkListResponse } from '../types/store'
 import path from 'path'
 import fs from 'fs'
 import { DOCUMENTS_PATH } from '../utils/paths'
@@ -183,6 +183,23 @@ export function registerHandlers(services: {
         return res
       } catch (error: any) {
         console.error('❌ [LIST-DOCUMENTS] ERROR:', error)
+        return { items: [], total: 0 }
+      }
+    }
+  )
+
+  ipcMain.handle(
+    'list-chunks',
+    async (
+      _event,
+      payload: { keyword?: string; page: number; pageSize: number }
+    ): Promise<ChunkListResponse> => {
+      try {
+        const { keyword, page, pageSize } = payload
+        const res = await unifiedStore.listChunks({ keyword, page, pageSize })
+        return res
+      } catch (error: any) {
+        console.error('❌ [LIST-CHUNKS] ERROR:', error)
         return { items: [], total: 0 }
       }
     }
