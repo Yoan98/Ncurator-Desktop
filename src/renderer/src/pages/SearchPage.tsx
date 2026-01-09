@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Input, List, Card, Modal, Empty, Typography, Tag, Button, Switch } from 'antd'
-import { SendOutlined, ExpandOutlined } from '@ant-design/icons'
+import { SendOutlined } from '@ant-design/icons'
 import { Document, Page, pdfjs } from 'react-pdf'
 import DocViewer, { DocViewerRenderers } from 'react-doc-viewer'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
@@ -26,7 +26,6 @@ const SearchPage: React.FC = () => {
   const [searchValue, setSearchValue] = useState('')
   const [aiAnswerEnabled, setAiAnswerEnabled] = useState(false)
   const [aiAnswer, setAiAnswer] = useState<string>('')
-  const [aiAnswerModalVisible, setAiAnswerModalVisible] = useState(false)
 
   const handleSearch = async (value: string) => {
     if (!value.trim()) return
@@ -123,27 +122,24 @@ const SearchPage: React.FC = () => {
           </div>
         </div>
 
-        {/* AI Answer Toggle */}
-        <div className="border border-gray-200 rounded-lg p-4 mb-8 flex items-center justify-between shadow-sm">
-          <span className="font-bold text-base">AI 回答</span>
-          <Switch checked={aiAnswerEnabled} onChange={setAiAnswerEnabled} />
-        </div>
+        {/* AI Answer Section */}
+        <div className="bg-white border border-gray-200 rounded-xl shadow-sm mb-8 p-4 transition-all hover:shadow-md">
+          <div className="flex items-center justify-between">
+            <span className="font-bold text-base text-gray-800">AI 回答</span>
+            <Switch checked={aiAnswerEnabled} onChange={setAiAnswerEnabled} />
+          </div>
 
-        {aiAnswerEnabled && (
-          <Card className="border border-gray-200 shadow-sm mb-8">
-            <div className="flex items-center justify-between mb-2">
-              <span className="font-bold text-base">AI 回答</span>
-              <Button
-                type="text"
-                icon={<ExpandOutlined />}
-                onClick={() => setAiAnswerModalVisible(true)}
-              />
+          {aiAnswerEnabled && (
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <Typography.Paragraph
+                className="text-gray-600 text-base leading-relaxed mb-0"
+                ellipsis={{ rows: 8, expandable: true, symbol: '展开' }}
+              >
+                {aiAnswer || 'AI 正在准备回答...'}
+              </Typography.Paragraph>
             </div>
-            <Typography.Paragraph className="text-gray-600" ellipsis={{ rows: 6 }}>
-              {aiAnswer || 'AI 正在准备回答...'}
-            </Typography.Paragraph>
-          </Card>
-        )}
+          )}
+        </div>
 
         {/* Results */}
         <div>
@@ -201,18 +197,6 @@ const SearchPage: React.FC = () => {
           footer={null}
         >
           {renderPreview()}
-        </Modal>
-
-        <Modal
-          title="AI 回答"
-          open={aiAnswerModalVisible}
-          onCancel={() => setAiAnswerModalVisible(false)}
-          width="60%"
-          footer={null}
-        >
-          <Typography.Paragraph style={{ marginBottom: 0 }}>
-            {aiAnswer || 'AI 正在准备回答...'}
-          </Typography.Paragraph>
         </Modal>
       </div>
     </div>
