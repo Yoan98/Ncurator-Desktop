@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Input, List, Card, Modal, Empty, Typography, Tag, Button, Switch } from 'antd'
-import { SendOutlined } from '@ant-design/icons'
+import { SendOutlined, ExpandOutlined } from '@ant-design/icons'
 import { Document, Page, pdfjs } from 'react-pdf'
 import DocViewer, { DocViewerRenderers } from 'react-doc-viewer'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
@@ -16,7 +16,6 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 ).toString()
 
 const { TextArea } = Input
-const { Title } = Typography
 
 const SearchPage: React.FC = () => {
   const [loading, setLoading] = useState(false)
@@ -26,6 +25,8 @@ const SearchPage: React.FC = () => {
   const [currentDoc, setCurrentDoc] = useState<SearchResult | null>(null)
   const [searchValue, setSearchValue] = useState('')
   const [aiAnswerEnabled, setAiAnswerEnabled] = useState(false)
+  const [aiAnswer, setAiAnswer] = useState<string>('')
+  const [aiAnswerModalVisible, setAiAnswerModalVisible] = useState(false)
 
   const handleSearch = async (value: string) => {
     if (!value.trim()) return
@@ -34,6 +35,10 @@ const SearchPage: React.FC = () => {
       const response = await window.api.search(value)
       setResults(response.results)
       setTokens(response.tokens)
+      if (aiAnswerEnabled) {
+        const snippet = response.results?.[0]?.text || ''
+        setAiAnswer(snippet || 'AI 正在准备回答...')
+      }
     } catch (error) {
       console.error('Search error:', error)
     } finally {
@@ -41,7 +46,7 @@ const SearchPage: React.FC = () => {
     }
   }
 
-  
+
 
   const openPreview = (item: SearchResult) => {
     setCurrentDoc(item)
@@ -89,14 +94,14 @@ const SearchPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#fafafa] text-black p-4 font-sans">
-      <div className="max-w-3xl mx-auto pt-8">
+      <div className=" mx-auto pt-8 px-5">
         {/* Search Box */}
-        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm mb-6 focus-within:ring-2 focus-within:ring-black/5 transition-all">
-          <TextArea 
-             placeholder="基于您的资源搜索..." 
+        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm mb-6 focus-within:ring-2 focus-within:ring-black/5 transition-all relative">
+          <TextArea
+             placeholder="基于您的资源搜索..."
              autoSize={{ minRows: 2, maxRows: 6 }}
              bordered={false}
-             className="text-lg bg-transparent mb-4 placeholder:text-gray-400 !px-0 text-center"
+             className="text-lg bg-transparent mb-4 placeholder:text-gray-400 !px-0 text-left"
              style={{ resize: 'none' }}
              value={searchValue}
              onChange={e => setSearchValue(e.target.value)}
@@ -107,17 +112,15 @@ const SearchPage: React.FC = () => {
                }
              }}
           />
-          <div className="flex justify-center items-center">
-            <Button 
-              type="primary" 
-              shape="circle" 
-              icon={<SendOutlined />} 
-              size="large"
-              className="bg-black hover:bg-gray-800 border-none shadow-none flex items-center justify-center"
-              onClick={() => handleSearch(searchValue)}
-              loading={loading}
-            />
-          </div>
+          <Button
+            type="primary"
+            shape="circle"
+            icon={<SendOutlined />}
+            size="large"
+            className="absolute bottom-6 right-6 bg-black hover:bg-gray-800 border-none shadow-none flex items-center justify-center"
+            onClick={() => handleSearch(searchValue)}
+            loading={loading}
+          />
         </div>
 
         {/* AI Answer Toggle */}
@@ -126,9 +129,20 @@ const SearchPage: React.FC = () => {
           <Switch checked={aiAnswerEnabled} onChange={setAiAnswerEnabled} />
         </div>
 
+        {aiAnswerEnabled && (
+          <Card className="border border-gray-200 shadow-sm mb-8">
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-bold text-base">AI 回答</span>
+              <Button type="text" icon={<ExpandOutlined />} onClick={() => setAiAnswerModalVisible(true)} />
+            </div>
+            <Typography.Paragraph className="text-gray-600" ellipsis={{ rows: 6 }}>
+              {aiAnswer || 'AI 正在准备回答...'}
+            </Typography.Paragraph>
+          </Card>
+        )}
+
         {/* Results */}
         <div>
-          <Title level={5} className="mb-3 !text-base !font-semibold text-[#404040]">搜索结果</Title>
           <div className="min-h-[200px]">
              {results.length > 0 ? (
                 <List
@@ -160,11 +174,8 @@ const SearchPage: React.FC = () => {
                 />
              ) : (
                !loading && (
-                 <div className="flex flex-col items-center justify-center py-20 opacity-50">
-                    <div className="w-24 h-24 bg-gray-100 rounded-lg mb-4 flex items-center justify-center">
-                        <img src={brandIcon} alt="icon" className="w-12 h-12 opacity-50" />
-                    </div>
-                    <span className="text-gray-400">暂无数据</span>
+                 <div className="flex items-center justify-center py-20">
+                   <Empty description="暂无数据" />
                  </div>
                )
              )}
@@ -182,6 +193,18 @@ const SearchPage: React.FC = () => {
           footer={null}
         >
           {renderPreview()}
+        </Modal>
+
+        <Modal
+          title="AI 回答"
+          open={aiAnswerModalVisible}
+          onCancel={() => setAiAnswerModalVisible(false)}
+          width="60%"
+          footer={null}
+        >
+          <Typography.Paragraph style={{ marginBottom: 0 }}>
+            {aiAnswer || 'AI 正在准备回答...'}
+          </Typography.Paragraph>
         </Modal>
       </div>
     </div>
