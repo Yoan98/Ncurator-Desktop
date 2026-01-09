@@ -1,14 +1,12 @@
 import React, { useState, useEffect } from 'react'
-import { Upload, Button, message, Card, Typography, List, Collapse, Input, Table, Modal, Tag, Space } from 'antd'
+import { Upload, Button, message, Typography, Collapse, Input, Table, Modal } from 'antd'
 import { 
   InboxOutlined, 
-  CheckCircleOutlined, 
   PlusOutlined, 
   DeleteOutlined, 
   SettingOutlined, 
   ReloadOutlined, 
   SearchOutlined,
-  ReadOutlined,
   FileTextOutlined,
   FilePdfOutlined,
   BookOutlined

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import type { SearchResult, DocumentRecord, ChunkListItem } from '../../../shared/types'
-import { Input, Button, Upload, message, List, Card, Typography, Segmented, Table, Modal, Space, Tag } from 'antd'
+import { Input, Button, Upload, message, List, Card, Typography, Segmented, Table, Modal, Tag } from 'antd'
 import { UploadOutlined, FileTextOutlined, BlockOutlined, SearchOutlined } from '@ant-design/icons'
 
 const { Paragraph } = Typography

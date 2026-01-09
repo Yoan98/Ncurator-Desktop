@@ -1,11 +1,13 @@
 import React, { useState } from 'react'
-import { Input, List, Card, Modal, Empty, Typography, Tag, Button, Switch, Dropdown, Space } from 'antd'
-import { FileTextOutlined, FilePdfOutlined, SendOutlined, DownOutlined } from '@ant-design/icons'
+import { Input, List, Card, Modal, Empty, Typography, Tag, Button, Switch } from 'antd'
+import { SendOutlined } from '@ant-design/icons'
 import { Document, Page, pdfjs } from 'react-pdf'
 import DocViewer, { DocViewerRenderers } from 'react-doc-viewer'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
 import 'react-pdf/dist/Page/TextLayer.css'
 import type { SearchResult } from '../../../shared/types'
+import TextHighlighter from '../components/TextHighlighter'
+import brandIcon from '../../../../resources/icon.png'
 
 // Configure PDF worker
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
@@ -14,7 +16,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 ).toString()
 
 const { TextArea } = Input
-const { Title, Paragraph } = Typography
+const { Title } = Typography
 
 const SearchPage: React.FC = () => {
   const [loading, setLoading] = useState(false)
@@ -39,31 +41,7 @@ const SearchPage: React.FC = () => {
     }
   }
 
-  const highlightText = (text: string, tokens: string[]) => {
-    if (!tokens.length) return text
-
-    // Create a regex from tokens, sorting by length descending to match longest first
-    const sortedTokens = [...tokens].sort((a, b) => b.length - a.length)
-    // Escape special regex chars in tokens
-    const escapedTokens = sortedTokens.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-    const regex = new RegExp(`(${escapedTokens.join('|')})`, 'gi')
-
-    const parts = text.split(regex)
-
-    return (
-      <span>
-        {parts.map((part, i) =>
-          regex.test(part) ? (
-            <mark key={i} className="bg-yellow-200 text-black rounded px-0.5 mx-0.5 font-medium">
-              {part}
-            </mark>
-          ) : (
-            part
-          )
-        )}
-      </span>
-    )
-  }
+  
 
   const openPreview = (item: SearchResult) => {
     setCurrentDoc(item)
@@ -110,15 +88,15 @@ const SearchPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-white text-black p-4 font-sans">
+    <div className="min-h-screen bg-[#fafafa] text-black p-4 font-sans">
       <div className="max-w-3xl mx-auto pt-8">
         {/* Search Box */}
-        <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 shadow-sm mb-6 focus-within:ring-2 focus-within:ring-black/5 transition-all">
+        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm mb-6 focus-within:ring-2 focus-within:ring-black/5 transition-all">
           <TextArea 
              placeholder="基于您的资源搜索..." 
              autoSize={{ minRows: 2, maxRows: 6 }}
              bordered={false}
-             className="text-lg bg-transparent mb-4 placeholder:text-gray-400 !px-0"
+             className="text-lg bg-transparent mb-4 placeholder:text-gray-400 !px-0 text-center"
              style={{ resize: 'none' }}
              value={searchValue}
              onChange={e => setSearchValue(e.target.value)}
@@ -129,16 +107,7 @@ const SearchPage: React.FC = () => {
                }
              }}
           />
-          <div className="flex justify-between items-center">
-            <Dropdown menu={{ items: [{ key: 'all', label: '全部知识库' }] }}>
-              <Button type="text" className="text-gray-500 hover:bg-gray-200/50 px-2">
-                <Space>
-                  全部知识库
-                  <DownOutlined className="text-xs" />
-                </Space>
-              </Button>
-            </Dropdown>
-            
+          <div className="flex justify-center items-center">
             <Button 
               type="primary" 
               shape="circle" 
@@ -159,7 +128,7 @@ const SearchPage: React.FC = () => {
 
         {/* Results */}
         <div>
-          <Title level={4} className="mb-4">搜索结果</Title>
+          <Title level={5} className="mb-3 !text-base !font-semibold text-[#404040]">搜索结果</Title>
           <div className="min-h-[200px]">
              {results.length > 0 ? (
                 <List
@@ -176,16 +145,14 @@ const SearchPage: React.FC = () => {
                         <div className="flex flex-col gap-2">
                         <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2 text-gray-500 text-sm">
-                            {item.sourceType === 'file' ? <FileTextOutlined /> : <FilePdfOutlined />}
+                            <img src={brandIcon} alt="icon" className="w-4 h-4" />
                             <span className="font-medium text-black">{item.documentName}</span>
                             </div>
                             {item.metadata?.page && (
                             <Tag color="default">Page {item.metadata.page}</Tag>
                             )}
                         </div>
-                        <Paragraph className="text-gray-600 mb-0" ellipsis={{ rows: 3, expandable: false }}>
-                            {highlightText(item.text, tokens)}
-                        </Paragraph>
+                        <TextHighlighter text={item.text} keywords={tokens} className="text-gray-600 mb-0 line-clamp-3" />
                         </div>
                     </Card>
                     </List.Item>
@@ -194,8 +161,8 @@ const SearchPage: React.FC = () => {
              ) : (
                !loading && (
                  <div className="flex flex-col items-center justify-center py-20 opacity-50">
-                    <div className="w-24 h-24 bg-gray-100 rounded-lg mb-4 flex items-center justify-center text-4xl text-gray-300">
-                        <FileTextOutlined />
+                    <div className="w-24 h-24 bg-gray-100 rounded-lg mb-4 flex items-center justify-center">
+                        <img src={brandIcon} alt="icon" className="w-12 h-12 opacity-50" />
                     </div>
                     <span className="text-gray-400">暂无数据</span>
                  </div>
