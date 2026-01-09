@@ -46,15 +46,14 @@ const SearchPage: React.FC = () => {
     }
   }
 
-
-
   const openPreview = (item: SearchResult) => {
     setCurrentDoc(item)
     setPreviewVisible(true)
   }
 
   const renderPreview = () => {
-    if (!currentDoc || !currentDoc.document?.filePath) return <Empty description="Document not found" />
+    if (!currentDoc || !currentDoc.document?.filePath)
+      return <Empty description="Document not found" />
 
     const filePath = currentDoc.document.filePath
     const fileUrl = `file://${filePath}`
@@ -96,31 +95,32 @@ const SearchPage: React.FC = () => {
     <div className="min-h-screen bg-[#fafafa] text-black p-4 font-sans">
       <div className=" mx-auto pt-8 px-5">
         {/* Search Box */}
-        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm mb-6 focus-within:ring-2 focus-within:ring-black/5 transition-all relative">
+        <div className="bg-white border border-gray-200 rounded-xl p-2 shadow-sm mb-6 focus-within:ring-2 focus-within:ring-black/5 transition-all relative">
           <TextArea
-             placeholder="基于您的资源搜索..."
-             autoSize={{ minRows: 2, maxRows: 6 }}
-             bordered={false}
-             className="text-lg bg-transparent mb-4 placeholder:text-gray-400 !px-0 text-left"
-             style={{ resize: 'none' }}
-             value={searchValue}
-             onChange={e => setSearchValue(e.target.value)}
-             onKeyDown={e => {
-               if(e.key === 'Enter' && !e.shiftKey) {
-                 e.preventDefault();
-                 handleSearch(searchValue);
-               }
-             }}
+            placeholder="基于您的资源搜索..."
+            autoSize={{ minRows: 2, maxRows: 6 }}
+            bordered={false}
+            className="text-lg bg-transparent mb-4 placeholder:text-gray-400 !px-0 text-left min-h-[60px] max-h-[60px]"
+            style={{ resize: 'none' }}
+            value={searchValue}
+            onChange={(e) => setSearchValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                handleSearch(searchValue)
+              }
+            }}
           />
-          <Button
-            type="primary"
-            shape="circle"
-            icon={<SendOutlined />}
-            size="large"
-            className="absolute bottom-6 right-6 bg-black hover:bg-gray-800 border-none shadow-none flex items-center justify-center"
-            onClick={() => handleSearch(searchValue)}
-            loading={loading}
-          />
+          <div className="flex justify-end items-center">
+            <Button
+              type="primary"
+              shape="circle"
+              icon={<SendOutlined />}
+              className=" bg-black hover:bg-gray-800 border-none shadow-none flex items-center justify-center"
+              onClick={() => handleSearch(searchValue)}
+              loading={loading}
+            />
+          </div>
         </div>
 
         {/* AI Answer Toggle */}
@@ -133,7 +133,11 @@ const SearchPage: React.FC = () => {
           <Card className="border border-gray-200 shadow-sm mb-8">
             <div className="flex items-center justify-between mb-2">
               <span className="font-bold text-base">AI 回答</span>
-              <Button type="text" icon={<ExpandOutlined />} onClick={() => setAiAnswerModalVisible(true)} />
+              <Button
+                type="text"
+                icon={<ExpandOutlined />}
+                onClick={() => setAiAnswerModalVisible(true)}
+              />
             </div>
             <Typography.Paragraph className="text-gray-600" ellipsis={{ rows: 6 }}>
               {aiAnswer || 'AI 正在准备回答...'}
@@ -144,42 +148,46 @@ const SearchPage: React.FC = () => {
         {/* Results */}
         <div>
           <div className="min-h-[200px]">
-             {results.length > 0 ? (
-                <List
+            {results.length > 0 ? (
+              <List
                 grid={{ gutter: 16, column: 1 }}
                 dataSource={results}
                 loading={loading}
                 renderItem={(item) => (
-                    <List.Item>
+                  <List.Item>
                     <Card
-                        hoverable
-                        className="border border-gray-200 shadow-sm hover:shadow-md transition-shadow"
-                        onClick={() => openPreview(item)}
+                      hoverable
+                      className="border border-gray-200 shadow-sm hover:shadow-md transition-shadow"
+                      onClick={() => openPreview(item)}
                     >
-                        <div className="flex flex-col gap-2">
+                      <div className="flex flex-col gap-2">
                         <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2 text-gray-500 text-sm">
+                          <div className="flex items-center gap-2 text-gray-500 text-sm">
                             <img src={brandIcon} alt="icon" className="w-4 h-4" />
                             <span className="font-medium text-black">{item.documentName}</span>
-                            </div>
-                            {item.metadata?.page && (
+                          </div>
+                          {item.metadata?.page && (
                             <Tag color="default">Page {item.metadata.page}</Tag>
-                            )}
+                          )}
                         </div>
-                        <TextHighlighter text={item.text} keywords={tokens} className="text-gray-600 mb-0 line-clamp-3" />
-                        </div>
+                        <TextHighlighter
+                          text={item.text}
+                          keywords={tokens}
+                          className="text-gray-600 mb-0 line-clamp-3"
+                        />
+                      </div>
                     </Card>
-                    </List.Item>
+                  </List.Item>
                 )}
-                />
-             ) : (
-               !loading && (
-                 <div className="flex items-center justify-center py-20">
-                   <Empty description="暂无数据" />
-                 </div>
-               )
-             )}
-             {loading && <div className="text-center py-10">Searching...</div>}
+              />
+            ) : (
+              !loading && (
+                <div className="flex items-center justify-center py-20">
+                  <Empty description="暂无数据" />
+                </div>
+              )
+            )}
+            {loading && <div className="text-center py-10">Searching...</div>}
           </div>
         </div>
 
