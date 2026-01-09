@@ -94,7 +94,7 @@ const SearchPage: React.FC = () => {
     <div className="min-h-screen bg-[#fafafa] text-black p-4 font-sans">
       <div className=" mx-auto pt-8 px-5">
         {/* Search Box */}
-        <div className="bg-white border border-gray-200 rounded-xl p-2 shadow-sm mb-6 focus-within:ring-2 focus-within:ring-black/5 transition-all relative">
+        <div className="bg-white border border-gray-200 rounded-xl p-2 shadow-sm mb-[10px] focus-within:ring-2 focus-within:ring-black/5 transition-all relative">
           <TextArea
             placeholder="基于您的资源搜索..."
             autoSize={{ minRows: 2, maxRows: 6 }}
