@@ -33,7 +33,7 @@ export function registerHandlers(services: {
 
       // Generate saved file path (using ID to avoid collisions, or keeping filename)
       // Strategy: documentId_filename to ensure uniqueness while keeping readability
-      const savedFileName = `${filename}_${documentId}`
+      const savedFileName = `${filename}`
       const savedFilePath = path.join(docsDir, savedFileName)
 
       console.log('💾 [INGEST-FILE] COPYING FILE TO:', savedFilePath)
@@ -115,7 +115,7 @@ export function registerHandlers(services: {
       }[] = []
       for (const f of files) {
         const documentId = uuidv4()
-        const savedFileName = `${f.name}_${documentId}`
+        const savedFileName = `${f.name}`
         const savedFilePath = path.join(docsDir, savedFileName)
         fs.copyFileSync(f.path, savedFilePath)
         await unifiedStore.addDocument({
