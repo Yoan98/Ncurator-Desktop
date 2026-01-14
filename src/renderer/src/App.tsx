@@ -1,12 +1,10 @@
 import React from 'react'
 import { HashRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom'
-import { Layout, ConfigProvider, theme, Button } from 'antd'
-import {
-  ArrowLeftOutlined,
-  SettingOutlined
-} from '@ant-design/icons'
+import { Layout, ConfigProvider, theme, Button, Dropdown } from 'antd'
+import { ArrowLeftOutlined, SettingOutlined, BookOutlined, BlockOutlined } from '@ant-design/icons'
 import SearchPage from './pages/SearchPage'
 import ImportPage from './pages/ImportPage'
+import TestPage from './pages/TestPage'
 import brandIcon from '../../../resources/icon.png'
 
 const { Header, Content } = Layout
@@ -25,8 +23,7 @@ function App(): React.JSX.Element {
         components: {
           Button: {
             primaryShadow: 'none'
-          },
-
+          }
         }
       }}
     >
@@ -63,18 +60,30 @@ const MainLayout: React.FC = () => {
           )}
         </div>
 
-
         <div className="flex items-center gap-3">
-          <Button
-            icon={<SettingOutlined />}
-            onClick={() => navigate('/import')} // Temporary link to Import page via Settings for now
-          />
+          <Dropdown
+            trigger={['hover', 'click']}
+            placement="bottomRight"
+            menu={{
+              items: [
+                { key: 'kb', label: '知识库', icon: <BookOutlined /> },
+                { key: 'test', label: '测试页面', icon: <BlockOutlined /> }
+              ],
+              onClick: (info) => {
+                if (info.key === 'kb') navigate('/import')
+                if (info.key === 'test') navigate('/test')
+              }
+            }}
+          >
+            <Button icon={<SettingOutlined />} />
+          </Dropdown>
         </div>
       </Header>
       <Content className="bg-[#fafafa] overflow-auto">
         <Routes>
           <Route path="/" element={<SearchPage />} />
           <Route path="/import" element={<ImportPage />} />
+          <Route path="/test" element={<TestPage />} />
         </Routes>
       </Content>
     </Layout>

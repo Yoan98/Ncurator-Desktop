@@ -379,7 +379,7 @@ export class UnifiedStore {
     const table = await this.db!.openTable(this.TABLE_DOCUMENT)
 
     // Build where clause
-    let where = ''
+    let where: string | undefined = undefined
     if (keyword && keyword.trim().length > 0) {
       // Escape keyword if needed, simple replacement for now
       const safeKeyword = keyword.replace(/'/g, "''")

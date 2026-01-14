@@ -21,7 +21,7 @@ const ImportPage: React.FC = () => {
   const [fileList, setFileList] = useState<UploadFile[]>([])
   const [processing, setProcessing] = useState(false)
   const [keyword, setKeyword] = useState('')
-  const [typeFilter, setTypeFilter] = useState<'all' | 'pdf' | 'docx'>('all')
+  const [typeFilter, setTypeFilter] = useState<'all' | 'file' | 'web'>('all')
 
   const fetchDocuments = async () => {
     setLoading(true)
@@ -93,20 +93,18 @@ const ImportPage: React.FC = () => {
     }
   }
 
-  const getDocType = (record: DocumentRecord) => {
-    const source = (record.filePath || record.name || '').toLowerCase()
-    if (source.endsWith('.pdf')) return 'PDF'
-    if (source.endsWith('.docx')) return 'DOCX'
+  const getSourceTypeLabel = (record: DocumentRecord) => {
+    if (record.sourceType === 'file') return '文件'
+    if (record.sourceType === 'web') return '网页'
     return '未知'
   }
 
   const displayedDocuments = useMemo(() => {
     if (typeFilter === 'all') return documents
-    return documents.filter((d) => {
-      const t = getDocType(d)
-      return (typeFilter === 'pdf' && t === 'PDF') || (typeFilter === 'docx' && t === 'DOCX')
-    })
+    return documents.filter((d) => d.sourceType === typeFilter)
   }, [documents, typeFilter])
+
+  console.log('displayedDocuments', displayedDocuments)
 
   const columns = [
     {
@@ -129,9 +127,14 @@ const ImportPage: React.FC = () => {
       key: 'type',
       width: 120,
       render: (_: unknown, record: DocumentRecord) => {
-        const t = getDocType(record)
-        const color = t === 'PDF' ? 'red' : t === 'DOCX' ? 'blue' : 'default'
-        return <Tag color={color}>{t}</Tag>
+        const label = getSourceTypeLabel(record)
+        const color =
+          record.sourceType === 'file'
+            ? 'default'
+            : record.sourceType === 'web'
+              ? 'blue'
+              : 'default'
+        return <Tag color={color}>{label}</Tag>
       }
     }
   ]
@@ -178,11 +181,11 @@ const ImportPage: React.FC = () => {
           />
           <Segmented
             value={typeFilter}
-            onChange={(val) => setTypeFilter(val as 'all' | 'pdf' | 'docx')}
+            onChange={(val) => setTypeFilter(val as 'all' | 'file' | 'web')}
             options={[
               { label: '全部', value: 'all' },
-              { label: 'PDF', value: 'pdf' },
-              { label: 'DOCX', value: 'docx' }
+              { label: '文件', value: 'file' },
+              { label: '网页', value: 'web' }
             ]}
           />
         </div>
