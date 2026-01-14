@@ -518,15 +518,19 @@ export class UnifiedStore {
     if (!ids || ids.length === 0) {
       return { deletedDocs: 0, deletedChunks: 0 }
     }
-    const inClause = ids.map((id) => `'${id.replace(/'/g, "''")}'`).join(',')
-    const chunkWhere = `"documentId" IN (${inClause})`
-    const docWhere = `"id" IN (${inClause})`
     const chunkTable = await this.db.openTable(this.TABLE_CHUNK)
     const docTable = await this.db.openTable(this.TABLE_DOCUMENT)
-    const deletedChunks = await chunkTable.countRows(chunkWhere)
-    const deletedDocs = await docTable.countRows(docWhere)
-    await chunkTable.delete(chunkWhere)
-    await docTable.delete(docWhere)
+    let deletedDocs = 0
+    let deletedChunks = 0
+    for (const rawId of ids) {
+      const id = rawId.replace(/'/g, "''")
+      const chunkWhere = `"documentId" = '${id}'`
+      const docWhere = `"id" = '${id}'`
+      deletedChunks += await chunkTable.countRows(chunkWhere)
+      deletedDocs += await docTable.countRows(docWhere)
+      await chunkTable.delete(chunkWhere)
+      await docTable.delete(docWhere)
+    }
     return { deletedDocs, deletedChunks }
   }
 
