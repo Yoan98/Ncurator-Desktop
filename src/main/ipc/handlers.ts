@@ -131,9 +131,11 @@ export function registerHandlers(services: {
       ;(async () => {
         for (const c of created) {
           try {
+            console.log(`SPLIT DOCS FOR ${c.name}`)
             const splitDocs = await ingestionService.processFile(c.savedPath)
             const allSplitDocs = [...splitDocs.bigSplitDocs, ...splitDocs.miniSplitDocs]
             const allChunkVectors: Float32Array[] = []
+            console.log(`EMBED DOCS FOR ${c.name}`)
             for (const doc of allSplitDocs) {
               const { data: vector } = await embeddingService.embed(doc.pageContent)
               allChunkVectors.push(vector)
@@ -148,12 +150,17 @@ export function registerHandlers(services: {
                 page: allSplitDocs[i].metadata.loc?.pageNumber || 1
               }
             }))
+
+            console.log(`STORE DOCS FOR ${c.name}`)
             await unifiedStore.addChunks({
               vectors: allChunkVectors,
               chunks
             })
+            console.log(`STORED DOCS IN UNIFIED LANCEDB FOR ${c.name}`)
             await unifiedStore.updateDocumentImportStatus(c.id, 2)
-          } catch {
+            console.log(`✅ [INGEST-FILES] DONE FOR ${c.name}`)
+          } catch (error: any) {
+            console.error('❌ [INGEST-FILES] ERROR:', error)
             await unifiedStore.updateDocumentImportStatus(c.id, 3)
           }
         }
