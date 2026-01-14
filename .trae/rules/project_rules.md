@@ -55,3 +55,4 @@
 - **异步处理**: 文件 I/O 和模型推理必须使用 `async/await`。
 - **IPC 通信**: 使用 `ipcMain` / `ipcRenderer` 进行前后端交互。
 - **库的使用**: 优先使用上述指定版本的库，避免引入不必要的第三方依赖。
+- **Modal 使用**: 在 Electron 环境中禁止使用 `Modal.confirm` 等静态调用；统一使用受控的 `Modal` 组件（以 `open`/`onCancel`/自定义 `footer` 控制），避免阻塞与窗口上下文问题。

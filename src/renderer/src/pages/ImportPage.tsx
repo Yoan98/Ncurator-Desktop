@@ -35,6 +35,7 @@ const ImportPage: React.FC = () => {
   const [typeFilter, setTypeFilter] = useState<'all' | 'file' | 'web'>('all')
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
   const [deleting, setDeleting] = useState(false)
+  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false)
 
   const fetchDocuments = async () => {
     setLoading(true)
@@ -185,33 +186,30 @@ const ImportPage: React.FC = () => {
   const handleDeleteSelected = () => {
     console.log('selectedRowKeys', selectedRowKeys)
     if (selectedRowKeys.length === 0 || deleting) return
-    Modal.confirm({
-      title: '删除文档',
-      content: '确定删除所选文档？将同时删除相关分片',
-      okText: '删除',
-      cancelText: '取消',
-      okButtonProps: { danger: true },
-      onOk: async () => {
-        setDeleting(true)
-        try {
-          const ids = selectedRowKeys.map((k) => String(k))
-          const res = await window.api.deleteDocuments(ids)
-          if (res.success) {
-            message.success(
-              `删除成功，文档 ${res.deletedDocs || 0} 个，分片 ${res.deletedChunks || 0} 个`
-            )
-            setSelectedRowKeys([])
-            fetchDocuments()
-          } else {
-            message.error(res.error || '删除失败')
-          }
-        } catch (error) {
-          const msg = error instanceof Error ? error.message : String(error)
-          message.error(`删除出错: ${msg}`)
-        }
-        setDeleting(false)
+    setDeleteConfirmVisible(true)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (selectedRowKeys.length === 0) return
+    setDeleting(true)
+    try {
+      const ids = selectedRowKeys.map((k) => String(k))
+      const res = await window.api.deleteDocuments(ids)
+      if (res.success) {
+        message.success(
+          `删除成功，文档 ${res.deletedDocs || 0} 个，分片 ${res.deletedChunks || 0} 个`
+        )
+        setSelectedRowKeys([])
+        setDeleteConfirmVisible(false)
+        fetchDocuments()
+      } else {
+        message.error(res.error || '删除失败')
       }
-    })
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error)
+      message.error(`删除出错: ${msg}`)
+    }
+    setDeleting(false)
   }
 
   return (
@@ -292,6 +290,24 @@ const ImportPage: React.FC = () => {
             className="custom-table"
           />
         </div>
+
+        <Modal
+          open={deleteConfirmVisible}
+          onCancel={() => setDeleteConfirmVisible(false)}
+          title="删除文档"
+          footer={
+            <>
+              <Button onClick={() => setDeleteConfirmVisible(false)} disabled={deleting}>
+                取消
+              </Button>
+              <Button danger type="primary" onClick={handleConfirmDelete} loading={deleting}>
+                删除
+              </Button>
+            </>
+          }
+        >
+          <div>确定删除所选文档？将同时删除相关分片</div>
+        </Modal>
 
         <Modal
           open={uploadModalVisible}
