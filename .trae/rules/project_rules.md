@@ -18,7 +18,7 @@
   - **风格**: 极简黑白灰（单色调），主色调为 `#404040`。
   - **排版**: 清晰的无衬线字体（Inter 或 System UI），注重可读性。
   - **布局**: 宽敞的卡片式布局，用于展示搜索结果。
-  - **元素**: 
+  - **元素**:
     - 高对比度的边框和按钮。
     - 微妙的阴影以增加深度感。
     - 原生桌面应用的感觉。
@@ -45,31 +45,10 @@
 
 ## 3. 数据库设计 (LanceDB)
 
-### Table: `chunk` (文档切片表)
-存储文档被切分后的片段及其向量表示。
-
-| 字段名 | 类型 | 描述 |
-| :--- | :--- | :--- |
-| `vector` | FixedSizeList (768, Float32) | 文本向量 (Embedding) |
-| `text` | Utf8 | 切片文本内容 (建立 FTS 索引) |
-| `id` | Utf8 | 切片唯一标识 |
-| `document_id` | Utf8 | 关联的文档 ID |
-| `document_name` | Utf8 | 文档名称快照 |
-| `createdAt` | Int64 | 创建时间戳 |
-
-*索引配置*:
-- FTS Index: column `text` (Tokenizer: ngram, min:2, max:3)
-
-### Table: `document` (文档元数据表)
-存储原始文档的信息。
-
-| 字段名 | 类型 | 描述 |
-| :--- | :--- | :--- |
-| `id` | Utf8 | 文档唯一标识 |
-| `name` | Utf8 | 文件名 |
-| `sourceType` | Utf8 | 来源类型 (如 'file', 'web') |
-| `filePath` | Utf8 (Nullable) | 原始文件路径 |
-| `createdAt` | Int64 | 创建时间戳 |
+- 完整数据库设计文档请参考：[README-Database.md](file:///Users/test/work-space/NCurator-Desktop/README-Database.md)
+- 说明：
+  - 采用 LanceDB v0.23 存储与检索，FTS 基于 `text` 列（ngram: min=2, max=3）
+  - 表概览：`chunk`（文档切片与向量）、`document`（文档元数据，含 `importStatus`）
 
 ## 4. 编码规范
 - **类型安全**: 严禁使用 `any`，必须定义完整的 TypeScript 接口。
