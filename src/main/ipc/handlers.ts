@@ -20,10 +20,11 @@ export function registerHandlers(services: {
   const { ingestionService, embeddingService, unifiedStore } = services
 
   ipcMain.handle('ingest-file', async (_event, filePath: string, filename: string) => {
+    let documentId: string = ''
     try {
       console.log('📄 [INGEST-FILE] FILENAME:', filename)
 
-      const documentId = uuidv4()
+      documentId = uuidv4()
       const docsDir = DOCUMENTS_PATH
       // Ensure directory exists
       if (!fs.existsSync(docsDir)) {
@@ -44,12 +45,13 @@ export function registerHandlers(services: {
         name: filename,
         sourceType: 'file',
         filePath: savedFilePath,
-        createdAt: Date.now()
+        createdAt: Date.now(),
+        importStatus: 1
       })
 
       console.log('🔧 [INGEST-FILE] STEP 1: SPLIT DOCS')
       // 1. Load and Split
-      const splitDocs = await ingestionService.processFile(filePath)
+      const splitDocs = await ingestionService.processFile(savedFilePath)
 
       console.log(
         `✅ [INGEST-FILE] STEP 1 DONE: BIG=${splitDocs.bigSplitDocs.length} MINI=${splitDocs.miniSplitDocs.length}`
@@ -88,10 +90,77 @@ export function registerHandlers(services: {
         chunks
       })
       console.log('✅ [INGEST-FILE] STORED DOCS IN UNIFIED LANCEDB')
+      await unifiedStore.updateDocumentImportStatus(documentId, 2)
 
       return { success: true, count: chunks.length }
     } catch (error: any) {
       console.error('❌ [INGEST-FILE] ERROR:', error)
+      if (documentId) {
+        await unifiedStore.updateDocumentImportStatus(documentId, 3).catch(() => {})
+      }
+      return { success: false, error: error.message }
+    }
+  })
+
+  ipcMain.handle('ingest-files', async (_event, files: Array<{ path: string; name: string }>) => {
+    try {
+      const docsDir = DOCUMENTS_PATH
+      if (!fs.existsSync(docsDir)) {
+        fs.mkdirSync(docsDir, { recursive: true })
+      }
+      const created: {
+        id: string
+        name: string
+        savedPath: string
+      }[] = []
+      for (const f of files) {
+        const documentId = uuidv4()
+        const savedFileName = `${f.name}_${documentId}`
+        const savedFilePath = path.join(docsDir, savedFileName)
+        fs.copyFileSync(f.path, savedFilePath)
+        await unifiedStore.addDocument({
+          id: documentId,
+          name: f.name,
+          sourceType: 'file',
+          filePath: savedFilePath,
+          createdAt: Date.now(),
+          importStatus: 1
+        })
+        created.push({ id: documentId, name: f.name, savedPath: savedFilePath })
+      }
+      ;(async () => {
+        for (const c of created) {
+          try {
+            const splitDocs = await ingestionService.processFile(c.savedPath)
+            const allSplitDocs = [...splitDocs.bigSplitDocs, ...splitDocs.miniSplitDocs]
+            const allChunkVectors: Float32Array[] = []
+            for (const doc of allSplitDocs) {
+              const { data: vector } = await embeddingService.embed(doc.pageContent)
+              allChunkVectors.push(vector)
+            }
+            const chunks = allChunkVectors.map((_, i) => ({
+              text: allSplitDocs[i].pageContent,
+              id: uuidv4(),
+              documentId: c.id,
+              documentName: c.name,
+              sourceType: 'file',
+              metadata: {
+                page: allSplitDocs[i].metadata.loc?.pageNumber || 1
+              }
+            }))
+            await unifiedStore.addChunks({
+              vectors: allChunkVectors,
+              chunks
+            })
+            await unifiedStore.updateDocumentImportStatus(c.id, 2)
+          } catch {
+            await unifiedStore.updateDocumentImportStatus(c.id, 3)
+          }
+        }
+      })()
+      return { success: true, created: created.length }
+    } catch (error: any) {
+      console.error('❌ [INGEST-FILES] ERROR:', error)
       return { success: false, error: error.message }
     }
   })

@@ -1,4 +1,5 @@
 export type DocumentSourceType = 'file' | 'web'
+export type DocumentImportStatus = 1 | 2 | 3
 
 export interface DocumentRecord {
   id: string
@@ -6,6 +7,7 @@ export interface DocumentRecord {
   sourceType: DocumentSourceType
   filePath?: string
   createdAt: number
+  importStatus: DocumentImportStatus
 }
 
 export interface SearchResult {

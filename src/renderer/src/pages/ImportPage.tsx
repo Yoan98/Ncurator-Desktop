@@ -47,31 +47,26 @@ const ImportPage: React.FC = () => {
     }
 
     setProcessing(true)
-    const filesToProcess = [...fileList]
-    let processedCount = 0
-
-    for (const file of filesToProcess) {
-      try {
-        const origin = file.originFileObj as File
-        const result = await window.api.ingestFile(origin)
-        if (result.success) {
-          processedCount++
-        } else {
-          message.error(`处理失败 ${file.name}: ${result.error}`)
-        }
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : String(error)
-        message.error(`处理出错 ${file.name}: ${msg}`)
+    try {
+      const origins = fileList
+        .map((f) => f.originFileObj)
+        .filter(Boolean)
+        .map((f) => f as File)
+      const result = await window.api.ingestFiles(origins)
+      if (result.success) {
+        message.success(`已提交导入，新增 ${result.created || 0} 个文档`)
+      } else {
+        message.error(result.error || '提交导入失败')
       }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error)
+      message.error(`提交导入出错: ${msg}`)
     }
 
     setProcessing(false)
     setFileList([])
     setUploadModalVisible(false)
-    if (processedCount > 0) {
-      message.success(`成功导入 ${processedCount} 个文件`)
-      fetchDocuments()
-    }
+    fetchDocuments()
   }
 
   const uploadProps: UploadProps = {
@@ -135,6 +130,20 @@ const ImportPage: React.FC = () => {
               ? 'blue'
               : 'default'
         return <Tag color={color}>{label}</Tag>
+      }
+    },
+    {
+      title: '状态',
+      key: 'status',
+      width: 120,
+      render: (_: unknown, record: DocumentRecord) => {
+        const map: Record<number, { text: string; color: string }> = {
+          1: { text: '导入中', color: 'default' },
+          2: { text: '成功', color: 'green' },
+          3: { text: '失败', color: 'red' }
+        }
+        const cfg = map[record.importStatus] || map[2]
+        return <Tag color={cfg.color}>{cfg.text}</Tag>
       }
     }
   ]

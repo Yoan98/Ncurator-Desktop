@@ -6,6 +6,11 @@ import type { SearchResult, DocumentListResponse, ChunkListResponse } from '../s
 const api = {
   ingestFile: (file: File): Promise<{ success: boolean; count?: number; error?: string }> =>
     ipcRenderer.invoke('ingest-file', webUtils.getPathForFile(file), file.name),
+  ingestFiles: (files: File[]): Promise<{ success: boolean; created?: number; error?: string }> =>
+    ipcRenderer.invoke(
+      'ingest-files',
+      files.map((f) => ({ path: webUtils.getPathForFile(f), name: f.name }))
+    ),
   search: (query: string): Promise<{ results: SearchResult[]; tokens: string[] }> =>
     ipcRenderer.invoke('search', query),
   ftsSearch: (query: string): Promise<SearchResult[]> => ipcRenderer.invoke('fts-search', query),

@@ -138,7 +138,8 @@ export class UnifiedStore {
           new arrow.Field('name', new arrow.Utf8()),
           new arrow.Field('sourceType', new arrow.Utf8()),
           new arrow.Field('filePath', new arrow.Utf8(), true),
-          new arrow.Field('createdAt', new arrow.Int64())
+          new arrow.Field('createdAt', new arrow.Int64()),
+          new arrow.Field('importStatus', new arrow.Int32())
         ])
       }
     ]
@@ -191,6 +192,17 @@ export class UnifiedStore {
     const table = await this.db!.openTable(this.TABLE_DOCUMENT)
     // @ts-ignore 类型没问题
     await table.add([doc])
+  }
+
+
+  public async updateDocumentImportStatus(id: string, status: number): Promise<void> {
+    if (this.status !== ServiceStatus.READY) {
+      throw new Error(
+        `UnifiedStore is not ready. Current status: ${this.status}. Please wait for initialization.`
+      )
+    }
+    const table = await this.db!.openTable(this.TABLE_DOCUMENT)
+    await table.update({ where: `id = '${id}'`, values: { importStatus: status } })
   }
 
   /**
@@ -396,13 +408,18 @@ export class UnifiedStore {
 
     const rows = await query.limit(pageSize).offset(skip).toArray()
 
-    const items = rows.map((item) => ({
-      id: item.id as string,
-      name: item.name as string,
-      sourceType: item.sourceType as any,
-      filePath: item.filePath as string,
-      createdAt: Number(item.createdAt)
-    }))
+    const items = rows.map((item) => {
+      const s = Number((item as any).importStatus ?? 2)
+      const importStatus = (s === 1 ? 1 : s === 3 ? 3 : 2) as 1 | 2 | 3
+      return {
+        id: item.id as string,
+        name: item.name as string,
+        sourceType: item.sourceType as any,
+        filePath: item.filePath as string,
+        createdAt: Number(item.createdAt),
+        importStatus
+      }
+    })
 
     return { items, total }
   }

@@ -11,6 +11,9 @@ declare global {
     electron: ElectronAPI
     api: {
       ingestFile: (file: File) => Promise<{ success: boolean; count?: number; error?: string }>
+      ingestFiles: (
+        files: File[]
+      ) => Promise<{ success: boolean; created?: number; error?: string }>
       search: (query: string) => Promise<SearchResponse>
       ftsSearch: (query: string) => Promise<SearchResult[]>
       vectorSearch: (query: string) => Promise<SearchResult[]>
