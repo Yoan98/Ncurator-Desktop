@@ -295,4 +295,15 @@ export function registerHandlers(services: {
       return { success: false, error: error.message }
     }
   })
+
+  ipcMain.handle('delete-documents', async (event, ids: string[]) => {
+    try {
+      const res = await unifiedStore.deleteDocumentsByIds(ids || [])
+      event.sender.send('document-list-refresh')
+      return { success: true, ...res }
+    } catch (error: any) {
+      console.error('❌ [DELETE-DOCUMENTS] ERROR:', error)
+      return { success: false, error: error.message }
+    }
+  })
 }

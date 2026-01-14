@@ -28,6 +28,10 @@ const api = {
     page: number
     pageSize: number
   }): Promise<ChunkListResponse> => ipcRenderer.invoke('list-chunks', payload),
+  deleteDocuments: (
+    ids: string[]
+  ): Promise<{ success: boolean; deletedDocs?: number; deletedChunks?: number; error?: string }> =>
+    ipcRenderer.invoke('delete-documents', ids),
   dropDocumentsTable: (): Promise<{ success: boolean; existed?: boolean; error?: string }> =>
     ipcRenderer.invoke('drop-documents-table'),
   documentListRefresh: (cb: () => void) => ipcRenderer.on('document-list-refresh', () => cb()),

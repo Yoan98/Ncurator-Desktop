@@ -194,7 +194,6 @@ export class UnifiedStore {
     await table.add([doc])
   }
 
-
   public async updateDocumentImportStatus(id: string, status: number): Promise<void> {
     if (this.status !== ServiceStatus.READY) {
       throw new Error(
@@ -502,6 +501,33 @@ export class UnifiedStore {
     const chunkRes = await this.dropTable(this.TABLE_CHUNK)
     const docRes = await this.dropTable(this.TABLE_DOCUMENT)
     return { existed: chunkRes.existed || docRes.existed }
+  }
+
+  public async deleteDocumentsByIds(ids: string[]): Promise<{
+    deletedDocs: number
+    deletedChunks: number
+  }> {
+    if (this.status !== ServiceStatus.READY) {
+      throw new Error(
+        `UnifiedStore is not ready. Current status: ${this.status}. Please wait for initialization.`
+      )
+    }
+    if (!this.db) {
+      throw new Error('Database connection not established')
+    }
+    if (!ids || ids.length === 0) {
+      return { deletedDocs: 0, deletedChunks: 0 }
+    }
+    const inClause = ids.map((id) => `'${id.replace(/'/g, "''")}'`).join(',')
+    const chunkWhere = `documentId IN (${inClause})`
+    const docWhere = `id IN (${inClause})`
+    const chunkTable = await this.db.openTable(this.TABLE_CHUNK)
+    const docTable = await this.db.openTable(this.TABLE_DOCUMENT)
+    const deletedChunks = await chunkTable.countRows(chunkWhere)
+    const deletedDocs = await docTable.countRows(docWhere)
+    await chunkTable.delete(chunkWhere)
+    await docTable.delete(docWhere)
+    return { deletedDocs, deletedChunks }
   }
 
   /**

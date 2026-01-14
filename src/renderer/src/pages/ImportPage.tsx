@@ -1,5 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { Upload, Button, message, Typography, Input, Table, Modal, Segmented, Tag } from 'antd'
+import {
+  Upload,
+  Button,
+  message,
+  Typography,
+  Input,
+  Table,
+  Modal,
+  Segmented,
+  Tag,
+  Spin
+} from 'antd'
 import {
   InboxOutlined,
   ReloadOutlined,
@@ -22,6 +33,8 @@ const ImportPage: React.FC = () => {
   const [processing, setProcessing] = useState(false)
   const [keyword, setKeyword] = useState('')
   const [typeFilter, setTypeFilter] = useState<'all' | 'file' | 'web'>('all')
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
+  const [deleting, setDeleting] = useState(false)
 
   const fetchDocuments = async () => {
     setLoading(true)
@@ -153,10 +166,52 @@ const ImportPage: React.FC = () => {
           3: { text: '失败', color: 'red' }
         }
         const cfg = map[record.importStatus] || map[2]
-        return <Tag color={cfg.color}>{cfg.text}</Tag>
+        return (
+          <Tag color={cfg.color}>
+            {record.importStatus === 1 ? (
+              <>
+                <Spin size="small" style={{ marginRight: 6 }} />
+                {cfg.text}
+              </>
+            ) : (
+              cfg.text
+            )}
+          </Tag>
+        )
       }
     }
   ]
+
+  const handleDeleteSelected = () => {
+    if (selectedRowKeys.length === 0 || deleting) return
+    Modal.confirm({
+      title: '删除文档',
+      content: '确定删除所选文档？将同时删除相关分片',
+      okText: '删除',
+      cancelText: '取消',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        setDeleting(true)
+        try {
+          const ids = selectedRowKeys.map((k) => String(k))
+          const res = await window.api.deleteDocuments(ids)
+          if (res.success) {
+            message.success(
+              `删除成功，文档 ${res.deletedDocs || 0} 个，分片 ${res.deletedChunks || 0} 个`
+            )
+            setSelectedRowKeys([])
+            fetchDocuments()
+          } else {
+            message.error(res.error || '删除失败')
+          }
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : String(error)
+          message.error(`删除出错: ${msg}`)
+        }
+        setDeleting(false)
+      }
+    })
+  }
 
   return (
     <div className="min-h-screen bg-white p-6 font-sans">
@@ -175,6 +230,13 @@ const ImportPage: React.FC = () => {
               onClick={fetchDocuments}
               className="border-none shadow-none hover:bg-gray-100"
             />
+            <Button
+              danger
+              disabled={selectedRowKeys.length === 0 || deleting}
+              onClick={handleDeleteSelected}
+            >
+              删除所选
+            </Button>
             <Button
               type="primary"
               className="bg-gray-800 hover:!bg-gray-700 border-none h-9 px-4 rounded"
@@ -214,6 +276,10 @@ const ImportPage: React.FC = () => {
             dataSource={displayedDocuments}
             columns={columns}
             rowKey="id"
+            rowSelection={{
+              selectedRowKeys,
+              onChange: (keys) => setSelectedRowKeys(keys)
+            }}
             pagination={{
               pageSize: 10,
               position: ['bottomRight'],
