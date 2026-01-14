@@ -29,6 +29,8 @@ declare global {
         pageSize: number
       }) => Promise<{ items: ChunkListItem[]; total: number }>
       dropDocumentsTable: () => Promise<{ success: boolean; existed?: boolean; error?: string }>
+      documentListRefresh: (cb: () => void) => void
+      removeDocumentListRefreshListeners: () => void
     }
   }
 }

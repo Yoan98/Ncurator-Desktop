@@ -40,6 +40,16 @@ const ImportPage: React.FC = () => {
     fetchDocuments()
   }, [keyword])
 
+  useEffect(() => {
+    const handler = () => {
+      fetchDocuments()
+    }
+    window.api.documentListRefresh(handler)
+    return () => {
+      window.api.removeDocumentListRefreshListeners?.()
+    }
+  }, [])
+
   const handleUpload = async () => {
     if (fileList.length === 0) {
       message.warning('请先选择文件')

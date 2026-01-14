@@ -19,7 +19,7 @@ export function registerHandlers(services: {
 }) {
   const { ingestionService, embeddingService, unifiedStore } = services
 
-  ipcMain.handle('ingest-file', async (_event, filePath: string, filename: string) => {
+  ipcMain.handle('ingest-file', async (event, filePath: string, filename: string) => {
     let documentId: string = ''
     try {
       console.log('📄 [INGEST-FILE] FILENAME:', filename)
@@ -91,18 +91,20 @@ export function registerHandlers(services: {
       })
       console.log('✅ [INGEST-FILE] STORED DOCS IN UNIFIED LANCEDB')
       await unifiedStore.updateDocumentImportStatus(documentId, 2)
+      event.sender.send('document-list-refresh')
 
       return { success: true, count: chunks.length }
     } catch (error: any) {
       console.error('❌ [INGEST-FILE] ERROR:', error)
       if (documentId) {
         await unifiedStore.updateDocumentImportStatus(documentId, 3).catch(() => {})
+        event.sender.send('document-list-refresh')
       }
       return { success: false, error: error.message }
     }
   })
 
-  ipcMain.handle('ingest-files', async (_event, files: Array<{ path: string; name: string }>) => {
+  ipcMain.handle('ingest-files', async (event, files: Array<{ path: string; name: string }>) => {
     try {
       const docsDir = DOCUMENTS_PATH
       if (!fs.existsSync(docsDir)) {
@@ -158,10 +160,12 @@ export function registerHandlers(services: {
             })
             console.log(`STORED DOCS IN UNIFIED LANCEDB FOR ${c.name}`)
             await unifiedStore.updateDocumentImportStatus(c.id, 2)
+            event.sender.send('document-list-refresh')
             console.log(`✅ [INGEST-FILES] DONE FOR ${c.name}`)
           } catch (error: any) {
             console.error('❌ [INGEST-FILES] ERROR:', error)
             await unifiedStore.updateDocumentImportStatus(c.id, 3)
+            event.sender.send('document-list-refresh')
           }
         }
       })()
