@@ -183,6 +183,7 @@ const ImportPage: React.FC = () => {
   ]
 
   const handleDeleteSelected = () => {
+    console.log('selectedRowKeys', selectedRowKeys)
     if (selectedRowKeys.length === 0 || deleting) return
     Modal.confirm({
       title: '删除文档',

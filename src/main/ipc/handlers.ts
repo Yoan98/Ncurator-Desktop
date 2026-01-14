@@ -298,7 +298,9 @@ export function registerHandlers(services: {
 
   ipcMain.handle('delete-documents', async (event, ids: string[]) => {
     try {
+      console.log('🗑️ [DELETE-DOCUMENTS] REQUEST:', ids)
       const res = await unifiedStore.deleteDocumentsByIds(ids || [])
+      console.log('🗑️ [DELETE-DOCUMENTS] DONE:', res)
       event.sender.send('document-list-refresh')
       return { success: true, ...res }
     } catch (error: any) {
