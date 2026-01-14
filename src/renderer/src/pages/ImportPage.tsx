@@ -166,13 +166,12 @@ const ImportPage: React.FC = () => {
         <div className="mb-6 flex gap-2 items-center">
           <Input
             placeholder="请输入关键词"
-            size="large"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             className="rounded-lg border-gray-200 hover:border-gray-300 focus:border-black focus:shadow-none"
             suffix={
               <SearchOutlined
-                className="text-gray-400 bg-gray-800 text-white p-2 rounded cursor-pointer"
+                className="text-gray-400 text-white p-2 rounded cursor-pointer"
                 style={{ marginRight: -7 }}
               />
             }
