@@ -30,12 +30,7 @@ declare global {
       }) => Promise<{ items: ChunkListItem[]; total: number }>
       deleteDocuments: (
         ids: string[]
-      ) => Promise<{
-        success: boolean
-        deletedDocs?: number
-        deletedChunks?: number
-        error?: string
-      }>
+      ) => Promise<{ success: boolean; msg?: string; error?: string }>
       dropDocumentsTable: () => Promise<{ success: boolean; existed?: boolean; error?: string }>
       documentListRefresh: (cb: () => void) => void
       removeDocumentListRefreshListeners: () => void

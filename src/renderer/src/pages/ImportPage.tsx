@@ -196,9 +196,7 @@ const ImportPage: React.FC = () => {
       const ids = selectedRowKeys.map((k) => String(k))
       const res = await window.api.deleteDocuments(ids)
       if (res.success) {
-        message.success(
-          `删除成功，文档 ${res.deletedDocs || 0} 个，分片 ${res.deletedChunks || 0} 个`
-        )
+        message.success(`删除成功`)
         setSelectedRowKeys([])
         setDeleteConfirmVisible(false)
         fetchDocuments()

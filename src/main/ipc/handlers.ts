@@ -302,7 +302,7 @@ export function registerHandlers(services: {
       const res = await unifiedStore.deleteDocumentsByIds(ids || [])
       console.log('🗑️ [DELETE-DOCUMENTS] DONE:', res)
       event.sender.send('document-list-refresh')
-      return { success: true, ...res }
+      return res
     } catch (error: any) {
       console.error('❌ [DELETE-DOCUMENTS] ERROR:', error)
       return { success: false, error: error.message }
