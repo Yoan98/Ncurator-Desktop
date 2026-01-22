@@ -515,24 +515,29 @@ export class UnifiedStore {
     if (!ids || ids.length === 0) {
       return { success: false, msg: 'No document IDs provided' }
     }
-    const chunkTable = await this.db.openTable(this.TABLE_CHUNK)
-    const docTable = await this.db.openTable(this.TABLE_DOCUMENT)
+    try {
+      const chunkTable = await this.db.openTable(this.TABLE_CHUNK)
+      const docTable = await this.db.openTable(this.TABLE_DOCUMENT)
 
-    const chunkTotal = await chunkTable.countRows()
-    const docTotal = await docTable.countRows()
-    console.log('chunk rows before delete', chunkTotal)
-    console.log('doc rows before delete', docTotal)
+      const chunkTotal = await chunkTable.countRows()
+      const docTotal = await docTable.countRows()
+      console.log('chunk rows before delete', chunkTotal)
+      console.log('doc rows before delete', docTotal)
 
-    for (const id of ids) {
-      const chunkWhere = `documentId = "${id}"`
-      const docWhere = `id = "${id}"`
+      for (const id of ids) {
+        const chunkWhere = `documentId = "${id}"`
+        const docWhere = `id = "${id}"`
 
-      await chunkTable.delete(chunkWhere)
-      await docTable.delete(docWhere)
+        await chunkTable.delete(chunkWhere)
+        await docTable.delete(docWhere)
+      }
+
+      console.log('chunk rows after delete', await chunkTable.countRows())
+      console.log('doc rows after delete', await docTable.countRows())
+    } catch (error: any) {
+      console.error('❌ [DELETE-DOCUMENTS] ERROR:', error)
+      return { success: false, msg: error.message }
     }
-
-    console.log('chunk rows after delete', await chunkTable.countRows())
-    console.log('doc rows after delete', await docTable.countRows())
     return { success: true, msg: 'Documents deleted successfully' }
   }
 
