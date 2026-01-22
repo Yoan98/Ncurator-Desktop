@@ -1,8 +1,18 @@
 import React from 'react'
 import { HashRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom'
-import { Layout, ConfigProvider, theme, Button, Dropdown } from 'antd'
-import { ArrowLeftOutlined, SettingOutlined, BookOutlined, BlockOutlined } from '@ant-design/icons'
+import { Layout, ConfigProvider, theme, Button, Dropdown, Segmented } from 'antd'
+import {
+  ArrowLeftOutlined,
+  SettingOutlined,
+  BookOutlined,
+  BlockOutlined,
+  SearchOutlined,
+  CommentOutlined,
+  ToolOutlined
+} from '@ant-design/icons'
 import SearchPage from './pages/SearchPage'
+import ChatPage from './pages/ChatPage'
+import SettingsPage from './pages/SettingsPage'
 import ImportPage from './pages/ImportPage'
 import TestPage from './pages/TestPage'
 import brandIcon from '../../../resources/icon.png'
@@ -45,6 +55,8 @@ const MainLayout: React.FC = () => {
   const location = useLocation()
   const navigate = useNavigate()
   const isSearchPage = location.pathname === '/'
+  const isChatPage = location.pathname === '/chat'
+  const isHomeOrChat = isSearchPage || isChatPage
 
   return (
     <Layout className="min-h-screen bg-slate-50">
@@ -62,7 +74,17 @@ const MainLayout: React.FC = () => {
             </span>
           </div>
 
-          {!isSearchPage && (
+          {isHomeOrChat ? (
+            <Segmented
+              options={[
+                { label: '搜索', value: '/', icon: <SearchOutlined /> },
+                { label: '对话', value: '/chat', icon: <CommentOutlined /> }
+              ]}
+              value={location.pathname === '/chat' ? '/chat' : '/'}
+              onChange={(val) => navigate(val)}
+              className="ml-4 bg-slate-200/50"
+            />
+          ) : (
             <Button
               type="text"
               icon={<ArrowLeftOutlined />}
@@ -79,10 +101,12 @@ const MainLayout: React.FC = () => {
             menu={{
               items: [
                 { key: 'kb', label: '知识库管理', icon: <BookOutlined /> },
+                { key: 'settings', label: '模型配置', icon: <ToolOutlined /> },
                 { key: 'test', label: '实验室', icon: <BlockOutlined /> }
               ],
               onClick: (info) => {
                 if (info.key === 'kb') navigate('/import')
+                if (info.key === 'settings') navigate('/settings')
                 if (info.key === 'test') navigate('/test')
               }
             }}
@@ -97,6 +121,8 @@ const MainLayout: React.FC = () => {
       <Content className="bg-slate-50 overflow-auto">
         <Routes>
           <Route path="/" element={<SearchPage />} />
+          <Route path="/chat" element={<ChatPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
           <Route path="/import" element={<ImportPage />} />
           <Route path="/test" element={<TestPage />} />
         </Routes>
