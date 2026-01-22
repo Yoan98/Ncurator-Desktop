@@ -91,15 +91,15 @@ const SearchPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#fafafa] text-black p-4 font-sans">
-      <div className=" mx-auto pt-8 px-5">
+    <div className="min-h-full p-6 font-sans max-w-4xl mx-auto">
+      <div className="pt-8">
         {/* Search Box */}
-        <div className="bg-white border border-gray-200 rounded-xl p-2 shadow-sm mb-[10px] focus-within:ring-2 focus-within:ring-black/5 transition-all relative">
+        <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-sm mb-6 focus-within:ring-4 focus-within:ring-blue-50 focus-within:border-blue-300 transition-all duration-300 relative group">
           <TextArea
             placeholder="基于您的资源搜索..."
             autoSize={{ minRows: 2, maxRows: 6 }}
             bordered={false}
-            className="text-lg bg-transparent mb-4 placeholder:text-gray-400 !px-0 text-left min-h-[60px] max-h-[60px]"
+            className="text-lg bg-transparent mb-2 placeholder:text-slate-400 !px-1 text-slate-800 min-h-[60px]"
             style={{ resize: 'none' }}
             value={searchValue}
             onChange={(e) => setSearchValue(e.target.value)}
@@ -110,32 +110,54 @@ const SearchPage: React.FC = () => {
               }
             }}
           />
-          <div className="flex justify-end items-center">
+          <div className="flex justify-between items-center px-1">
+            <div className="text-xs text-slate-400 font-medium">Enter 发送，Shift + Enter 换行</div>
             <Button
               type="primary"
               shape="circle"
+              size="large"
               icon={<SendOutlined />}
-              className=" bg-black hover:bg-gray-800 border-none shadow-none flex items-center justify-center"
+              className={`border-none shadow-none flex items-center justify-center transition-all duration-300 ${
+                searchValue.trim()
+                  ? 'bg-blue-600 hover:bg-blue-700 scale-100'
+                  : 'bg-slate-200 text-slate-400 scale-95'
+              }`}
               onClick={() => handleSearch(searchValue)}
               loading={loading}
+              disabled={!searchValue.trim()}
             />
           </div>
         </div>
 
         {/* AI Answer Section */}
-        <div className="bg-white border border-gray-200 rounded-xl shadow-sm mb-8 p-4 transition-all hover:shadow-md">
-          <div className="flex items-center justify-between">
-            <span className="font-bold text-base text-gray-800">AI 回答</span>
-            <Switch checked={aiAnswerEnabled} onChange={setAiAnswerEnabled} />
+        <div
+          className={`bg-white border border-slate-200 rounded-2xl shadow-sm mb-8 p-6 transition-all duration-500 ${aiAnswerEnabled ? 'opacity-100 translate-y-0' : 'opacity-80'}`}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center">
+                <span className="text-white text-xs font-bold">AI</span>
+              </div>
+              <span className="font-bold text-base text-slate-800">智能回答</span>
+            </div>
+            <Switch
+              checked={aiAnswerEnabled}
+              onChange={setAiAnswerEnabled}
+              className="bg-slate-200 hover:bg-slate-300 [&.ant-switch-checked]:bg-blue-600"
+            />
           </div>
 
           {aiAnswerEnabled && (
-            <div className="mt-4 pt-4 border-t border-gray-100">
+            <div className="pt-2">
               <Typography.Paragraph
-                className="text-gray-600 text-base leading-relaxed mb-0"
-                ellipsis={{ rows: 8, expandable: true, symbol: '展开' }}
+                className="text-slate-600 text-[15px] leading-relaxed mb-0"
+                ellipsis={{
+                  rows: 8,
+                  expandable: true,
+                  symbol: <span className="text-blue-600 font-medium ml-1">展开</span>
+                }}
               >
-                {aiAnswer || 'AI 正在准备回答...'}
+                {aiAnswer || <span className="text-slate-400 italic">等待提问...</span>}
               </Typography.Paragraph>
             </div>
           )}
@@ -149,28 +171,44 @@ const SearchPage: React.FC = () => {
                 grid={{ gutter: 16, column: 1 }}
                 dataSource={results}
                 loading={loading}
+                split={false}
                 renderItem={(item) => (
-                  <List.Item>
+                  <List.Item className="!mb-4">
                     <Card
                       hoverable
-                      className="border border-gray-200 shadow-sm hover:shadow-md transition-shadow"
+                      bordered={false}
+                      className="group bg-white border border-slate-200 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 rounded-xl overflow-hidden"
+                      bodyStyle={{ padding: '20px' }}
                       onClick={() => openPreview(item)}
                     >
-                      <div className="flex flex-col gap-2">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2 text-gray-500 text-sm">
-                            <img src={brandIcon} alt="icon" className="w-4 h-4" />
-                            <span className="font-medium text-black">{item.documentName}</span>
+                      <div className="flex flex-col gap-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2.5 overflow-hidden">
+                            <div className="p-1.5 rounded-lg bg-slate-50 border border-slate-100 group-hover:bg-blue-50 group-hover:border-blue-100 transition-colors">
+                              <img
+                                src={brandIcon}
+                                alt="icon"
+                                className="w-4 h-4 opacity-70 group-hover:opacity-100 transition-opacity"
+                              />
+                            </div>
+                            <span className="font-semibold text-slate-800 truncate text-[15px] group-hover:text-blue-700 transition-colors">
+                              {item.documentName}
+                            </span>
                           </div>
                           {item.metadata?.page && (
-                            <Tag color="default">Page {item.metadata.page}</Tag>
+                            <Tag className="mr-0 border-transparent bg-slate-100 text-slate-500 font-medium px-2 py-0.5 rounded-md">
+                              P.{item.metadata.page}
+                            </Tag>
                           )}
                         </div>
-                        <TextHighlighter
-                          text={item.text}
-                          keywords={tokens}
-                          className="text-gray-600 mb-0 line-clamp-3"
-                        />
+
+                        <div className="bg-slate-50/50 rounded-lg p-3 border border-slate-100/50 group-hover:bg-slate-50 group-hover:border-slate-100 transition-colors">
+                          <TextHighlighter
+                            text={item.text}
+                            keywords={tokens}
+                            className="text-slate-600 mb-0 line-clamp-3 text-sm leading-relaxed"
+                          />
+                        </div>
                       </div>
                     </Card>
                   </List.Item>

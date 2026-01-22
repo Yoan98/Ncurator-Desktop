@@ -15,14 +15,21 @@ function App(): React.JSX.Element {
       theme={{
         algorithm: theme.defaultAlgorithm,
         token: {
-          colorPrimary: '#404040',
-          colorLink: '#404040',
-          borderRadius: 6,
-          fontFamily: 'Inter, system-ui, sans-serif'
+          colorPrimary: '#2563eb', // Blue-600
+          colorLink: '#2563eb',
+          borderRadius: 8,
+          fontFamily: 'Inter, system-ui, sans-serif',
+          colorText: '#334155', // slate-700
+          colorTextHeading: '#1e293b', // slate-800
+          colorBorder: '#e2e8f0' // slate-200
         },
         components: {
           Button: {
-            primaryShadow: 'none'
+            primaryShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+            borderRadius: 8
+          },
+          Card: {
+            borderRadiusLG: 16
           }
         }
       }}
@@ -40,14 +47,19 @@ const MainLayout: React.FC = () => {
   const isSearchPage = location.pathname === '/'
 
   return (
-    <Layout className="min-h-screen bg-[#fafafa]">
-      <Header className="!bg-[#fafafa] px-4 flex items-center justify-between sticky top-0 z-10 h-16 border-b border-gray-200">
+    <Layout className="min-h-screen bg-slate-50">
+      <Header className="!bg-slate-50/90 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-20 h-16 border-b border-slate-200 shadow-sm transition-all">
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/')}>
-            <div className="w-8 h-8 rounded-md flex items-center justify-center text-white font-bold text-lg">
-              <img src={brandIcon} alt="N" className="w-6 h-6" />
+          <div
+            className="flex items-center gap-3 cursor-pointer group"
+            onClick={() => navigate('/')}
+          >
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-md group-hover:scale-105 transition-transform duration-300">
+              <img src={brandIcon} alt="N" className="w-6 h-6 invert" />
             </div>
-            <span className="font-semibold text-lg tracking-tight text-[#404040]">Ncurator</span>
+            <span className="font-bold text-xl tracking-tight text-slate-800 group-hover:text-blue-600 transition-colors">
+              Ncurator
+            </span>
           </div>
 
           {!isSearchPage && (
@@ -55,7 +67,7 @@ const MainLayout: React.FC = () => {
               type="text"
               icon={<ArrowLeftOutlined />}
               onClick={() => navigate(-1)}
-              className="ml-2"
+              className="ml-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
             />
           )}
         </div>
@@ -66,8 +78,8 @@ const MainLayout: React.FC = () => {
             placement="bottomRight"
             menu={{
               items: [
-                { key: 'kb', label: '知识库', icon: <BookOutlined /> },
-                { key: 'test', label: '测试页面', icon: <BlockOutlined /> }
+                { key: 'kb', label: '知识库管理', icon: <BookOutlined /> },
+                { key: 'test', label: '实验室', icon: <BlockOutlined /> }
               ],
               onClick: (info) => {
                 if (info.key === 'kb') navigate('/import')
@@ -75,11 +87,14 @@ const MainLayout: React.FC = () => {
               }
             }}
           >
-            <Button icon={<SettingOutlined />} />
+            <Button
+              icon={<SettingOutlined />}
+              className="!border-slate-200 !text-slate-600 hover:!border-blue-500 hover:!text-blue-600 !rounded-lg"
+            />
           </Dropdown>
         </div>
       </Header>
-      <Content className="bg-[#fafafa] overflow-auto">
+      <Content className="bg-slate-50 overflow-auto">
         <Routes>
           <Route path="/" element={<SearchPage />} />
           <Route path="/import" element={<ImportPage />} />

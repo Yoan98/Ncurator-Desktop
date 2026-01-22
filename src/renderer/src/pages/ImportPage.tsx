@@ -213,129 +213,162 @@ const ImportPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-white p-6 font-sans">
-      <div className="max-w-5xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-3">
-            <BookOutlined className="text-2xl" />
-            <Title level={3} className="!mb-0 !font-bold">
-              知识库
-            </Title>
+    <div className="min-h-full p-8 font-sans max-w-7xl mx-auto">
+      <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center gap-4">
+          <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
+            <BookOutlined className="text-xl" />
           </div>
-          <div className="flex items-center gap-3">
+          <div>
+            <Title level={3} className="!mb-0 !font-bold !text-slate-800">
+              知识库管理
+            </Title>
+            <p className="text-slate-500 text-sm mt-1">管理您的本地文档资源</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button
+            icon={<ReloadOutlined />}
+            shape="circle"
+            onClick={fetchDocuments}
+            className="border-slate-200 text-slate-500 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50"
+          />
+          <Button
+            danger
+            disabled={selectedRowKeys.length === 0 || deleting}
+            onClick={handleDeleteSelected}
+            className="hover:!bg-red-50 hover:!border-red-200"
+          >
+            删除所选
+          </Button>
+          <Button
+            type="primary"
+            icon={<InboxOutlined />}
+            className="bg-blue-600 hover:!bg-blue-700 border-none h-9 px-5 rounded-lg shadow-sm hover:shadow-md transition-all"
+            onClick={() => setUploadModalVisible(true)}
+          >
+            新增文档
+          </Button>
+        </div>
+      </div>
+
+      <div className="mb-6 flex justify-between items-center bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
+        <Input
+          placeholder="搜索文档名称..."
+          value={keyword}
+          onChange={(e) => setKeyword(e.target.value)}
+          bordered={false}
+          className="max-w-md text-slate-700 placeholder:text-slate-400"
+          prefix={<SearchOutlined className="text-slate-400 mr-2" />}
+        />
+        <Segmented
+          value={typeFilter}
+          onChange={(val) => setTypeFilter(val as 'all' | 'file' | 'web')}
+          options={[
+            { label: '全部', value: 'all' },
+            { label: '文件', value: 'file' },
+            { label: '网页', value: 'web' }
+          ]}
+          className="bg-slate-100 p-1 rounded-lg"
+        />
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <Table
+          dataSource={displayedDocuments}
+          columns={columns}
+          rowKey="id"
+          rowSelection={{
+            selectedRowKeys,
+            onChange: (keys) => setSelectedRowKeys(keys)
+          }}
+          pagination={{
+            pageSize: 10,
+            position: ['bottomRight'],
+            size: 'small',
+            showSizeChanger: false,
+            className: 'px-6 py-4'
+          }}
+          loading={loading}
+          size="middle"
+          className="[&_.ant-table-thead_th]:!bg-slate-50 [&_.ant-table-thead_th]:!text-slate-600 [&_.ant-table-thead_th]:!font-medium [&_.ant-table-tbody_td]:!py-4"
+        />
+      </div>
+
+      <Modal
+        open={deleteConfirmVisible}
+        onCancel={() => setDeleteConfirmVisible(false)}
+        title={
+          <div className="flex items-center gap-2 text-slate-800">
+            <span className="w-1 h-4 bg-red-500 rounded-full"></span>
+            删除文档
+          </div>
+        }
+        footer={
+          <div className="flex justify-end gap-2 pt-2">
             <Button
-              icon={<ReloadOutlined />}
-              shape="circle"
-              onClick={fetchDocuments}
-              className="border-none shadow-none hover:bg-gray-100"
-            />
+              onClick={() => setDeleteConfirmVisible(false)}
+              disabled={deleting}
+              className="rounded-lg"
+            >
+              取消
+            </Button>
             <Button
               danger
-              disabled={selectedRowKeys.length === 0 || deleting}
-              onClick={handleDeleteSelected}
-            >
-              删除所选
-            </Button>
-            <Button
               type="primary"
-              className="bg-gray-800 hover:!bg-gray-700 border-none h-9 px-4 rounded"
-              onClick={() => setUploadModalVisible(true)}
+              onClick={handleConfirmDelete}
+              loading={deleting}
+              className="rounded-lg bg-red-500 hover:!bg-red-600"
             >
-              新增文档
+              确认删除
             </Button>
           </div>
+        }
+        width={400}
+        className="[&_.ant-modal-content]:!rounded-2xl"
+      >
+        <div className="py-4 text-slate-600">
+          <p>确定要删除选中的 {selectedRowKeys.length} 个文档吗？</p>
+          <p className="text-xs text-slate-400 mt-2">
+            此操作将同时删除相关的向量数据，且不可恢复。
+          </p>
         </div>
-
-        <div className="mb-6 flex gap-2 items-center">
-          <Input
-            placeholder="请输入关键词"
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            className="rounded-lg border-gray-200 hover:border-gray-300 focus:border-black focus:shadow-none"
-            suffix={
-              <SearchOutlined
-                className="text-gray-400 text-white p-2 rounded cursor-pointer"
-                style={{ marginRight: -7 }}
-              />
-            }
-          />
-          <Segmented
-            value={typeFilter}
-            onChange={(val) => setTypeFilter(val as 'all' | 'file' | 'web')}
-            options={[
-              { label: '全部', value: 'all' },
-              { label: '文件', value: 'file' },
-              { label: '网页', value: 'web' }
-            ]}
-          />
-        </div>
-
-        <div className="bg-white rounded-lg border border-gray-100 overflow-hidden">
-          <Table
-            dataSource={displayedDocuments}
-            columns={columns}
-            rowKey="id"
-            rowSelection={{
-              selectedRowKeys,
-              onChange: (keys) => setSelectedRowKeys(keys)
-            }}
-            pagination={{
-              pageSize: 10,
-              position: ['bottomRight'],
-              size: 'small',
-              showSizeChanger: false
-            }}
-            loading={loading}
-            size="middle"
-            className="custom-table"
-          />
-        </div>
-
-        <Modal
-          open={deleteConfirmVisible}
-          onCancel={() => setDeleteConfirmVisible(false)}
-          title="删除文档"
-          footer={
-            <>
-              <Button onClick={() => setDeleteConfirmVisible(false)} disabled={deleting}>
-                取消
-              </Button>
-              <Button danger type="primary" onClick={handleConfirmDelete} loading={deleting}>
-                删除
-              </Button>
-            </>
-          }
-        >
-          <div>确定删除所选文档？将同时删除相关分片</div>
-        </Modal>
-
-        <Modal
-          open={uploadModalVisible}
-          onCancel={() => setUploadModalVisible(false)}
-          footer={null}
-          title="上传文件"
-          width={600}
-        >
-          <Dragger {...uploadProps} style={{ padding: '20px' }}>
+      </Modal>
+      <Modal
+        open={uploadModalVisible}
+        onCancel={() => setUploadModalVisible(false)}
+        footer={null}
+        title={<span className="text-slate-800 font-bold">上传文件</span>}
+        width={600}
+        className="[&_.ant-modal-content]:!rounded-2xl"
+      >
+        <div className="pt-4">
+          <Dragger
+            {...uploadProps}
+            className="!border-slate-200 !bg-slate-50 hover:!border-blue-400 [&_.ant-upload-drag-icon]:!mb-2"
+            style={{ padding: '32px', borderRadius: '16px' }}
+          >
             <p className="ant-upload-drag-icon">
-              <InboxOutlined style={{ color: '#000' }} />
+              <InboxOutlined className="!text-blue-500 text-4xl" />
             </p>
-            <p className="ant-upload-text">点击或拖拽文件到此处上传</p>
-            <p className="ant-upload-hint">支持 PDF 和 DOCX 文件</p>
+            <p className="ant-upload-text !text-slate-700 !text-base font-medium">
+              点击或拖拽文件到此处上传
+            </p>
+            <p className="ant-upload-hint !text-slate-400">支持 PDF 和 DOCX 文件</p>
           </Dragger>
-          <div className="mt-4 flex justify-end">
+          <div className="mt-6 flex justify-end">
             <Button
               type="primary"
               onClick={handleUpload}
               disabled={fileList.length === 0}
               loading={processing}
-              className="bg-black hover:!bg-gray-800"
+              className="bg-blue-600 hover:!bg-blue-700 h-10 px-6 rounded-lg font-medium shadow-sm hover:shadow-md transition-all"
             >
               {processing ? '处理中...' : '开始导入'}
             </Button>
           </div>
-        </Modal>
-      </div>
+        </div>
+      </Modal>
     </div>
   )
 }

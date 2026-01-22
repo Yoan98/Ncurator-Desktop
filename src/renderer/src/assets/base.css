@@ -1,4 +1,9 @@
 @import "tailwindcss";
+
+mark {
+  @apply bg-yellow-200 text-slate-900 rounded-sm px-0.5 font-medium;
+}
+
 :root {
   --ev-c-white: #ffffff;
   --ev-c-white-soft: #f8f8f8;

@@ -156,8 +156,8 @@ function TestPage(): React.JSX.Element {
   }, [view])
 
   return (
-    <div className="p-8 max-w-6xl mx-auto h-screen flex flex-col">
-      <h1 className="text-2xl font-bold mb-6 text-gray-800">NCurator Debug Console</h1>
+    <div className="p-8 max-w-7xl mx-auto min-h-full flex flex-col font-sans">
+      <h1 className="text-2xl font-bold mb-6 text-slate-800">NCurator Debug Console</h1>
 
       <div className="flex gap-4 mb-6 flex-wrap">
         <Upload beforeUpload={handleUpload} showUploadList={false}>
