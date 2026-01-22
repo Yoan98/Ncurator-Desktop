@@ -1,6 +1,6 @@
 # UI/UX 设计规范与准则 (Design System)
 
-> **核心理念**: 现代极简教育科技风格 (Modern Minimalist EdTech)。
+> **核心理念**: 本地知识库极简科技风格 (Modern Minimalist EdTech)。
 > **氛围**: 专业、干净、轻盈且注重阅读体验（"Slate 岩板灰主题"）。
 
 ## 1. 调色板 (Color Palette - Tailwind CSS)
