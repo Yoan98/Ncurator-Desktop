@@ -277,7 +277,12 @@ export function registerHandlers(services: {
       try {
         const { keyword, page, pageSize } = payload
         const res = await unifiedStore.listChunks({ keyword, page, pageSize })
-        return res
+        const normalized = res.items.map((item) => {
+          const newItem = { ...item }
+          delete (newItem as any).vector
+          return newItem
+        })
+        return { items: normalized, total: res.total }
       } catch (error: any) {
         console.error('❌ [LIST-CHUNKS] ERROR:', error)
         return { items: [], total: 0 }

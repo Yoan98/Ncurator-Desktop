@@ -41,7 +41,7 @@ export interface ChunkListItem {
     page: number
   }
   createdAt?: number
-  vector: number[]
+  vector?: number[]
 }
 
 export interface ChunkListResponse {
