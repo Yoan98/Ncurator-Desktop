@@ -9,6 +9,7 @@ import fs from 'fs'
 import { DOCUMENTS_PATH } from '../utils/paths'
 import { Jieba } from '@node-rs/jieba'
 import { dict } from '@node-rs/jieba/dict'
+import { normalizeForIpc } from '../utils/serialization'
 
 const jieba = Jieba.withDict(dict)
 
@@ -184,12 +185,7 @@ export function registerHandlers(services: {
 
       const tokens = jieba.cutForSearch(query, true)
 
-      const finalResults = results.map((item) => {
-        // Only keep serializable data
-        const newItem = { ...item }
-        delete newItem.vector
-        return newItem
-      })
+      const finalResults = results.map(normalizeForIpc)
 
       return {
         results: finalResults,
@@ -204,11 +200,7 @@ export function registerHandlers(services: {
   ipcMain.handle('fts-search', async (_event, query: string): Promise<SearchResult[]> => {
     try {
       const results = await unifiedStore.ftsSearch(query, 20)
-      const normalized = results.map((item) => {
-        const newItem = { ...item }
-        delete (newItem as any).vector
-        return newItem as unknown as SearchResult
-      })
+      const normalized = results.map(normalizeForIpc)
       // console.log('🔎 [FTS-SEARCH] RESULTS:', normalized)
       return normalized
     } catch (error: any) {
@@ -221,11 +213,7 @@ export function registerHandlers(services: {
     try {
       const { data: queryVector } = await embeddingService.embed(query)
       const results = await unifiedStore.vectorSearch(queryVector, 20)
-      const normalized = results.map((item) => {
-        const newItem = { ...item }
-        delete (newItem as any).vector
-        return newItem as unknown as SearchResult
-      })
+      const normalized = results.map(normalizeForIpc)
       console.log('🔎 [VECTOR-SEARCH] RESULTS:', normalized)
       return normalized
     } catch (error: any) {
@@ -238,11 +226,7 @@ export function registerHandlers(services: {
     try {
       const { data: queryVector } = await embeddingService.embed(query)
       const results = await unifiedStore.hybridSearch(queryVector, query, 20)
-      const normalized = results.map((item) => {
-        const newItem = { ...item }
-        delete (newItem as any).vector
-        return newItem as unknown as SearchResult
-      })
+      const normalized = results.map(normalizeForIpc)
       console.log('🔎 [HYBRID-SEARCH] RESULTS:', normalized)
       return normalized
     } catch (error: any) {
@@ -277,11 +261,7 @@ export function registerHandlers(services: {
       try {
         const { keyword, page, pageSize } = payload
         const res = await unifiedStore.listChunks({ keyword, page, pageSize })
-        const normalized = res.items.map((item) => {
-          const newItem = { ...item }
-          delete (newItem as any).vector
-          return newItem
-        })
+        const normalized = res.items.map(normalizeForIpc)
         return { items: normalized, total: res.total }
       } catch (error: any) {
         console.error('❌ [LIST-CHUNKS] ERROR:', error)

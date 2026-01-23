@@ -1,7 +1,20 @@
 import React, { useEffect, useState } from 'react'
 import type { SearchResult, DocumentRecord, ChunkListItem } from '../../../shared/types'
-import { Input, Button, Upload, message, List, Card, Typography, Segmented, Table, Modal, Tag } from 'antd'
+import {
+  Input,
+  Button,
+  Upload,
+  message,
+  List,
+  Card,
+  Typography,
+  Segmented,
+  Table,
+  Modal,
+  Tag
+} from 'antd'
 import { UploadOutlined, FileTextOutlined, BlockOutlined, SearchOutlined } from '@ant-design/icons'
+import { parseIpcResult } from '../utils/serialization'
 
 const { Paragraph } = Typography
 
@@ -9,9 +22,9 @@ function TestPage(): React.JSX.Element {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [loading, setLoading] = useState(false)
   const [mode, setMode] = useState<'ftsSearch' | 'vectorSearch' | 'hybridSearch'>('hybridSearch')
-  
+
   const [view, setView] = useState<'search' | 'docs' | 'chunks'>('search')
-  
+
   // Documents State
   const [docItems, setDocItems] = useState<DocumentRecord[]>([])
   const [docTotal, setDocTotal] = useState<number>(0)
@@ -31,7 +44,7 @@ function TestPage(): React.JSX.Element {
   const [detailOpen, setDetailOpen] = useState<boolean>(false)
   const [detailText, setDetailText] = useState<string>('')
   const [detailTitle, setDetailTitle] = useState<string>('')
-  
+
   const [dropOpen, setDropOpen] = useState<boolean>(false)
   const [dropLoading, setDropLoading] = useState<boolean>(false)
 
@@ -81,7 +94,7 @@ function TestPage(): React.JSX.Element {
         results = await window.api.hybridSearch(value)
       }
       console.log('🔎 [SEARCH] RESULTS APP:', results)
-      setSearchResults(results)
+      setSearchResults(results.map(parseIpcResult))
     } catch (error) {
       console.error(error)
       message.error('Search failed')
@@ -134,7 +147,7 @@ function TestPage(): React.JSX.Element {
     setChunkLoading(true)
     try {
       const res = await window.api.listChunks({ keyword, page, pageSize })
-      setChunkItems(res.items)
+      setChunkItems(res.items.map(parseIpcResult))
       setChunkTotal(res.total)
       setChunkPage(page)
       setChunkPageSize(pageSize)
@@ -187,8 +200,10 @@ function TestPage(): React.JSX.Element {
         )}
 
         <div className="flex-1" />
-        
-        <Button danger onClick={handleDropDocuments}>Reset DB</Button>
+
+        <Button danger onClick={handleDropDocuments}>
+          Reset DB
+        </Button>
       </div>
 
       {view === 'search' && (
@@ -289,7 +304,9 @@ function TestPage(): React.JSX.Element {
                 dataIndex: 'id',
                 width: 100,
                 ellipsis: true,
-                render: (text) => <Typography.Text copyable={{ text }}>{text.substring(0, 8)}...</Typography.Text>
+                render: (text) => (
+                  <Typography.Text copyable={{ text }}>{text.substring(0, 8)}...</Typography.Text>
+                )
               },
               {
                 title: 'Name',
@@ -330,7 +347,9 @@ function TestPage(): React.JSX.Element {
                 dataIndex: 'id',
                 width: 100,
                 ellipsis: true,
-                render: (text) => <Typography.Text copyable={{ text }}>{text.substring(0, 8)}...</Typography.Text>
+                render: (text) => (
+                  <Typography.Text copyable={{ text }}>{text.substring(0, 8)}...</Typography.Text>
+                )
               },
               {
                 title: 'Doc Name',
@@ -362,9 +381,9 @@ function TestPage(): React.JSX.Element {
                 dataIndex: 'vector',
                 width: 80,
                 render: (vec) => (
-                   <Typography.Text copyable={{ text: JSON.stringify(vec) }}>
-                     [{vec?.length}]
-                   </Typography.Text>
+                  <Typography.Text copyable={{ text: JSON.stringify(vec) }}>
+                    [{vec?.length}]
+                  </Typography.Text>
                 )
               }
             ]}
@@ -392,9 +411,7 @@ function TestPage(): React.JSX.Element {
         width={800}
         bodyStyle={{ maxHeight: '70vh', overflow: 'auto' }}
       >
-        <Paragraph style={{ whiteSpace: 'pre-wrap' }}>
-          {detailText}
-        </Paragraph>
+        <Paragraph style={{ whiteSpace: 'pre-wrap' }}>{detailText}</Paragraph>
       </Modal>
     </div>
   )

@@ -13,6 +13,7 @@ import {
 import { useNavigate } from 'react-router-dom'
 import { LLMConfig, getActiveConfig, streamCompletion, ChatMessage } from '../services/llmService'
 import type { SearchResult } from '../../../shared/types'
+import { parseIpcResult } from '../utils/serialization'
 
 const { TextArea } = Input
 const { Panel } = Collapse
@@ -161,7 +162,7 @@ const ChatPage: React.FC = () => {
       let searchResults: SearchResult[] = []
       try {
         const res = await window.api.search(userQuery)
-        searchResults = res.results.slice(0, 5) // Take top 5
+        searchResults = res.results.slice(0, 5).map(parseIpcResult) // Take top 5
 
         // Update user message with sources
         const messagesWithSource = updatedMessages.map((m) =>

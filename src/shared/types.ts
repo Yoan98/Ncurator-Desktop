@@ -16,9 +16,12 @@ export interface SearchResult {
   documentName: string
   documentId?: string
   sourceType?: string
-  metadata?: {
-    page: number
-  }
+  // IPC 传输时为 JSON string，后端存储时为对象
+  metadata?:
+    | string
+    | {
+        page: number
+      }
   _distance?: number
   createdAt?: number
   _score?: number
@@ -37,9 +40,12 @@ export interface ChunkListItem {
   documentName: string
   documentId?: string
   sourceType?: string
-  metadata?: {
-    page: number
-  }
+  // IPC 传输时为 JSON string，后端存储时为对象
+  metadata?:
+    | string
+    | {
+        page: number
+      }
   createdAt?: number
   vector?: number[]
 }

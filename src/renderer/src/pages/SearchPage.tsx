@@ -8,6 +8,7 @@ import 'react-pdf/dist/Page/TextLayer.css'
 import type { SearchResult } from '../../../shared/types'
 import TextHighlighter from '../components/TextHighlighter'
 import brandIcon from '../../../../resources/icon.png'
+import { parseIpcResult } from '../utils/serialization'
 
 // Configure PDF worker
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
@@ -32,10 +33,11 @@ const SearchPage: React.FC = () => {
     setLoading(true)
     try {
       const response = await window.api.search(value)
-      setResults(response.results)
+      const parsedResults = response.results.map(parseIpcResult)
+      setResults(parsedResults)
       setTokens(response.tokens)
       if (aiAnswerEnabled) {
-        const snippet = response.results?.[0]?.text || ''
+        const snippet = parsedResults?.[0]?.text || ''
         setAiAnswer(snippet || 'AI 正在准备回答...')
       }
     } catch (error) {
@@ -58,7 +60,7 @@ const SearchPage: React.FC = () => {
     const fileUrl = `file://${filePath}`
 
     const isPdf = filePath.toLowerCase().endsWith('.pdf')
-    const pageNum = currentDoc.metadata?.page || 1
+    const pageNum = (currentDoc.metadata as any)?.page || 1
 
     if (isPdf) {
       return (
@@ -195,11 +197,17 @@ const SearchPage: React.FC = () => {
                               {item.documentName}
                             </span>
                           </div>
-                          {item.metadata?.page && (
-                            <Tag className="mr-0 border-transparent bg-slate-100 text-slate-500 font-medium px-2 py-0.5 rounded-md">
-                              P.{item.metadata.page}
-                            </Tag>
-                          )}
+                          {(() => {
+                            const meta = item.metadata as any
+                            if (meta?.page) {
+                              return (
+                                <Tag className="mr-0 border-transparent bg-slate-100 text-slate-500 font-medium px-2 py-0.5 rounded-md">
+                                  P.{meta.page}
+                                </Tag>
+                              )
+                            }
+                            return null
+                          })()}
                         </div>
 
                         <div className="bg-slate-50/50 rounded-lg p-3 border border-slate-100/50 group-hover:bg-slate-50 group-hover:border-slate-100 transition-colors">
