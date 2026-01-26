@@ -113,14 +113,14 @@ const ImportPage: React.FC = () => {
   }
 
   const getSourceTypeLabel = (record: DocumentRecord) => {
-    if (record.sourceType === 'file') return '文件'
-    if (record.sourceType === 'web') return '网页'
+    if (record.source_type === 'file') return '文件'
+    if (record.source_type === 'web') return '网页'
     return '未知'
   }
 
   const displayedDocuments = useMemo(() => {
     if (typeFilter === 'all') return documents
-    return documents.filter((d) => d.sourceType === typeFilter)
+    return documents.filter((d) => d.source_type === typeFilter)
   }, [documents, typeFilter])
 
   console.log('displayedDocuments', displayedDocuments)
@@ -148,9 +148,9 @@ const ImportPage: React.FC = () => {
       render: (_: unknown, record: DocumentRecord) => {
         const label = getSourceTypeLabel(record)
         const color =
-          record.sourceType === 'file'
+          record.source_type === 'file'
             ? 'default'
-            : record.sourceType === 'web'
+            : record.source_type === 'web'
               ? 'blue'
               : 'default'
         return <Tag color={color}>{label}</Tag>
@@ -166,10 +166,10 @@ const ImportPage: React.FC = () => {
           2: { text: '成功', color: 'green' },
           3: { text: '失败', color: 'red' }
         }
-        const cfg = map[record.importStatus] || map[2]
+        const cfg = map[record.import_status] || map[2]
         return (
           <Tag color={cfg.color}>
-            {record.importStatus === 1 ? (
+            {record.import_status === 1 ? (
               <>
                 <Spin size="small" style={{ marginRight: 6 }} />
                 {cfg.text}

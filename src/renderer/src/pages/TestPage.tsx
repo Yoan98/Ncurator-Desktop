@@ -255,13 +255,13 @@ function TestPage(): React.JSX.Element {
               renderItem={(item) => (
                 <List.Item>
                   <Card
-                    title={<span className="text-sm text-gray-800">{item.documentName}</span>}
+                    title={<span className="text-sm text-gray-800">{item.document_name}</span>}
                     className="w-full shadow-sm hover:shadow-md transition-shadow"
                     size="small"
                   >
                     <Paragraph
                       ellipsis={{ rows: 3, expandable: true, symbol: 'more' }}
-                      onClick={() => openTextModal(item.text, item.documentName)}
+                      onClick={() => openTextModal(item.text, item.document_name)}
                       style={{ cursor: 'pointer' }}
                     >
                       {item.text}
@@ -315,12 +315,12 @@ function TestPage(): React.JSX.Element {
               },
               {
                 title: 'Source',
-                dataIndex: 'sourceType',
+                dataIndex: 'source_type',
                 width: 100
               },
               {
                 title: 'Created',
-                dataIndex: 'createdAt',
+                dataIndex: 'created_at',
                 width: 180,
                 render: (v) => new Date(v).toLocaleString()
               }
@@ -353,7 +353,7 @@ function TestPage(): React.JSX.Element {
               },
               {
                 title: 'Doc Name',
-                dataIndex: 'documentName',
+                dataIndex: 'document_name',
                 width: 150,
                 ellipsis: true
               },
@@ -363,7 +363,7 @@ function TestPage(): React.JSX.Element {
                 render: (text, record) => (
                   <Paragraph
                     ellipsis={{ rows: 2, expandable: true, symbol: 'more' }}
-                    onClick={() => openTextModal(text, record.documentName)}
+                    onClick={() => openTextModal(text, record.document_name)}
                     style={{ cursor: 'pointer', marginBottom: 0 }}
                   >
                     {text}

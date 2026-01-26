@@ -39,9 +39,9 @@ export interface TableConfig {
 export interface ChunkInput {
   text: string
   id: string
-  documentId: string
-  documentName: string
-  sourceType: string
+  document_id: string
+  document_name: string
+  source_type: string
   metadata: {
     page: number
   }

@@ -44,10 +44,10 @@ export function registerHandlers(services: {
       await unifiedStore.addDocument({
         id: documentId,
         name: filename,
-        sourceType: 'file',
-        filePath: savedFilePath,
-        createdAt: Date.now(),
-        importStatus: 1
+        source_type: 'file',
+        file_path: savedFilePath,
+        created_at: Date.now(),
+        import_status: 1
       })
 
       console.log('🔧 [INGEST-FILE] STEP 1: SPLIT DOCS')
@@ -78,9 +78,9 @@ export function registerHandlers(services: {
       const chunks = allChunkVectors.map((_, i) => ({
         text: allSplitDocs[i].pageContent,
         id: uuidv4(),
-        documentId: documentId,
-        documentName: filename,
-        sourceType: 'file',
+        document_id: documentId,
+        document_name: filename,
+        source_type: 'file',
         metadata: {
           page: allSplitDocs[i].metadata.loc?.pageNumber || 1
         }
@@ -124,10 +124,10 @@ export function registerHandlers(services: {
         await unifiedStore.addDocument({
           id: documentId,
           name: f.name,
-          sourceType: 'file',
-          filePath: savedFilePath,
-          createdAt: Date.now(),
-          importStatus: 1
+          source_type: 'file',
+          file_path: savedFilePath,
+          created_at: Date.now(),
+          import_status: 1
         })
         created.push({ id: documentId, name: f.name, savedPath: savedFilePath })
       }
@@ -146,9 +146,9 @@ export function registerHandlers(services: {
             const chunks = allChunkVectors.map((_, i) => ({
               text: allSplitDocs[i].pageContent,
               id: uuidv4(),
-              documentId: c.id,
-              documentName: c.name,
-              sourceType: 'file',
+              document_id: c.id,
+              document_name: c.name,
+              source_type: 'file',
               metadata: {
                 page: allSplitDocs[i].metadata.loc?.pageNumber || 1
               }

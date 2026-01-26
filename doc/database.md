@@ -16,7 +16,9 @@
 | id | Utf8 | 切片唯一标识 |
 | document_id | Utf8 | 关联的文档 ID |
 | document_name | Utf8 | 文档名称快照 |
-| createdAt | Int64 | 创建时间戳 |
+| source_type | Utf8 | 来源类型（如 'file', 'web'） |
+| metadata | Struct | 元数据（如页码等） |
+| created_at | Int64 | 创建时间戳 |
 
 索引配置:
 - FTS: 列 `text`，Tokenizer: ngram，min:2，max:3
@@ -28,10 +30,10 @@
 | :--- | :--- | :--- |
 | id | Utf8 | 文档唯一标识 |
 | name | Utf8 | 文件名 |
-| sourceType | Utf8 | 来源类型（如 'file', 'web'） |
-| filePath | Utf8（Nullable） | 原始文件路径 |
-| createdAt | Int64 | 创建时间戳 |
-| importStatus | Int32 | 导入状态（1 导入中，2 导入成功，3 导入失败） |
+| source_type | Utf8 | 来源类型（如 'file', 'web'） |
+| file_path | Utf8（Nullable） | 原始文件路径 |
+| created_at | Int64 | 创建时间戳 |
+| import_status | Int32 | 导入状态（1 导入中，2 导入成功，3 导入失败） |
 
 导入状态取值:
 - 1: 导入中

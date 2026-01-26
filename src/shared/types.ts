@@ -4,18 +4,18 @@ export type DocumentImportStatus = 1 | 2 | 3
 export interface DocumentRecord {
   id: string
   name: string
-  sourceType: DocumentSourceType
-  filePath?: string
-  createdAt: number
-  importStatus: DocumentImportStatus
+  source_type: DocumentSourceType
+  file_path?: string
+  created_at: number
+  import_status: DocumentImportStatus
 }
 
 export interface SearchResult {
   id: string
   text: string
-  documentName: string
-  documentId?: string
-  sourceType?: string
+  document_name: string
+  document_id?: string
+  source_type?: string
   // IPC 传输时为 JSON string，后端存储时为对象
   metadata?:
     | string
@@ -23,7 +23,7 @@ export interface SearchResult {
         page: number
       }
   _distance?: number
-  createdAt?: number
+  created_at?: number
   _score?: number
   _relevance_score?: number
   document?: DocumentRecord
@@ -37,16 +37,16 @@ export interface SearchResponse {
 export interface ChunkListItem {
   id: string
   text: string
-  documentName: string
-  documentId?: string
-  sourceType?: string
+  document_name: string
+  document_id?: string
+  source_type?: string
   // IPC 传输时为 JSON string，后端存储时为对象
   metadata?:
     | string
     | {
         page: number
       }
-  createdAt?: number
+  created_at?: number
   vector?: number[]
 }
 

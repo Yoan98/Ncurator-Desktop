@@ -106,14 +106,14 @@ export class UnifiedStore {
           ),
           new arrow.Field('text', new arrow.Utf8()),
           new arrow.Field('id', new arrow.Utf8()),
-          new arrow.Field('documentId', new arrow.Utf8()),
-          new arrow.Field('documentName', new arrow.Utf8()),
-          new arrow.Field('sourceType', new arrow.Utf8()),
+          new arrow.Field('document_id', new arrow.Utf8()),
+          new arrow.Field('document_name', new arrow.Utf8()),
+          new arrow.Field('source_type', new arrow.Utf8()),
           new arrow.Field(
             'metadata',
             new arrow.Struct([new arrow.Field('page', new arrow.Int32())])
           ),
-          new arrow.Field('createdAt', new arrow.Int64())
+          new arrow.Field('created_at', new arrow.Int64())
         ]),
         // 暂时先不使用向量索引
         // vectorIndexConfig: {
@@ -136,10 +136,10 @@ export class UnifiedStore {
         schema: new arrow.Schema([
           new arrow.Field('id', new arrow.Utf8()),
           new arrow.Field('name', new arrow.Utf8()),
-          new arrow.Field('sourceType', new arrow.Utf8()),
-          new arrow.Field('filePath', new arrow.Utf8(), true),
-          new arrow.Field('createdAt', new arrow.Int64()),
-          new arrow.Field('importStatus', new arrow.Int32())
+          new arrow.Field('source_type', new arrow.Utf8()),
+          new arrow.Field('file_path', new arrow.Utf8(), true),
+          new arrow.Field('created_at', new arrow.Int64()),
+          new arrow.Field('import_status', new arrow.Int32())
         ])
       }
     ]
@@ -201,7 +201,7 @@ export class UnifiedStore {
       )
     }
     const table = await this.db!.openTable(this.TABLE_DOCUMENT)
-    await table.update({ where: `id = '${id}'`, values: { importStatus: status } })
+    await table.update({ where: `id = '${id}'`, values: { import_status: status } })
   }
 
   /**
@@ -224,11 +224,11 @@ export class UnifiedStore {
       vector: Array.from(vector),
       text: chunks[i].text,
       id: chunks[i].id,
-      documentId: chunks[i].documentId,
-      documentName: chunks[i].documentName,
-      sourceType: chunks[i].sourceType,
+      document_id: chunks[i].document_id,
+      document_name: chunks[i].document_name,
+      source_type: chunks[i].source_type,
       metadata: chunks[i].metadata,
-      createdAt: Date.now()
+      created_at: Date.now()
     }))
 
     const table = await this.db!.openTable(this.TABLE_CHUNK)
@@ -257,7 +257,7 @@ export class UnifiedStore {
 
     return results.map((item) => ({
       ...item,
-      createdAt: Number(item.createdAt)
+      created_at: Number(item.created_at)
     }))
   }
 
@@ -274,7 +274,7 @@ export class UnifiedStore {
 
     // 2. Extract unique document IDs
     const documentIds = Array.from(
-      new Set(results.map((r) => r.documentId).filter(Boolean))
+      new Set(results.map((r) => r.document_id).filter(Boolean))
     ) as string[]
     if (documentIds.length === 0) return results
 
@@ -295,7 +295,7 @@ export class UnifiedStore {
         d.id,
         {
           ...d,
-          createdAt: Number(d.createdAt)
+          created_at: Number(d.created_at)
         }
       ])
     )
@@ -303,7 +303,7 @@ export class UnifiedStore {
     // 5. Attach document info to results
     return results.map((item) => ({
       ...item,
-      document: item.documentId ? docMap.get(item.documentId) : undefined
+      document: item.document_id ? docMap.get(item.document_id) : undefined
     }))
   }
 
@@ -318,7 +318,7 @@ export class UnifiedStore {
 
     // Simple keyword matching for now
     const kw = trimmed.replace(/'/g, "''")
-    return `(text LIKE '%${kw}%' OR documentName LIKE '%${kw}%')`
+    return `(text LIKE '%${kw}%' OR document_name LIKE '%${kw}%')`
   }
 
   /**
@@ -339,7 +339,7 @@ export class UnifiedStore {
 
     return results.map((item) => ({
       ...item,
-      createdAt: Number(item.createdAt)
+      created_at: Number(item.created_at)
     }))
   }
 
@@ -366,7 +366,7 @@ export class UnifiedStore {
 
     return results.map((item) => ({
       ...item,
-      createdAt: Number(item.createdAt)
+      created_at: Number(item.created_at)
     }))
   }
 
@@ -408,15 +408,15 @@ export class UnifiedStore {
     const rows = await query.limit(pageSize).offset(skip).toArray()
 
     const items = rows.map((item) => {
-      const s = Number((item as any).importStatus ?? 2)
+      const s = Number((item as any).import_status ?? 2)
       const importStatus = (s === 1 ? 1 : s === 3 ? 3 : 2) as 1 | 2 | 3
       return {
         id: item.id as string,
         name: item.name as string,
-        sourceType: item.sourceType as any,
-        filePath: item.filePath as string,
-        createdAt: Number(item.createdAt),
-        importStatus
+        source_type: item.source_type as any,
+        file_path: item.file_path as string,
+        created_at: Number(item.created_at),
+        import_status: importStatus
       }
     })
 
@@ -455,11 +455,11 @@ export class UnifiedStore {
     const items = rows.map((item) => ({
       id: item.id as string,
       text: item.text as string,
-      documentName: item.documentName as string,
-      documentId: item.documentId as string,
-      sourceType: item.sourceType as any,
+      document_name: item.document_name as string,
+      document_id: item.document_id as string,
+      source_type: item.source_type as any,
       metadata: item.metadata as any,
-      createdAt: Number(item.createdAt),
+      created_at: Number(item.created_at),
       vector: Array.isArray(item.vector)
         ? (item.vector as number[])
         : Array.from((item.vector || []) as Float32Array)
@@ -525,7 +525,7 @@ export class UnifiedStore {
       console.log('doc rows before delete', docTotal)
 
       for (const id of ids) {
-        const chunkWhere = `documentId = "${id}"`
+        const chunkWhere = `document_id = "${id}"`
         const docWhere = `id = "${id}"`
 
         await chunkTable.delete(chunkWhere)

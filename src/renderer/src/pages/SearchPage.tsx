@@ -53,10 +53,10 @@ const SearchPage: React.FC = () => {
   }
 
   const renderPreview = () => {
-    if (!currentDoc || !currentDoc.document?.filePath)
+    if (!currentDoc || !currentDoc.document?.file_path)
       return <Empty description="Document not found" />
 
-    const filePath = currentDoc.document.filePath
+    const filePath = currentDoc.document.file_path
     const fileUrl = `file://${filePath}`
 
     const isPdf = filePath.toLowerCase().endsWith('.pdf')
@@ -194,29 +194,33 @@ const SearchPage: React.FC = () => {
                               />
                             </div>
                             <span className="font-semibold text-slate-800 truncate text-[15px] group-hover:text-blue-700 transition-colors">
-                              {item.documentName}
+                              {item.document_name}
                             </span>
                           </div>
-                          {(() => {
-                            const meta = item.metadata as any
-                            if (meta?.page) {
-                              return (
-                                <Tag className="mr-0 border-transparent bg-slate-100 text-slate-500 font-medium px-2 py-0.5 rounded-md">
-                                  P.{meta.page}
-                                </Tag>
-                              )
-                            }
-                            return null
-                          })()}
+                          <div className="flex items-center gap-2 text-xs text-slate-400">
+                            {item.source_type === 'file' ? (
+                              <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 font-medium">
+                                FILE
+                              </span>
+                            ) : (
+                              <span className="bg-blue-50 px-1.5 py-0.5 rounded text-blue-600 font-medium">
+                                WEB
+                              </span>
+                            )}
+                            <span>•</span>
+                            <span>ID: {item.document_id?.substring(0, 6)}</span>
+                          </div>
                         </div>
-
-                        <div className="bg-slate-50/50 rounded-lg p-3 border border-slate-100/50 group-hover:bg-slate-50 group-hover:border-slate-100 transition-colors">
+                        <Typography.Paragraph
+                          ellipsis={{ rows: 3, expandable: false }}
+                          className="!mb-0 text-slate-600 !text-[14px] leading-relaxed"
+                        >
                           <TextHighlighter
                             text={item.text}
                             keywords={tokens}
-                            className="text-slate-600 mb-0 line-clamp-3 text-sm leading-relaxed"
+                            className="text-slate-600"
                           />
-                        </div>
+                        </Typography.Paragraph>
                       </div>
                     </Card>
                   </List.Item>
@@ -234,7 +238,7 @@ const SearchPage: React.FC = () => {
         </div>
 
         <Modal
-          title={currentDoc?.documentName}
+          title={currentDoc?.document_name}
           open={previewVisible}
           onCancel={() => setPreviewVisible(false)}
           width="90%"
