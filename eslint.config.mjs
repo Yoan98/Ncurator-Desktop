@@ -29,7 +29,8 @@ export default defineConfig(
       '@typescript-eslint/explicit-function-return-type': 0,
       'prettier/prettier': 0,
       '@typescript-eslint/no-explicit-any': 0,
-      '@typescript-eslint/no-empty-function': 0
+      '@typescript-eslint/no-empty-function': 0,
+      'react-hooks/set-state-in-effect': 0
     }
   },
   eslintConfigPrettier

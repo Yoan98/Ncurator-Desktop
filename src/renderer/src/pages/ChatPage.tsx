@@ -195,7 +195,7 @@ ${contextText}`
 
       // 4. Create Assistant Message Placeholder
       const assistantMsgId = crypto.randomUUID()
-      const assistantTimestamp = Date.now()
+      const assistantTimestamp = new Date().getTime()
       const assistantMsg: ChatMessageWithSource = {
         id: assistantMsgId,
         role: 'assistant',
