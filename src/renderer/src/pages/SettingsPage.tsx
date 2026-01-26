@@ -11,13 +11,7 @@ import {
   Space,
   Popconfirm
 } from 'antd'
-import {
-  PlusOutlined,
-  EditOutlined,
-  DeleteOutlined,
-  CheckCircleOutlined,
-  SettingOutlined
-} from '@ant-design/icons'
+import { HiPlus, HiPencil, HiTrash, HiCheckCircle, HiCog6Tooth } from 'react-icons/hi2'
 import { LLMConfig, STORAGE_KEY_CONFIGS } from '../services/llmService'
 
 const { Title } = Typography
@@ -29,19 +23,15 @@ const SettingsPage: React.FC = () => {
   const [form] = Form.useForm()
 
   useEffect(() => {
-    loadConfigs()
-  }, [])
-
-  const loadConfigs = () => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY_CONFIGS)
       if (stored) {
         setConfigs(JSON.parse(stored))
       }
-    } catch (e) {
-      console.error('Failed to load configs', e)
+    } catch (error) {
+      console.error('Failed to load configs', error)
     }
-  }
+  }, [])
 
   const saveConfigs = (newConfigs: LLMConfig[]) => {
     setConfigs(newConfigs)
@@ -108,9 +98,9 @@ const SettingsPage: React.FC = () => {
       key: 'name',
       render: (text: string, record: LLMConfig) => (
         <div className="flex items-center gap-2">
-          <span className="font-medium">{text}</span>
+          <span className="font-medium text-[#1F1F1F]">{text}</span>
           {record.isActive && (
-            <Tag color="success" icon={<CheckCircleOutlined />}>
+            <Tag color="#D97757" icon={<HiCheckCircle className="inline" />}>
               当前使用
             </Tag>
           )}
@@ -127,7 +117,8 @@ const SettingsPage: React.FC = () => {
       title: 'Base URL',
       dataIndex: 'baseUrl',
       key: 'baseUrl',
-      ellipsis: true
+      ellipsis: true,
+      render: (text: string) => <span className="text-[#666666]">{text}</span>
     },
     {
       title: '操作',
@@ -136,15 +127,21 @@ const SettingsPage: React.FC = () => {
       render: (_: any, record: LLMConfig) => (
         <Space size="small">
           {!record.isActive && (
-            <Button type="link" size="small" onClick={() => handleActivate(record.id)}>
+            <Button
+              type="link"
+              size="small"
+              onClick={() => handleActivate(record.id)}
+              className="!text-[#D97757]"
+            >
               启用
             </Button>
           )}
           <Button
             type="text"
             size="small"
-            icon={<EditOutlined />}
+            icon={<HiPencil />}
             onClick={() => handleEdit(record)}
+            className="text-[#666666] hover:text-[#D97757]"
           />
           <Popconfirm
             title="确定要删除此配置吗？"
@@ -152,7 +149,7 @@ const SettingsPage: React.FC = () => {
             okText="确定"
             cancelText="取消"
           >
-            <Button type="text" danger size="small" icon={<DeleteOutlined />} />
+            <Button type="text" danger size="small" icon={<HiTrash />} />
           </Popconfirm>
         </Space>
       )
@@ -163,33 +160,33 @@ const SettingsPage: React.FC = () => {
     <div className="min-h-full p-8 font-sans max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600">
-            <SettingOutlined className="text-xl" />
+          <div className="w-10 h-10 rounded-xl bg-[#FBF5F2] flex items-center justify-center text-[#D97757]">
+            <HiCog6Tooth className="text-xl" />
           </div>
           <div>
-            <Title level={3} className="!mb-0 !font-bold !text-slate-800">
+            <Title level={3} className="!mb-0 !font-bold !text-[#1F1F1F]">
               模型配置
             </Title>
-            <p className="text-slate-500 text-sm mt-1">配置 LLM API 连接信息</p>
+            <p className="text-[#999999] text-sm mt-1">配置 LLM API 连接信息</p>
           </div>
         </div>
         <Button
           type="primary"
-          icon={<PlusOutlined />}
+          icon={<HiPlus className="w-4 h-4" />}
           onClick={handleAdd}
-          className="bg-blue-600 hover:!bg-blue-700 h-9 px-5 rounded-lg shadow-sm"
+          className="!bg-[#D97757] hover:!bg-[#C66A4A] h-9 px-5 rounded-lg shadow-sm border-none"
         >
           新增配置
         </Button>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-[#E5E5E4] shadow-sm overflow-hidden">
         <Table
           dataSource={configs}
           columns={columns}
           rowKey="id"
           pagination={false}
-          className="[&_.ant-table-thead_th]:!bg-slate-50 [&_.ant-table-thead_th]:!text-slate-600 [&_.ant-table-thead_th]:!font-medium [&_.ant-table-tbody_td]:!py-4"
+          className="[&_.ant-table-thead_th]:!bg-[#F5F5F4] [&_.ant-table-thead_th]:!text-[#666666] [&_.ant-table-thead_th]:!font-medium [&_.ant-table-tbody_td]:!py-4"
         />
       </div>
 

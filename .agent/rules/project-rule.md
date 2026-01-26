@@ -3,26 +3,30 @@ trigger: always_on
 ---
 
 ---
-trigger: always_on
----
+
+## trigger: always_on
 
 # NCurator-Desktop 开发指南
 
 ## 1. 技术栈与版本
+
 请严格遵守以下核心库及其版本，保持技术栈的统一与精简：
 
 ### 核心环境
+
 - **Runtime**: Electron **v39**
 - **Language**: TypeScript **v5**
 - **Build**: Electron-Vite **v5**
 - **Package Manager**: pnpm
 
 ### 前端 (Renderer)
+
 - **Framework**: React **v19**
 - **UI Kit**: Ant Design **v5**
 - **Styling**: Tailwind CSS **v4** + Less
 
 ### 后端逻辑 (Main Process)
+
 - **Orchestration**: LangChain JS
 - **Embedding**: @huggingface/transformers **v3** (本地运行)
 - **Unified Storage**: LanceDB **v0.23**
@@ -31,6 +35,7 @@ trigger: always_on
 - **Parsers**: `pdf-parse` (PDF), `mammoth` (DOCX)
 
 ## 2. 核心架构
+
 - **Local First (本地优先)**:
   - 所有数据处理（解析、Embedding、索引）与存储均在本地完成。
   - 确保完全离线可用，不依赖外部 API。
@@ -45,6 +50,7 @@ trigger: always_on
   - **IPC**: 使用 `ipcMain.handle` 和 `contextBridge` 进行类型安全的双向通信。
 
 ## 3. 编码规范 (AI 提示)
+
 - **Type Safety**: 必须为所有数据结构定义 TypeScript 接口，禁止显式 `any`。
 - **Async/Await**: 所有数据库与文件操作必须异步。
 - **Error Handling**: 后端错误需捕获并转化为前端可读的格式。

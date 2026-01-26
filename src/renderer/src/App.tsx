@@ -2,14 +2,13 @@ import React from 'react'
 import { HashRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom'
 import { Layout, ConfigProvider, theme, Button, Dropdown, Segmented } from 'antd'
 import {
-  ArrowLeftOutlined,
-  SettingOutlined,
-  BookOutlined,
-  BlockOutlined,
-  SearchOutlined,
-  CommentOutlined,
-  ToolOutlined
-} from '@ant-design/icons'
+  HiOutlineArrowLeft,
+  HiOutlineCog6Tooth,
+  HiOutlineBookOpen,
+  HiOutlineBeaker,
+  HiOutlineMagnifyingGlass,
+  HiOutlineChatBubbleLeftRight
+} from 'react-icons/hi2'
 import SearchPage from './pages/SearchPage'
 import ChatPage from './pages/ChatPage'
 import SettingsPage from './pages/SettingsPage'
@@ -25,21 +24,29 @@ function App(): React.JSX.Element {
       theme={{
         algorithm: theme.defaultAlgorithm,
         token: {
-          colorPrimary: '#2563eb', // Blue-600
-          colorLink: '#2563eb',
+          colorPrimary: '#D97757',
+          colorLink: '#D97757',
           borderRadius: 8,
-          fontFamily: 'Inter, system-ui, sans-serif',
-          colorText: '#334155', // slate-700
-          colorTextHeading: '#1e293b', // slate-800
-          colorBorder: '#e2e8f0' // slate-200
+          fontFamily:
+            '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+          colorText: '#1F1F1F',
+          colorTextHeading: '#1F1F1F',
+          colorBorder: '#E5E5E4',
+          colorBgLayout: '#F5F5F4'
         },
         components: {
           Button: {
-            primaryShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
-            borderRadius: 8
+            primaryShadow: '0 2px 8px rgba(217, 119, 87, 0.2)',
+            borderRadius: 8,
+            controlHeight: 40
           },
           Card: {
-            borderRadiusLG: 16
+            borderRadiusLG: 12
+          },
+          Input: {
+            controlHeight: 40,
+            activeBorderColor: '#D97757',
+            hoverBorderColor: '#C66A4A'
           }
         }
       }}
@@ -59,37 +66,45 @@ const MainLayout: React.FC = () => {
   const isHomeOrChat = isSearchPage || isChatPage
 
   return (
-    <Layout className="min-h-screen bg-slate-50">
-      <Header className="!bg-slate-50/90 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-20 h-16 border-b border-slate-200 shadow-sm transition-all">
+    <Layout className="min-h-screen bg-[#F5F5F4]">
+      <Header className="!bg-[#F5F5F4]/80 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-20 h-16 border-b border-[#E5E5E4] shadow-sm transition-all">
         <div className="flex items-center gap-4">
           <div
             className="flex items-center gap-3 cursor-pointer group"
             onClick={() => navigate('/')}
           >
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-md group-hover:scale-105 transition-transform duration-300">
-              <img src={brandIcon} alt="N" className="w-6 h-6 invert" />
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center  text-lg shadow-md group-hover:scale-105 transition-transform duration-300">
+              <img src={brandIcon} alt="N" className="w-6 h-6 invert  invert-100" />
             </div>
-            <span className="font-bold text-xl tracking-tight text-slate-800 group-hover:text-blue-600 transition-colors">
-              Ncurator
+            <span className="font-bold text-xl tracking-tight text-[#1F1F1F] group-hover:text-[#D97757] transition-colors">
+              馆长
             </span>
           </div>
 
           {isHomeOrChat ? (
             <Segmented
               options={[
-                { label: '搜索', value: '/', icon: <SearchOutlined /> },
-                { label: '对话', value: '/chat', icon: <CommentOutlined /> }
+                {
+                  label: '搜索',
+                  value: '/',
+                  icon: <HiOutlineMagnifyingGlass className="w-4 h-4 inline mr-1" />
+                },
+                {
+                  label: '对话',
+                  value: '/chat',
+                  icon: <HiOutlineChatBubbleLeftRight className="w-4 h-4 inline mr-1" />
+                }
               ]}
               value={location.pathname === '/chat' ? '/chat' : '/'}
               onChange={(val) => navigate(val)}
-              className="ml-4 bg-slate-200/50"
+              className="ml-4 bg-white shadow-sm border border-[#E5E5E4]"
             />
           ) : (
             <Button
               type="text"
-              icon={<ArrowLeftOutlined />}
+              icon={<HiOutlineArrowLeft className="w-5 h-5" />}
               onClick={() => navigate(-1)}
-              className="ml-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+              className="ml-2 text-[#666666] hover:bg-black/5 hover:text-[#1F1F1F]"
             />
           )}
         </div>
@@ -100,9 +115,13 @@ const MainLayout: React.FC = () => {
             placement="bottomRight"
             menu={{
               items: [
-                { key: 'kb', label: '知识库管理', icon: <BookOutlined /> },
-                { key: 'settings', label: '模型配置', icon: <ToolOutlined /> },
-                { key: 'test', label: '实验室', icon: <BlockOutlined /> }
+                { key: 'kb', label: '知识库管理', icon: <HiOutlineBookOpen className="w-4 h-4" /> },
+                {
+                  key: 'settings',
+                  label: '模型配置',
+                  icon: <HiOutlineCog6Tooth className="w-4 h-4" />
+                },
+                { key: 'test', label: '实验室', icon: <HiOutlineBeaker className="w-4 h-4" /> }
               ],
               onClick: (info) => {
                 if (info.key === 'kb') navigate('/import')
@@ -112,13 +131,13 @@ const MainLayout: React.FC = () => {
             }}
           >
             <Button
-              icon={<SettingOutlined />}
-              className="!border-slate-200 !text-slate-600 hover:!border-blue-500 hover:!text-blue-600 !rounded-lg"
+              icon={<HiOutlineCog6Tooth className="w-5 h-5" />}
+              className="!border-[#E5E5E4] !text-[#666666] hover:!border-[#D97757] hover:!text-[#D97757] !rounded-lg"
             />
           </Dropdown>
         </div>
       </Header>
-      <Content className="bg-slate-50 overflow-auto">
+      <Content className="bg-[#F5F5F4] overflow-auto">
         <Routes>
           <Route path="/" element={<SearchPage />} />
           <Route path="/chat" element={<ChatPage />} />

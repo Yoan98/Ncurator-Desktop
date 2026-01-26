@@ -1,1 +1,1 @@
-declare module 'mark.js';
+declare module 'mark.js'

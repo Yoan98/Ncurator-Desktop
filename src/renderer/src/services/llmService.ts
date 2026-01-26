@@ -36,14 +36,14 @@ export const streamCompletion = async (
   try {
     let url = config.baseUrl
     if (!url.endsWith('/v1/chat/completions') && !url.endsWith('/chat/completions')) {
-        // Simple heuristic to append endpoint if missing, though user might provide full URL
-        // Better to assume user provides base URL like https://api.openai.com/v1
-        url = url.replace(/\/$/, '') + '/chat/completions'
+      // Simple heuristic to append endpoint if missing, though user might provide full URL
+      // Better to assume user provides base URL like https://api.openai.com/v1
+      url = url.replace(/\/$/, '') + '/chat/completions'
     }
 
     // Handle cases where user provides the full chat completion URL
     if (config.baseUrl.includes('/chat/completions')) {
-        url = config.baseUrl
+      url = config.baseUrl
     }
 
     const response = await fetch(url, {
@@ -60,12 +60,12 @@ export const streamCompletion = async (
     })
 
     if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`API Error: ${response.status} - ${errorText}`)
+      const errorText = await response.text()
+      throw new Error(`API Error: ${response.status} - ${errorText}`)
     }
 
     if (!response.body) {
-        throw new Error('Response body is empty')
+      throw new Error('Response body is empty')
     }
 
     const reader = response.body.getReader()
@@ -78,14 +78,14 @@ export const streamCompletion = async (
 
       const chunk = decoder.decode(value, { stream: true })
       buffer += chunk
-      
+
       const lines = buffer.split('\n')
       buffer = lines.pop() || ''
 
       for (const line of lines) {
         const trimmed = line.trim()
         if (!trimmed.startsWith('data: ')) continue
-        
+
         const dataStr = trimmed.slice(6)
         if (dataStr === '[DONE]') continue
 
@@ -100,7 +100,7 @@ export const streamCompletion = async (
         }
       }
     }
-    
+
     onFinish()
   } catch (error) {
     onError(error instanceof Error ? error : new Error(String(error)))

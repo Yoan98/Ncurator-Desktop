@@ -13,7 +13,7 @@ import {
   Modal,
   Tag
 } from 'antd'
-import { UploadOutlined, FileTextOutlined, BlockOutlined, SearchOutlined } from '@ant-design/icons'
+import { HiArrowUpTray, HiMagnifyingGlass, HiDocumentText, HiCube } from 'react-icons/hi2'
 import { parseIpcResult } from '../utils/serialization'
 
 const { Paragraph } = Typography
@@ -170,21 +170,22 @@ function TestPage(): React.JSX.Element {
 
   return (
     <div className="p-8 max-w-7xl mx-auto min-h-full flex flex-col font-sans">
-      <h1 className="text-2xl font-bold mb-6 text-slate-800">NCurator Debug Console</h1>
+      <h1 className="text-2xl font-bold mb-6 text-[#1F1F1F]">NCurator Debug Console</h1>
 
       <div className="flex gap-4 mb-6 flex-wrap">
         <Upload beforeUpload={handleUpload} showUploadList={false}>
-          <Button icon={<UploadOutlined />}>Upload File</Button>
+          <Button icon={<HiArrowUpTray />}>Upload File</Button>
         </Upload>
 
         <Segmented
           options={[
-            { label: 'Search', value: 'search', icon: <SearchOutlined /> },
-            { label: 'Documents', value: 'docs', icon: <FileTextOutlined /> },
-            { label: 'Chunks', value: 'chunks', icon: <BlockOutlined /> }
+            { label: 'Search', value: 'search', icon: <HiMagnifyingGlass className="mr-1" /> },
+            { label: 'Documents', value: 'docs', icon: <HiDocumentText className="mr-1" /> },
+            { label: 'Chunks', value: 'chunks', icon: <HiCube className="mr-1" /> }
           ]}
           value={view}
           onChange={(val) => setView(val as typeof view)}
+          className="bg-[#F5F5F4]"
         />
 
         {view === 'search' && (
@@ -196,6 +197,7 @@ function TestPage(): React.JSX.Element {
             ]}
             value={mode}
             onChange={(val) => setMode(val as typeof mode)}
+            className="bg-[#F5F5F4]"
           />
         )}
 
@@ -246,7 +248,7 @@ function TestPage(): React.JSX.Element {
         </div>
       )}
 
-      <div className="flex-1 overflow-hidden border border-gray-200 rounded-lg bg-white">
+      <div className="flex-1 overflow-hidden border border-[#E5E5E4] rounded-lg bg-white">
         {view === 'search' && (
           <div className="h-full overflow-auto p-4">
             <List
@@ -255,7 +257,7 @@ function TestPage(): React.JSX.Element {
               renderItem={(item) => (
                 <List.Item>
                   <Card
-                    title={<span className="text-sm text-gray-800">{item.document_name}</span>}
+                    title={<span className="text-sm text-[#1F1F1F]">{item.document_name}</span>}
                     className="w-full shadow-sm hover:shadow-md transition-shadow"
                     size="small"
                   >
@@ -266,7 +268,7 @@ function TestPage(): React.JSX.Element {
                     >
                       {item.text}
                     </Paragraph>
-                    <div className="text-xs text-gray-500 mt-2 flex flex-wrap gap-4">
+                    <div className="text-xs text-[#999999] mt-2 flex flex-wrap gap-4">
                       <span>ID: {item.id}</span>
                       {mode !== 'vectorSearch' && (
                         <Tag color="blue">Score: {item._score?.toFixed(4)}</Tag>
@@ -298,6 +300,7 @@ function TestPage(): React.JSX.Element {
               onChange: (page, pageSize) => loadDocuments(page, pageSize, docKeyword),
               showTotal: (total) => `Total ${total} docs`
             }}
+            className="[&_.ant-table-thead_th]:!bg-[#F5F5F4] [&_.ant-table-thead_th]:!text-[#666666] [&_.ant-table-thead_th]:!font-medium"
             columns={[
               {
                 title: 'ID',
@@ -341,6 +344,7 @@ function TestPage(): React.JSX.Element {
               onChange: (page, pageSize) => loadChunks(page, pageSize, chunkKeyword),
               showTotal: (total) => `Total ${total} chunks`
             }}
+            className="[&_.ant-table-thead_th]:!bg-[#F5F5F4] [&_.ant-table-thead_th]:!text-[#666666] [&_.ant-table-thead_th]:!font-medium"
             columns={[
               {
                 title: 'ID',

@@ -12,13 +12,12 @@ import {
   Spin
 } from 'antd'
 import {
-  InboxOutlined,
-  ReloadOutlined,
-  SearchOutlined,
-  FileTextOutlined,
-  FilePdfOutlined,
-  BookOutlined
-} from '@ant-design/icons'
+  HiInboxArrowDown,
+  HiArrowPath,
+  HiMagnifyingGlass,
+  HiDocumentText,
+  HiBookOpen
+} from 'react-icons/hi2'
 import type { UploadProps, UploadFile } from 'antd'
 import type { DocumentRecord } from '../../../shared/types'
 
@@ -133,11 +132,11 @@ const ImportPage: React.FC = () => {
       render: (text: string, record: DocumentRecord) => (
         <div className="flex items-center gap-2">
           {record.name.toLowerCase().endsWith('.pdf') ? (
-            <FilePdfOutlined className="text-red-500" />
+            <HiDocumentText className="text-[#D97757]" />
           ) : (
-            <FileTextOutlined className="text-blue-500" />
+            <HiDocumentText className="text-[#666666]" />
           )}
-          <span className="text-gray-700">{text}</span>
+          <span className="text-[#1F1F1F]">{text}</span>
         </div>
       )
     },
@@ -214,22 +213,22 @@ const ImportPage: React.FC = () => {
     <div className="min-h-full p-8 font-sans max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
-            <BookOutlined className="text-xl" />
+          <div className="w-10 h-10 rounded-xl bg-[#FBF5F2] flex items-center justify-center text-[#D97757]">
+            <HiBookOpen className="text-xl" />
           </div>
           <div>
-            <Title level={3} className="!mb-0 !font-bold !text-slate-800">
+            <Title level={3} className="!mb-0 !font-bold !text-[#1F1F1F]">
               知识库管理
             </Title>
-            <p className="text-slate-500 text-sm mt-1">管理您的本地文档资源</p>
+            <p className="text-[#999999] text-sm mt-1">管理您的本地文档资源</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
           <Button
-            icon={<ReloadOutlined />}
+            icon={<HiArrowPath />}
             shape="circle"
             onClick={fetchDocuments}
-            className="border-slate-200 text-slate-500 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50"
+            className="border-[#E5E5E4] text-[#666666] hover:text-[#D97757] hover:border-[#F4E5DF] hover:bg-[#FBF5F2]"
           />
           <Button
             danger
@@ -241,8 +240,8 @@ const ImportPage: React.FC = () => {
           </Button>
           <Button
             type="primary"
-            icon={<InboxOutlined />}
-            className="bg-blue-600 hover:!bg-blue-700 border-none h-9 px-5 rounded-lg shadow-sm hover:shadow-md transition-all"
+            icon={<HiInboxArrowDown />}
+            className="!bg-[#D97757] hover:!bg-[#C66A4A] border-none h-9 px-5 rounded-lg shadow-sm hover:shadow-md transition-all"
             onClick={() => setUploadModalVisible(true)}
           >
             新增文档
@@ -250,14 +249,14 @@ const ImportPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="mb-6 flex justify-between items-center bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
+      <div className="mb-6 flex justify-between items-center bg-white p-2 rounded-xl border border-[#E5E5E4] shadow-sm">
         <Input
           placeholder="搜索文档名称..."
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
           bordered={false}
-          className="max-w-md text-slate-700 placeholder:text-slate-400"
-          prefix={<SearchOutlined className="text-slate-400 mr-2" />}
+          className="max-w-md text-[#1F1F1F] placeholder:text-[#999999]"
+          prefix={<HiMagnifyingGlass className="text-[#999999] mr-2" />}
         />
         <Segmented
           value={typeFilter}
@@ -267,11 +266,11 @@ const ImportPage: React.FC = () => {
             { label: '文件', value: 'file' },
             { label: '网页', value: 'web' }
           ]}
-          className="bg-slate-100 p-1 rounded-lg"
+          className="bg-[#F5F5F4] p-1 rounded-lg"
         />
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-[#E5E5E4] shadow-sm overflow-hidden">
         <Table
           dataSource={displayedDocuments}
           columns={columns}
@@ -289,7 +288,7 @@ const ImportPage: React.FC = () => {
           }}
           loading={loading}
           size="middle"
-          className="[&_.ant-table-thead_th]:!bg-slate-50 [&_.ant-table-thead_th]:!text-slate-600 [&_.ant-table-thead_th]:!font-medium [&_.ant-table-tbody_td]:!py-4"
+          className="[&_.ant-table-thead_th]:!bg-[#F5F5F4] [&_.ant-table-thead_th]:!text-[#666666] [&_.ant-table-thead_th]:!font-medium [&_.ant-table-tbody_td]:!py-4"
         />
       </div>
 
@@ -297,7 +296,7 @@ const ImportPage: React.FC = () => {
         open={deleteConfirmVisible}
         onCancel={() => setDeleteConfirmVisible(false)}
         title={
-          <div className="flex items-center gap-2 text-slate-800">
+          <div className="flex items-center gap-2 text-[#1F1F1F]">
             <span className="w-1 h-4 bg-red-500 rounded-full"></span>
             删除文档
           </div>
@@ -325,9 +324,9 @@ const ImportPage: React.FC = () => {
         width={400}
         className="[&_.ant-modal-content]:!rounded-2xl"
       >
-        <div className="py-4 text-slate-600">
+        <div className="py-4 text-[#666666]">
           <p>确定要删除选中的 {selectedRowKeys.length} 个文档吗？</p>
-          <p className="text-xs text-slate-400 mt-2">
+          <p className="text-xs text-[#999999] mt-2">
             此操作将同时删除相关的向量数据，且不可恢复。
           </p>
         </div>
@@ -336,23 +335,23 @@ const ImportPage: React.FC = () => {
         open={uploadModalVisible}
         onCancel={() => setUploadModalVisible(false)}
         footer={null}
-        title={<span className="text-slate-800 font-bold">上传文件</span>}
+        title={<span className="text-[#1F1F1F] font-bold">上传文件</span>}
         width={600}
         className="[&_.ant-modal-content]:!rounded-2xl"
       >
         <div className="pt-4">
           <Dragger
             {...uploadProps}
-            className="!border-slate-200 !bg-slate-50 hover:!border-blue-400 [&_.ant-upload-drag-icon]:!mb-2"
+            className="!border-[#E5E5E4] !bg-[#F5F5F4] hover:!border-[#D97757] [&_.ant-upload-drag-icon]:!mb-2"
             style={{ padding: '32px', borderRadius: '16px' }}
           >
             <p className="ant-upload-drag-icon">
-              <InboxOutlined className="!text-blue-500 text-4xl" />
+              <HiInboxArrowDown className="!text-[#D97757] text-4xl mx-auto" />
             </p>
-            <p className="ant-upload-text !text-slate-700 !text-base font-medium">
+            <p className="ant-upload-text !text-[#1F1F1F] !text-base font-medium">
               点击或拖拽文件到此处上传
             </p>
-            <p className="ant-upload-hint !text-slate-400">支持 PDF 和 DOCX 文件</p>
+            <p className="ant-upload-hint !text-[#999999]">支持 PDF 和 DOCX 文件</p>
           </Dragger>
           <div className="mt-6 flex justify-end">
             <Button
@@ -360,7 +359,7 @@ const ImportPage: React.FC = () => {
               onClick={handleUpload}
               disabled={fileList.length === 0}
               loading={processing}
-              className="bg-blue-600 hover:!bg-blue-700 h-10 px-6 rounded-lg font-medium shadow-sm hover:shadow-md transition-all"
+              className="!bg-[#D97757] hover:!bg-[#C66A4A] h-10 px-6 rounded-lg font-medium shadow-sm hover:shadow-md transition-all border-none"
             >
               {processing ? '处理中...' : '开始导入'}
             </Button>
