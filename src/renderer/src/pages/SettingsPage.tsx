@@ -35,13 +35,13 @@ const PROVIDER_OPTIONS = [
     label: '阿里云百炼 (通义千问)',
     value: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     icon: <img src={qianwenLogo} alt="Qianwen" className="w-4 h-4" />,
-    desc: 'Compatible Mode'
+    desc: '官方 API'
   },
   {
     label: '火山引擎 (豆包)',
     value: 'https://ark.cn-beijing.volces.com/api/v3',
     icon: <img src={doubaoLogo} alt="Doubao" className="w-4 h-4" />,
-    desc: 'API v3'
+    desc: '官方 API'
   },
   {
     label: 'DeepSeek',
@@ -53,13 +53,13 @@ const PROVIDER_OPTIONS = [
     label: 'Kimi',
     value: 'https://api.moonshot.cn/v1',
     icon: <img src={kimiLogo} alt="Kimi" className="w-4 h-4" />,
-    desc: 'Kimi 开放平台'
+    desc: '官方 API'
   },
   {
     label: '硅基流动 (SiliconFlow)',
     value: 'https://api.siliconflow.cn/v1',
     icon: <img src={guijiliudongLogo} alt="SiliconFlow" className="w-4 h-4" />,
-    desc: 'SiliconCloud'
+    desc: '官方 API'
   }
 ]
 
