@@ -1,3 +1,5 @@
+import OpenAI from 'openai'
+
 export interface LLMConfig {
   id: string
   name: string
@@ -34,75 +36,44 @@ export const streamCompletion = async (
   onFinish: () => void
 ): Promise<void> => {
   try {
-    let url = config.baseUrl
-    if (!url.endsWith('/v1/chat/completions') && !url.endsWith('/chat/completions')) {
-      // Simple heuristic to append endpoint if missing, though user might provide full URL
-      // Better to assume user provides base URL like https://api.openai.com/v1
-      url = url.replace(/\/$/, '') + '/chat/completions'
+    let baseURL = config.baseUrl
+    // OpenAI SDK appends /chat/completions automatically, so we need to strip it if present
+    if (baseURL.endsWith('/chat/completions')) {
+      baseURL = baseURL.replace(/\/chat\/completions\/?$/, '')
+    } else if (baseURL.endsWith('/v1/chat/completions')) {
+      // Some users might paste the full URL including /v1...
+      // Ideally we want the base that includes /v1 if the provider expects it,
+      // but OpenAI SDK expects the base URL to be where /chat/completions is appended.
+      // E.g. https://api.openai.com/v1 -> https://api.openai.com/v1/chat/completions
+      // So if user provided .../v1/chat/completions, we want .../v1
+      baseURL = baseURL.replace(/\/chat\/completions\/?$/, '')
     }
 
-    // Handle cases where user provides the full chat completion URL
-    if (config.baseUrl.includes('/chat/completions')) {
-      url = config.baseUrl
-    }
+    // Ensure no trailing slash
+    baseURL = baseURL.replace(/\/$/, '')
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${config.apiKey}`
-      },
-      body: JSON.stringify({
-        model: config.modelName,
-        messages: messages,
-        stream: true
-      })
+    const client = new OpenAI({
+      baseURL,
+      apiKey: config.apiKey,
+      dangerouslyAllowBrowser: true
     })
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`API Error: ${response.status} - ${errorText}`)
-    }
+    const stream = await client.chat.completions.create({
+      model: config.modelName,
+      messages: messages as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+      stream: true
+    })
 
-    if (!response.body) {
-      throw new Error('Response body is empty')
-    }
-
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder('utf-8')
-    let buffer = ''
-
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-
-      const chunk = decoder.decode(value, { stream: true })
-      buffer += chunk
-
-      const lines = buffer.split('\n')
-      buffer = lines.pop() || ''
-
-      for (const line of lines) {
-        const trimmed = line.trim()
-        if (!trimmed.startsWith('data: ')) continue
-
-        const dataStr = trimmed.slice(6)
-        if (dataStr === '[DONE]') continue
-
-        try {
-          const data = JSON.parse(dataStr)
-          const content = data.choices?.[0]?.delta?.content
-          if (content) {
-            onChunk(content)
-          }
-        } catch (e) {
-          console.warn('Failed to parse SSE message', e)
-        }
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content || ''
+      if (content) {
+        onChunk(content)
       }
     }
 
     onFinish()
   } catch (error) {
+    console.error('LLM Service Error:', error)
     onError(error instanceof Error ? error : new Error(String(error)))
   }
 }

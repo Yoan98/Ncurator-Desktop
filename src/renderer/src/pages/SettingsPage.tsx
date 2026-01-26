@@ -50,7 +50,7 @@ const PROVIDER_OPTIONS = [
     desc: '官方 API'
   },
   {
-    label: 'Kimi',
+    label: 'Kimi(Moonshot)',
     value: 'https://api.moonshot.cn/v1',
     icon: <img src={kimiLogo} alt="Kimi" className="w-4 h-4" />,
     desc: '官方 API'
