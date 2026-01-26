@@ -35,5 +35,5 @@
   - **Renderer**: 仅负责 UI 展示，通过 IPC 通信。
 
 ## 3. 文档引用
-当涉及到数据库时，请阅读 [NCurator-Desktop 数据库设计](local-database.md)
+当涉及到数据库时，请阅读 [NCurator-Desktop 数据库设计](database.md)
 当涉及到 UI 样式时，请阅读 [UI/UX 设计规范与准则](ui-style.md)
