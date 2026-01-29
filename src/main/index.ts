@@ -6,11 +6,12 @@ import { registerHandlers } from './ipc/handlers'
 import { IngestionService } from './services/ingestion/FileLoader'
 import { EmbeddingService } from './services/vector/EmbeddingService'
 import { UnifiedStore } from './services/storage/UnifiedStore'
+import { globalShortcut } from 'electron'
 
 function createWindow(): void {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
-    width: 900,
+    width: 1200,
     height: 670,
     show: false,
     autoHideMenuBar: true,
@@ -37,6 +38,16 @@ function createWindow(): void {
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
+
+  globalShortcut.register('F12', () => {
+    const wc = mainWindow.webContents
+
+    if (wc.isDevToolsOpened()) {
+      wc.closeDevTools()
+    } else {
+      wc.openDevTools({ mode: 'right' })
+    }
+  })
 }
 
 // This method will be called when Electron has finished
