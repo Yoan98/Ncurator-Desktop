@@ -6,6 +6,7 @@ import TextHighlighter from '../components/TextHighlighter'
 import { parseIpcResult } from '../utils/serialization'
 import FileRender, { FileRenderDocument } from '../components/fileRenders'
 import { getActiveConfig, streamCompletion, ChatMessage } from '../services/llmService'
+import MarkdownRenderer from '../components/MarkdownRenderer'
 
 const { TextArea } = Input
 

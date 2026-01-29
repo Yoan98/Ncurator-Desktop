@@ -6,8 +6,7 @@ import {
   HiTrash,
   HiUser,
   HiSparkles,
-  HiBookOpen,
-  HiCog6Tooth
+  HiBookOpen
 } from 'react-icons/hi2'
 import { LoadingOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
@@ -15,6 +14,7 @@ import { LLMConfig, getActiveConfig, streamCompletion, ChatMessage } from '../se
 import type { SearchResult } from '../../../shared/types'
 import { parseIpcResult } from '../utils/serialization'
 import FileRender, { FileRenderDocument } from '../components/fileRenders'
+import MarkdownRenderer from '../components/MarkdownRenderer'
 
 const { TextArea } = Input
 const { Panel } = Collapse
@@ -261,13 +261,20 @@ ${contextText}`
         />
         <div className={`flex flex-col max-w-[80%] ${isUser ? 'items-end' : 'items-start'}`}>
           <div
-            className={`rounded-2xl px-5 py-3 shadow-sm text-[15px] leading-relaxed whitespace-pre-wrap border ${
+            className={`rounded-2xl px-5 py-3 shadow-sm text-[15px] leading-relaxed border ${
               isUser
-                ? 'bg-white border-[#E5E5E4] text-[#1F1F1F] rounded-br-sm'
-                : 'bg-[#FBF5F2] border-[#F4E5DF] text-[#1F1F1F] rounded-bl-sm'
+                ? 'bg-white border-[#E5E5E4] text-[#1F1F1F] rounded-br-sm whitespace-pre-wrap'
+                : 'bg-[#FBF5F2] border-[#F4E5DF] text-[#1F1F1F] rounded-bl-sm w-full'
             }`}
           >
-            {msg.content || (loading && msg.role === 'assistant' ? <LoadingOutlined /> : '')}
+            {isUser ? (
+              msg.content
+            ) : (
+              <MarkdownRenderer
+                content={msg.content || (loading && msg.role === 'assistant' ? '...' : '')}
+              />
+            )}
+            {loading && msg.role === 'assistant' && !msg.content && <LoadingOutlined />}
           </div>
 
           {/* Sources for User Message */}
