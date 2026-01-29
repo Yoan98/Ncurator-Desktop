@@ -1,6 +1,9 @@
 import React from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
+import rehypeKatex from 'rehype-katex'
+import 'katex/dist/katex.min.css'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { Typography } from 'antd'
@@ -14,7 +17,8 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, className 
   return (
     <div className={`markdown-body ${className || ''}`}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[rehypeKatex]}
         components={{
           code({ inline, className, children, ...props }: any) {
             const match = /language-(\w+)/.exec(className || '')
