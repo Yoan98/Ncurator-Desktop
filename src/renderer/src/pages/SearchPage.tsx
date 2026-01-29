@@ -5,6 +5,7 @@ import type { SearchResult } from '../../../shared/types'
 import TextHighlighter from '../components/TextHighlighter'
 import { parseIpcResult } from '../utils/serialization'
 import FileRender, { FileRenderDocument } from '../components/fileRenders'
+import { getActiveConfig, streamCompletion, ChatMessage } from '../services/llmService'
 
 const { TextArea } = Input
 
@@ -17,24 +18,83 @@ const SearchPage: React.FC = () => {
   const [searchValue, setSearchValue] = useState('')
   const [aiAnswerEnabled, setAiAnswerEnabled] = useState(false)
   const [aiAnswer, setAiAnswer] = useState<string>('')
+  const [aiGenerating, setAiGenerating] = useState(false)
+
+  const generateAiAnswer = async (query: string, docs: SearchResult[]) => {
+    const config = getActiveConfig()
+    if (!config) {
+      setAiAnswer('请先在设置页配置 AI 模型参数')
+      return
+    }
+
+    if (docs.length === 0) {
+      setAiAnswer('未找到相关文档，无法生成回答。')
+      return
+    }
+
+    setAiGenerating(true)
+    setAiAnswer('')
+
+    const contextText = docs
+      .slice(0, 5)
+      .map((c, i) => `[${i + 1}] 文档: ${c.document_name}\n内容: ${c.text}`)
+      .join('\n\n')
+
+    const systemPrompt = `你是一个智能助手。请严格基于以下提供的上下文信息回答用户的问题。如果上下文中没有答案，请诚实告知“未找到相关信息”。
+请使用中文回答。
+
+上下文信息：
+${contextText}`
+
+    const messages: ChatMessage[] = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: query }
+    ]
+
+    await streamCompletion(
+      messages,
+      config,
+      (chunk) => {
+        setAiAnswer((prev) => prev + chunk)
+      },
+      (error) => {
+        console.error('AI generation error:', error)
+        setAiAnswer('AI 回答生成失败: ' + error.message)
+        setAiGenerating(false)
+      },
+      () => {
+        setAiGenerating(false)
+      }
+    )
+  }
 
   const handleSearch = async (value: string) => {
     if (!value.trim()) return
     setLoading(true)
+    // Clear previous AI answer if new search
+    setAiAnswer('')
+    
     try {
       const response = await window.api.search(value)
       const parsedResults = response.results.map(parseIpcResult)
       console.log('Search results:', parsedResults)
       setResults(parsedResults)
       setTokens(response.tokens)
+      
       if (aiAnswerEnabled) {
-        const snippet = parsedResults?.[0]?.text || ''
-        setAiAnswer(snippet || 'AI 正在准备回答...')
+        generateAiAnswer(value, parsedResults)
       }
     } catch (error) {
       console.error('Search error:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleAiSwitchChange = (checked: boolean) => {
+    setAiAnswerEnabled(checked)
+    if (checked && results.length > 0 && searchValue.trim()) {
+      generateAiAnswer(searchValue, results)
     }
   }
 
@@ -109,7 +169,7 @@ const SearchPage: React.FC = () => {
             </div>
             <Switch
               checked={aiAnswerEnabled}
-              onChange={setAiAnswerEnabled}
+              onChange={handleAiSwitchChange}
               className="bg-[#E5E5E4] hover:bg-[#D4D4D3] [&.ant-switch-checked]:!bg-[#D97757]"
             />
           </div>
@@ -124,7 +184,11 @@ const SearchPage: React.FC = () => {
                   symbol: <span className="text-[#D97757] font-medium ml-1">展开</span>
                 }}
               >
-                {aiAnswer || <span className="text-[#999999] italic">等待提问...</span>}
+                {aiGenerating ? (
+                  <span className="text-[#D97757]">AI 思考中...</span>
+                ) : (
+                  aiAnswer || <span className="text-[#999999] italic">等待提问...</span>
+                )}
               </Typography.Paragraph>
             </div>
           )}
