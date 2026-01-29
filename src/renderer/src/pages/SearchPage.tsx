@@ -24,6 +24,7 @@ const SearchPage: React.FC = () => {
     try {
       const response = await window.api.search(value)
       const parsedResults = response.results.map(parseIpcResult)
+      console.log('Search results:', parsedResults)
       setResults(parsedResults)
       setTokens(response.tokens)
       if (aiAnswerEnabled) {
