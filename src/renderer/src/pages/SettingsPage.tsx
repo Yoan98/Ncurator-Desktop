@@ -158,7 +158,7 @@ const SettingsPage: React.FC = () => {
       render: (text: string) => <Tag>{text}</Tag>
     },
     {
-      title: 'Base URL',
+      title: '服务商/Base URL',
       dataIndex: 'baseUrl',
       key: 'baseUrl',
       ellipsis: true,
