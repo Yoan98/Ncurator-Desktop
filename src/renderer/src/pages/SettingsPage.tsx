@@ -63,6 +63,42 @@ const PROVIDER_OPTIONS = [
   }
 ]
 
+const MODEL_MAPPING: Record<string, { value: string; label: string }[]> = {
+  'https://api.openai.com/v1': [
+    { value: 'gpt-4o', label: 'GPT-4o' },
+    { value: 'gpt-4o-mini', label: 'GPT-4o mini' },
+    { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
+    { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' }
+  ],
+  'https://dashscope.aliyuncs.com/compatible-mode/v1': [
+    { value: 'qwen-max', label: '通义千问-Max' },
+    { value: 'qwen-plus', label: '通义千问-Plus' },
+    { value: 'qwen-turbo', label: '通义千问-Turbo' },
+    { value: 'qwen-long', label: '通义千问-Long' }
+  ],
+  'https://ark.cn-beijing.volces.com/api/v3': [
+    { value: 'doubao-pro-32k', label: '豆包-Pro-32k' },
+    { value: 'doubao-lite-32k', label: '豆包-Lite-32k' },
+    { value: 'doubao-pro-4k', label: '豆包-Pro-4k' }
+  ],
+  'https://api.deepseek.com': [
+    { value: 'deepseek-chat', label: 'DeepSeek Chat (V3)' },
+    { value: 'deepseek-reasoner', label: 'DeepSeek Reasoner (R1)' }
+  ],
+  'https://api.moonshot.cn/v1': [
+    { value: 'moonshot-v1-8k', label: 'Moonshot V1 8k' },
+    { value: 'moonshot-v1-32k', label: 'Moonshot V1 32k' },
+    { value: 'moonshot-v1-128k', label: 'Moonshot V1 128k' }
+  ],
+  'https://api.siliconflow.cn/v1': [
+    { value: 'deepseek-ai/DeepSeek-R1', label: 'DeepSeek R1' },
+    { value: 'deepseek-ai/DeepSeek-V3', label: 'DeepSeek V3' },
+    { value: 'Qwen/Qwen2.5-72B-Instruct', label: 'Qwen 2.5 72B' },
+    { value: 'Qwen/Qwen2.5-7B-Instruct', label: 'Qwen 2.5 7B' },
+    { value: 'Qwen/Qwen2.5-Coder-32B-Instruct', label: 'Qwen 2.5 Coder 32B' }
+  ]
+}
+
 const SettingsPage: React.FC = () => {
   const [configs, setConfigs] = useState<LLMConfig[]>(() => {
     try {
@@ -76,6 +112,26 @@ const SettingsPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingConfig, setEditingConfig] = useState<LLMConfig | null>(null)
   const [form] = Form.useForm()
+  const currentBaseUrl = Form.useWatch('baseUrl', form)
+
+  const modelOptions = React.useMemo(() => {
+    if (!currentBaseUrl) {
+      // Return all grouped
+      return Object.entries(MODEL_MAPPING).map(([url, models]) => {
+        const provider = PROVIDER_OPTIONS.find((p) => p.value === url)
+        return {
+          label: provider?.label || url,
+          options: models
+        }
+      })
+    }
+    // Try to find exact match
+    const exactMatch = MODEL_MAPPING[currentBaseUrl]
+    if (exactMatch) return exactMatch
+
+    // If no exact match, return empty array to allow free input
+    return []
+  }, [currentBaseUrl])
 
   const saveConfigs = (newConfigs: LLMConfig[]) => {
     setConfigs(newConfigs)
@@ -253,12 +309,13 @@ const SettingsPage: React.FC = () => {
 
           <Form.Item
             name="baseUrl"
-            label="Base URL"
+            label="服务商/Base URL"
             rules={[{ required: true, message: '请输入 Base URL' }]}
             help="选择常用地址或手动输入"
           >
             <AutoComplete
               placeholder="https://api.openai.com/v1"
+              allowClear
               options={PROVIDER_OPTIONS.map((provider) => ({
                 value: provider.value,
                 label: (
@@ -290,7 +347,17 @@ const SettingsPage: React.FC = () => {
             label="模型名称"
             rules={[{ required: true, message: '请输入模型名称' }]}
           >
-            <Input placeholder="例如：gpt-4o-mini" />
+            <AutoComplete
+              placeholder="例如：gpt-4o-mini"
+              allowClear
+              options={modelOptions as any}
+              filterOption={(inputValue, option) => {
+                const upperInput = inputValue.toUpperCase()
+                const upperValue = option?.value?.toString().toUpperCase()
+                const upperLabel = option?.label?.toString().toUpperCase()
+                return !!(upperValue?.includes(upperInput) || upperLabel?.includes(upperInput))
+              }}
+            />
           </Form.Item>
 
           <Form.Item
