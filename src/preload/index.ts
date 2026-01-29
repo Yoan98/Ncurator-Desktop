@@ -35,7 +35,8 @@ const api = {
   dropDocumentsTable: (): Promise<{ success: boolean; existed?: boolean; error?: string }> =>
     ipcRenderer.invoke('drop-documents-table'),
   documentListRefresh: (cb: () => void) => ipcRenderer.on('document-list-refresh', () => cb()),
-  removeDocumentListRefreshListeners: () => ipcRenderer.removeAllListeners('document-list-refresh')
+  removeDocumentListRefreshListeners: () => ipcRenderer.removeAllListeners('document-list-refresh'),
+  readFile: (filePath: string): Promise<Uint8Array> => ipcRenderer.invoke('read-file', filePath)
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

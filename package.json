@@ -25,6 +25,7 @@
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
     "@huggingface/transformers": "^3.8.1",
+    "@js-preview/docx": "^1.6.4",
     "@lancedb/lancedb": "^0.23.0",
     "@lancedb/lancedb-darwin-arm64": "^0.22.3",
     "@langchain/community": "^1.1.1",
@@ -40,8 +41,11 @@
     "pdf-parse": "^2.4.5",
     "react-doc-viewer": "^0.1.15",
     "react-icons": "^5.5.0",
+    "react-markdown": "^10.1.0",
     "react-pdf": "^10.3.0",
     "react-router-dom": "^7.12.0",
+    "react-syntax-highlighter": "^16.1.0",
+    "remark-gfm": "^4.0.1",
     "uuid": "^13.0.0"
   },
   "devDependencies": {

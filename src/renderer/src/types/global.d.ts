@@ -34,6 +34,7 @@ declare global {
       dropDocumentsTable: () => Promise<{ success: boolean; existed?: boolean; error?: string }>
       documentListRefresh: (cb: () => void) => void
       removeDocumentListRefreshListeners: () => void
+      readFile: (filePath: string) => Promise<Uint8Array>
     }
   }
 }

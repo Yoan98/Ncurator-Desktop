@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom'
 import { LLMConfig, getActiveConfig, streamCompletion, ChatMessage } from '../services/llmService'
 import type { SearchResult } from '../../../shared/types'
 import { parseIpcResult } from '../utils/serialization'
+import FileRender, { FileRenderDocument } from '../components/fileRenders'
 
 const { TextArea } = Input
 const { Panel } = Collapse
@@ -42,6 +43,10 @@ const ChatPage: React.FC = () => {
   const [loading, setLoading] = useState(false)
   const [config, setConfig] = useState<LLMConfig | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+
+  // Preview state
+  const [previewVisible, setPreviewVisible] = useState(false)
+  const [currentPreviewDoc, setCurrentPreviewDoc] = useState<SearchResult | null>(null)
 
   const currentSession = sessions.find((s) => s.id === currentSessionId)
 
@@ -239,6 +244,11 @@ ${contextText}`
     }
   }
 
+  const openPreview = (item: SearchResult) => {
+    setCurrentPreviewDoc(item)
+    setPreviewVisible(true)
+  }
+
   const renderMessage = (msg: ChatMessageWithSource) => {
     const isUser = msg.role === 'user'
     return (
@@ -278,7 +288,12 @@ ${contextText}`
               >
                 <div className="flex flex-col gap-2">
                   {msg.sources.map((source, idx) => (
-                    <Card key={idx} size="small" className="bg-[#F5F5F4] border-[#E5E5E4]">
+                    <Card
+                      key={idx}
+                      size="small"
+                      className="bg-[#F5F5F4] border-[#E5E5E4] cursor-pointer hover:border-[#D97757] transition-colors"
+                      onClick={() => openPreview(source)}
+                    >
                       <div className="text-xs font-bold text-[#666666] mb-1 truncate">
                         {idx + 1}. {source.document_name}
                       </div>
@@ -294,103 +309,91 @@ ${contextText}`
     )
   }
 
+  const previewDocuments: FileRenderDocument[] =
+    currentPreviewDoc && currentPreviewDoc.document?.file_path
+      ? [
+          {
+            uri: '', // Will be generated from filePath
+            filePath: currentPreviewDoc.document.file_path,
+            fileName: currentPreviewDoc.document_name,
+            metadata: {
+              pageNumber: (currentPreviewDoc.metadata as any)?.page || 1
+            }
+          }
+        ]
+      : []
+
   return (
     <div className="flex h-full bg-[#F5F5F4]">
       {/* Sidebar */}
       <div className="w-64 bg-white border-r border-[#E5E5E4] flex flex-col h-[calc(100vh-64px)]">
-        <div className="p-4 border-b border-[#E5E5E4]">
+        <div className="p-4 border-b border-[#E5E5E4] flex items-center justify-between">
+          <span className="font-semibold text-[#1F1F1F]">历史记录</span>
           <Button
-            type="primary"
-            block
-            icon={<HiPlus className="w-4 h-4" />}
+            type="text"
+            icon={<HiPlus />}
+            className="text-[#D97757] hover:text-[#C66A4A] hover:bg-[#FBF5F2]"
             onClick={createNewSession}
-            className="h-10 rounded-lg !bg-[#D97757] hover:!bg-[#C66A4A] shadow-sm border-none"
-          >
-            新对话
-          </Button>
+          />
         </div>
-        <div className="flex-1 overflow-y-auto p-2">
+        <div className="flex-1 overflow-y-auto">
           {sessions.map((session) => (
             <div
               key={session.id}
-              onClick={() => setCurrentSessionId(session.id)}
-              className={`group flex items-center justify-between p-3 mb-1 rounded-lg cursor-pointer transition-all ${
+              className={`p-3 cursor-pointer border-b border-[#F5F5F4] transition-colors group relative ${
                 currentSessionId === session.id
-                  ? 'bg-[#FBF5F2] text-[#D97757] font-medium'
-                  : 'text-[#666666] hover:bg-[#F5F5F4]'
+                  ? 'bg-[#FBF5F2] border-l-4 border-l-[#D97757]'
+                  : 'hover:bg-[#F5F5F4] border-l-4 border-l-transparent'
               }`}
+              onClick={() => setCurrentSessionId(session.id)}
             >
-              <div className="truncate flex-1 text-sm pr-2">{session.title || '新对话'}</div>
+              <div className="text-sm font-medium text-[#1F1F1F] truncate pr-6">
+                {session.title}
+              </div>
+              <div className="text-xs text-[#999999] mt-1">
+                {new Date(session.createdAt).toLocaleDateString()}
+              </div>
               <Button
                 type="text"
                 size="small"
                 icon={<HiTrash />}
-                className={`opacity-0 group-hover:opacity-100 text-[#999999] hover:text-red-500 ${
-                  currentSessionId === session.id ? 'opacity-100' : ''
-                }`}
+                className="absolute right-2 top-3 text-[#999999] hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
                 onClick={(e) => deleteSession(e, session.id)}
               />
             </div>
           ))}
-        </div>
-
-        {/* Config Status */}
-        <div className="p-4 border-t border-[#E5E5E4] bg-[#F5F5F4]">
-          <div className="flex items-center justify-between text-xs text-[#999999]">
-            <div className="flex items-center gap-1.5 truncate max-w-[150px]">
-              <div className={`w-2 h-2 rounded-full ${config ? 'bg-green-500' : 'bg-red-500'}`} />
-              <span className="truncate">{config ? config.name : '未配置模型'}</span>
-            </div>
-            <Tooltip title="配置模型">
-              <Button
-                type="text"
-                size="small"
-                icon={<HiCog6Tooth />}
-                onClick={() => navigate('/settings')}
-              />
-            </Tooltip>
-          </div>
         </div>
       </div>
 
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col h-[calc(100vh-64px)] relative">
         {/* Messages */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 scroll-smooth">
-          {currentSession && currentSession.messages.length > 0 ? (
-            <div className="max-w-3xl mx-auto pb-4">
-              {currentSession.messages.map(renderMessage)}
+        <div className="flex-1 overflow-y-auto p-6 pb-32" ref={scrollRef}>
+          {currentSession?.messages.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center text-[#999999] gap-4">
+              <div className="w-16 h-16 bg-[#F5F5F4] rounded-full flex items-center justify-center">
+                <HiSparkles className="w-8 h-8 text-[#D97757]" />
+              </div>
+              <div className="text-center">
+                <h3 className="text-lg font-medium text-[#1F1F1F] mb-2">有什么可以帮您？</h3>
+                <p>您可以询问关于文档库的任何问题</p>
+              </div>
             </div>
           ) : (
-            <div className="h-full flex flex-col items-center justify-center text-[#999999]">
-              <div className="w-16 h-16 bg-white border border-[#E5E5E4] rounded-2xl flex items-center justify-center mb-4 text-3xl text-[#D97757]">
-                <HiSparkles />
-              </div>
-              <p>开始一个新的对话吧</p>
-              {!config && (
-                <Button
-                  type="link"
-                  onClick={() => navigate('/settings')}
-                  className="!text-[#D97757]"
-                >
-                  去配置模型
-                </Button>
-              )}
-            </div>
+            currentSession?.messages.map(renderMessage)
           )}
         </div>
 
         {/* Input Area */}
-        <div className="p-6 pt-2 bg-gradient-to-t from-[#F5F5F4] via-[#F5F5F4] to-transparent">
-          <div className="max-w-3xl mx-auto relative bg-white rounded-2xl shadow-lg border border-[#E5E5E4] p-2 focus-within:ring-2 focus-within:ring-[#F4E5DF] transition-all">
+        <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-[#F5F5F4] via-[#F5F5F4] to-transparent">
+          <div className="bg-white border border-[#E5E5E4] rounded-2xl shadow-lg p-3 focus-within:ring-4 focus-within:ring-[#F4E5DF] focus-within:border-[#D97757] transition-all duration-300">
             <TextArea
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder={config ? '输入问题，Shift+Enter 换行...' : '请先配置模型...'}
-              disabled={!config}
+              placeholder="输入问题..."
               autoSize={{ minRows: 1, maxRows: 6 }}
               bordered={false}
-              className="!resize-none text-base !mb-10 text-[#1F1F1F] placeholder:text-[#999999]"
+              className="text-[15px] mb-2"
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault()
@@ -398,27 +401,36 @@ ${contextText}`
                 }
               }}
             />
-            <div className="absolute bottom-2 right-2 flex items-center gap-2">
-              <span className="text-xs text-[#999999] mr-2 hidden sm:inline">
-                基于本地知识库回答
-              </span>
+            <div className="flex justify-between items-center">
+              <div className="text-xs text-[#999999] flex items-center gap-2">
+                <Tooltip title="基于本地文档库回答">
+                  <span className="flex items-center gap-1 bg-[#F5F5F4] px-2 py-1 rounded cursor-help">
+                    <HiBookOpen className="text-[#D97757]" />
+                    <span>本地知识库</span>
+                  </span>
+                </Tooltip>
+              </div>
               <Button
                 type="primary"
                 shape="circle"
-                icon={<HiArrowUp className="w-5 h-5" />}
-                disabled={!input.trim() || loading || !config}
-                loading={loading}
+                icon={<HiArrowUp />}
                 onClick={handleSend}
-                className={`flex items-center justify-center border-none shadow-none ${
-                  input.trim() && !loading && config
-                    ? '!bg-[#D97757] hover:!bg-[#C66A4A]'
-                    : '!bg-[#E5E5E4] !text-white'
-                }`}
+                disabled={!input.trim() || loading}
+                loading={loading}
+                className={`${
+                  input.trim() ? '!bg-[#D97757]' : '!bg-[#E5E5E4] !text-white'
+                } border-none shadow-none`}
               />
             </div>
           </div>
         </div>
       </div>
+
+      <FileRender
+        open={previewVisible}
+        documents={previewDocuments}
+        onCancel={() => setPreviewVisible(false)}
+      />
     </div>
   )
 }

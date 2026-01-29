@@ -1,19 +1,10 @@
 import React, { useState } from 'react'
-import { Input, List, Card, Modal, Empty, Typography, Button, Switch } from 'antd'
+import { Input, List, Card, Empty, Typography, Button, Switch } from 'antd'
 import { HiArrowUp, HiOutlineDocumentText } from 'react-icons/hi2'
-import { Document, Page, pdfjs } from 'react-pdf'
-import DocViewer, { DocViewerRenderers } from 'react-doc-viewer'
-import 'react-pdf/dist/Page/AnnotationLayer.css'
-import 'react-pdf/dist/Page/TextLayer.css'
 import type { SearchResult } from '../../../shared/types'
 import TextHighlighter from '../components/TextHighlighter'
 import { parseIpcResult } from '../utils/serialization'
-
-// Configure PDF worker
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.mjs',
-  import.meta.url
-).toString()
+import FileRender, { FileRenderDocument } from '../components/fileRenders'
 
 const { TextArea } = Input
 
@@ -51,45 +42,19 @@ const SearchPage: React.FC = () => {
     setPreviewVisible(true)
   }
 
-  const renderPreview = () => {
-    if (!currentDoc || !currentDoc.document?.file_path)
-      return <Empty description="Document not found" />
-
-    const filePath = currentDoc.document.file_path
-    const fileUrl = `file://${filePath}`
-
-    const isPdf = filePath.toLowerCase().endsWith('.pdf')
-    const pageNum = (currentDoc.metadata as any)?.page || 1
-
-    if (isPdf) {
-      return (
-        <div className="flex justify-center bg-[#F5F5F4] p-4 h-full overflow-auto">
-          <Document
-            file={fileUrl}
-            onLoadError={(error) => console.error('Error loading PDF:', error)}
-            loading={<div className="p-4">Loading PDF...</div>}
-          >
-            <Page
-              pageNumber={pageNum}
-              renderTextLayer={true}
-              renderAnnotationLayer={true}
-              width={800}
-            />
-          </Document>
-        </div>
-      )
-    } else {
-      // DocViewer for other types
-      const docs = [{ uri: fileUrl }]
-      return (
-        <DocViewer
-          documents={docs}
-          pluginRenderers={DocViewerRenderers}
-          style={{ height: '100%' }}
-        />
-      )
-    }
-  }
+  const previewDocuments: FileRenderDocument[] =
+    currentDoc && currentDoc.document?.file_path
+      ? [
+          {
+            uri: '', // Will be generated from filePath
+            filePath: currentDoc.document.file_path,
+            fileName: currentDoc.document_name,
+            metadata: {
+              pageNumber: (currentDoc.metadata as any)?.page || 1
+            }
+          }
+        ]
+      : []
 
   return (
     <div className="min-h-full p-6 font-sans max-w-4xl mx-auto">
@@ -232,17 +197,11 @@ const SearchPage: React.FC = () => {
           </div>
         </div>
 
-        <Modal
-          title={currentDoc?.document_name}
+        <FileRender
           open={previewVisible}
+          documents={previewDocuments}
           onCancel={() => setPreviewVisible(false)}
-          width="90%"
-          style={{ top: 20 }}
-          styles={{ body: { height: '80vh', overflow: 'hidden', padding: 0 } }}
-          footer={null}
-        >
-          {renderPreview()}
-        </Modal>
+        />
       </div>
     </div>
   )

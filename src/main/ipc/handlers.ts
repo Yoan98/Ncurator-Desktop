@@ -293,4 +293,17 @@ export function registerHandlers(services: {
       return { success: false, error: error.message }
     }
   })
+
+  ipcMain.handle('read-file', async (_event, filePath: string) => {
+    try {
+      if (!fs.existsSync(filePath)) {
+        throw new Error(`File not found: ${filePath}`)
+      }
+      const buffer = fs.readFileSync(filePath)
+      return buffer
+    } catch (error: any) {
+      console.error('❌ [READ-FILE] ERROR:', error)
+      throw error
+    }
+  })
 }
