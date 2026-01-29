@@ -43,6 +43,7 @@ const SearchPage: React.FC = () => {
 
     const systemPrompt = `你是一个智能助手。请严格基于以下提供的上下文信息回答用户的问题。如果上下文中没有答案，请诚实告知“未找到相关信息”。
 请使用中文回答。
+请使用 Markdown 格式回答。
 
 上下文信息：
 ${contextText}`
@@ -74,14 +75,14 @@ ${contextText}`
     setLoading(true)
     // Clear previous AI answer if new search
     setAiAnswer('')
-    
+
     try {
       const response = await window.api.search(value)
       const parsedResults = response.results.map(parseIpcResult)
       console.log('Search results:', parsedResults)
       setResults(parsedResults)
       setTokens(response.tokens)
-      
+
       if (aiAnswerEnabled) {
         generateAiAnswer(value, parsedResults)
       }
@@ -177,20 +178,16 @@ ${contextText}`
 
           {aiAnswerEnabled && (
             <div className="pt-2">
-              <Typography.Paragraph
-                className="text-[#666666] text-[15px] leading-relaxed mb-0"
-                ellipsis={{
-                  rows: 8,
-                  expandable: true,
-                  symbol: <span className="text-[#D97757] font-medium ml-1">展开</span>
-                }}
-              >
-                {aiGenerating ? (
-                  <span className="text-[#D97757]">AI 思考中...</span>
-                ) : (
-                  aiAnswer || <span className="text-[#999999] italic">等待提问...</span>
-                )}
-              </Typography.Paragraph>
+              {aiGenerating ? (
+                <div className="flex items-center gap-2 text-[#D97757]">
+                  <span className="loading loading-dots loading-sm"></span>
+                  <span>AI 思考中...</span>
+                </div>
+              ) : aiAnswer ? (
+                <MarkdownRenderer content={aiAnswer} />
+              ) : (
+                <span className="text-[#999999] italic">等待提问...</span>
+              )}
             </div>
           )}
         </div>

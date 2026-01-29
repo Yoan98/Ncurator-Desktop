@@ -1,13 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Input, Button, Card, message, Collapse, Avatar, Tooltip, Space } from 'antd'
-import {
-  HiArrowUp,
-  HiPlus,
-  HiTrash,
-  HiUser,
-  HiSparkles,
-  HiBookOpen
-} from 'react-icons/hi2'
+import { HiArrowUp, HiPlus, HiTrash, HiUser, HiSparkles, HiBookOpen } from 'react-icons/hi2'
 import { LoadingOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { LLMConfig, getActiveConfig, streamCompletion, ChatMessage } from '../services/llmService'
@@ -188,6 +181,7 @@ const ChatPage: React.FC = () => {
 
       const systemPrompt = `你是一个智能助手。请严格基于以下提供的上下文信息回答用户的问题。如果上下文中没有答案，请诚实告知“未找到相关信息”。
 请使用中文回答。
+请使用 Markdown 格式回答。
 
 上下文信息：
 ${contextText}`
