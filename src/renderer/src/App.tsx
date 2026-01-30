@@ -17,6 +17,7 @@ import ImportPage from './pages/ImportPage'
 import TestPage from './pages/TestPage'
 import ModelDownloadPage from './pages/ModelDownloadPage'
 import brandIcon from '../../../resources/icon.png'
+import ModelStatusChecker from './components/ModelStatusChecker'
 
 const { Header, Content } = Layout
 
@@ -155,6 +156,7 @@ const MainLayout: React.FC = () => {
           <Route path="/test" element={<TestPage />} />
         </Routes>
       </Content>
+      <ModelStatusChecker />
     </Layout>
   )
 }

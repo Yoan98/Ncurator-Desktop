@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Input, Button, Card, message, Collapse, Avatar, Tooltip, Space, Modal } from 'antd'
+import { Input, Button, Card, message, Collapse, Avatar, Tooltip, Space } from 'antd'
 import { HiArrowUp, HiPlus, HiTrash, HiUser, HiSparkles, HiBookOpen } from 'react-icons/hi2'
 import { LoadingOutlined } from '@ant-design/icons'
-import { useNavigate } from 'react-router-dom'
 import { LLMConfig, getActiveConfig, streamCompletion, ChatMessage } from '../services/llmService'
 import type { SearchResult } from '../../../shared/types'
 import { parseIpcResult } from '../utils/serialization'
@@ -29,7 +28,6 @@ interface ChatSession {
 const STORAGE_KEY_SESSIONS = 'ncurator_chat_sessions'
 
 const ChatPage: React.FC = () => {
-  const navigate = useNavigate()
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
   const [input, setInput] = useState('')
@@ -92,31 +90,7 @@ const ChatPage: React.FC = () => {
     if (!stored || JSON.parse(stored).length === 0) {
       createNewSession()
     }
-
-    checkModelStatus()
   }, [])
-
-  const checkModelStatus = async () => {
-    try {
-      const status = await window.api.getEmbeddingStatus()
-      if (status === 'error' || status === 'uninitialized') {
-        const models = await window.api.getModels()
-        const isDownloaded = models.some((m) => m.isDownloaded)
-
-        if (!isDownloaded) {
-          Modal.confirm({
-            title: '需要下载模型',
-            content: '使用对话功能需要先下载向量模型。是否前往下载？',
-            okText: '去下载',
-            cancelText: '稍后',
-            onOk: () => navigate('/model-download')
-          })
-        }
-      }
-    } catch (e) {
-      console.error('Failed to check model status', e)
-    }
-  }
 
   useEffect(() => {
     scrollToBottom()

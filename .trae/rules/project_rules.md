@@ -28,6 +28,11 @@
 - **Parsers**: `pdf-parse` (PDF), `mammoth` (DOCX)
 - **Tokenization**: `@node-rs/jieba` (中文分词)
 
+## 4. UI/UX 注意事项
+
+- **禁用 Modal.confirm**: 由于兼容性问题，项目中禁止使用 `Modal.confirm`、`Modal.info` 等静态方法。请使用 ContextHolder 方式或者自定义组件替代。
+- **全局提示**: 涉及全局状态（如模型下载提示）的通知，应使用全局组件（如悬浮组件）在 `App.tsx` 或 `MainLayout` 中统一处理，避免在每个页面重复逻辑。
+
 ## 2. 核心架构
 
 - **本地优先**: 所有文档处理（解析、嵌入、搜索）均在本地完成，不依赖云端 API。
