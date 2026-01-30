@@ -36,6 +36,20 @@ const api = {
     ipcRenderer.invoke('drop-documents-table'),
   documentListRefresh: (cb: () => void) => ipcRenderer.on('document-list-refresh', () => cb()),
   removeDocumentListRefreshListeners: () => ipcRenderer.removeAllListeners('document-list-refresh'),
+  downloadModel: (repoId: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('download-model', repoId),
+  onDownloadProgress: (
+    cb: (progressData: {
+      repoId: string
+      file?: string
+      status: string
+      progress: number
+      totalFiles?: number
+      completedFiles?: number
+      error?: string
+    }) => void
+  ) => ipcRenderer.on('download-progress', (_event, data) => cb(data)),
+  removeDownloadProgressListeners: () => ipcRenderer.removeAllListeners('download-progress'),
   readFile: (filePath: string): Promise<Uint8Array> => ipcRenderer.invoke('read-file', filePath)
 }
 

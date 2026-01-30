@@ -2,6 +2,7 @@ import { ipcMain } from 'electron'
 import { IngestionService } from '../services/ingestion/FileLoader'
 import { EmbeddingService } from '../services/vector/EmbeddingService'
 import { UnifiedStore } from '../services/storage/UnifiedStore'
+import { ModelService } from '../services/model/ModelService'
 import { v4 as uuidv4 } from 'uuid'
 import type { SearchResult, DocumentListResponse, ChunkListResponse } from '../types/store'
 import path from 'path'
@@ -17,8 +18,9 @@ export function registerHandlers(services: {
   ingestionService: IngestionService
   embeddingService: EmbeddingService
   unifiedStore: UnifiedStore
+  modelService: ModelService
 }) {
-  const { ingestionService, embeddingService, unifiedStore } = services
+  const { ingestionService, embeddingService, unifiedStore, modelService } = services
 
   ipcMain.handle('ingest-file', async (event, filePath: string, filename: string) => {
     let documentId: string = ''
@@ -304,6 +306,15 @@ export function registerHandlers(services: {
     } catch (error: any) {
       console.error('❌ [READ-FILE] ERROR:', error)
       throw error
+    }
+  })
+
+  ipcMain.handle('download-model', async (event, repoId: string) => {
+    try {
+      return await modelService.downloadModel(repoId, event.sender)
+    } catch (error: any) {
+      console.error('❌ [DOWNLOAD-MODEL] ERROR:', error)
+      return { success: false, error: error.message }
     }
   })
 }

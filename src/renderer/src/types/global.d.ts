@@ -34,6 +34,19 @@ declare global {
       dropDocumentsTable: () => Promise<{ success: boolean; existed?: boolean; error?: string }>
       documentListRefresh: (cb: () => void) => void
       removeDocumentListRefreshListeners: () => void
+      downloadModel: (repoId: string) => Promise<{ success: boolean; error?: string }>
+      onDownloadProgress: (
+        cb: (progressData: {
+          repoId: string
+          file?: string
+          status: string
+          progress: number
+          totalFiles?: number
+          completedFiles?: number
+          error?: string
+        }) => void
+      ) => void
+      removeDownloadProgressListeners: () => void
       readFile: (filePath: string) => Promise<Uint8Array>
     }
   }

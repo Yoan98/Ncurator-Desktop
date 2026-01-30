@@ -7,13 +7,15 @@ import {
   HiOutlineBookOpen,
   HiOutlineBeaker,
   HiOutlineMagnifyingGlass,
-  HiOutlineChatBubbleLeftRight
+  HiOutlineChatBubbleLeftRight,
+  HiCloudArrowDown
 } from 'react-icons/hi2'
 import SearchPage from './pages/SearchPage'
 import ChatPage from './pages/ChatPage'
 import SettingsPage from './pages/SettingsPage'
 import ImportPage from './pages/ImportPage'
 import TestPage from './pages/TestPage'
+import ModelDownloadPage from './pages/ModelDownloadPage'
 import brandIcon from '../../../resources/icon.png'
 
 const { Header, Content } = Layout
@@ -121,11 +123,17 @@ const MainLayout: React.FC = () => {
                   label: '模型配置',
                   icon: <HiOutlineCog6Tooth className="w-4 h-4" />
                 },
+                {
+                  key: 'model-download',
+                  label: '向量模型',
+                  icon: <HiCloudArrowDown className="w-4 h-4" />
+                },
                 { key: 'test', label: '实验室', icon: <HiOutlineBeaker className="w-4 h-4" /> }
               ],
               onClick: (info) => {
                 if (info.key === 'kb') navigate('/import')
                 if (info.key === 'settings') navigate('/settings')
+                if (info.key === 'model-download') navigate('/model-download')
                 if (info.key === 'test') navigate('/test')
               }
             }}
@@ -142,6 +150,7 @@ const MainLayout: React.FC = () => {
           <Route path="/" element={<SearchPage />} />
           <Route path="/chat" element={<ChatPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/model-download" element={<ModelDownloadPage />} />
           <Route path="/import" element={<ImportPage />} />
           <Route path="/test" element={<TestPage />} />
         </Routes>

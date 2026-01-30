@@ -6,6 +6,7 @@ import { registerHandlers } from './ipc/handlers'
 import { IngestionService } from './services/ingestion/FileLoader'
 import { EmbeddingService } from './services/vector/EmbeddingService'
 import { UnifiedStore } from './services/storage/UnifiedStore'
+import { ModelService } from './services/model/ModelService'
 import { globalShortcut } from 'electron'
 
 function createWindow(): void {
@@ -79,7 +80,7 @@ app.whenReady().then(async () => {
     .catch((err) => console.error('Failed to initialize EmbeddingService:', err))
   unifiedStore.initialize().catch((err) => console.error('Failed to initialize UnifiedStore:', err))
 
-  registerHandlers({ ingestionService, embeddingService, unifiedStore })
+  registerHandlers({ ingestionService, embeddingService, unifiedStore, modelService })
 
   createWindow()
 
