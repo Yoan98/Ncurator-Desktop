@@ -28,9 +28,9 @@ export class ModelService {
     const models = [
       {
         id: 'jinaai/jina-embeddings-v2-base-zh',
-        name: '中文通用向量模型 (基础版)',
-        description: '专为中文语境优化，支持长文本（8k 上下文），适合大多数中文知识库场景。',
-        tags: ['中文优化', '8k 上下文', '768 维度']
+        name: '中文模型 ',
+        description: '专为中文语境优化，适合大多数中文知识库场景。',
+        tags: ['中文优化', '1.12GB']
       }
     ]
 
