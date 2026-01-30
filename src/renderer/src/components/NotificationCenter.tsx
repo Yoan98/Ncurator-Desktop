@@ -1,0 +1,207 @@
+import React, { useEffect, useState } from 'react'
+import { Card, Button, Typography } from 'antd'
+import { HiCloudArrowDown, HiOutlineCog6Tooth } from 'react-icons/hi2'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { getActiveConfig } from '../services/llmService'
+
+const { Text } = Typography
+
+export interface NotificationItem {
+  id: string
+  title: string
+  description: string
+  icon: React.ReactNode
+  action: {
+    label: string
+    onClick: () => void
+  }
+}
+
+const NotificationCenter: React.FC = () => {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const [notifications, setNotifications] = useState<NotificationItem[]>([])
+  const [checkingModel, setCheckingModel] = useState(false)
+
+  const isSettingsPage = location.pathname === '/settings'
+  const isDownloadPage = location.pathname === '/model-download'
+  const isChatPage = location.pathname === '/chat'
+
+  // Helper to update notifications
+  const updateNotification = (id: string, item: NotificationItem | null) => {
+    setNotifications((prev) => {
+      const exists = prev.some((n) => n.id === id)
+      if (item) {
+        return exists ? prev.map((n) => (n.id === id ? item : n)) : [...prev, item]
+      } else {
+        return prev.filter((n) => n.id !== id)
+      }
+    })
+  }
+
+  // 1. Check Model Status
+  useEffect(() => {
+    if (isDownloadPage) {
+      updateNotification('model-missing', null)
+      return
+    }
+
+    const checkModelStatus = async () => {
+      if (checkingModel) return
+      setCheckingModel(true)
+      try {
+        const status = await window.api.getEmbeddingStatus()
+        if (status === 'error' || status === 'uninitialized') {
+          const models = await window.api.getModels()
+          const isDownloaded = models.some((m) => m.isDownloaded)
+          if (!isDownloaded) {
+            updateNotification('model-missing', {
+              id: 'model-missing',
+              title: '缺少向量模型',
+              description: '搜索和对话功能依赖本地向量模型，请先下载模型文件。',
+              icon: <HiCloudArrowDown className="text-xl" />,
+              action: {
+                label: '去下载',
+                onClick: () => navigate('/model-download')
+              }
+            })
+          } else {
+            updateNotification('model-missing', null)
+          }
+        } else {
+          updateNotification('model-missing', null)
+        }
+      } catch (e) {
+        console.error('Failed to check model status', e)
+      } finally {
+        setCheckingModel(false)
+      }
+    }
+
+    checkModelStatus()
+  }, [location.pathname, isDownloadPage])
+
+  // 2. Check LLM Config
+  useEffect(() => {
+    if (isSettingsPage) {
+      updateNotification('llm-config-missing', null)
+      return
+    }
+
+    const checkLLMConfig = () => {
+      const config = getActiveConfig()
+      if (!config) {
+        if (isChatPage) {
+          updateNotification('llm-config-missing', {
+            id: 'llm-config-missing',
+            title: '未配置大模型 API',
+            description: '智能回答和对话功能需要配置 LLM API，请先完成配置。',
+            icon: <HiOutlineCog6Tooth className="text-xl" />,
+            action: {
+              label: '去配置',
+              onClick: () => navigate('/settings')
+            }
+          })
+        } else {
+          // If not chat page, we usually hide it unless triggered manually
+          // But wait, if we are in SearchPage and user triggered it?
+          // We can keep it if it was already visible?
+          // For simplicity, let's follow previous logic: only show on ChatPage automatically.
+          // But we also need to support manual trigger.
+
+          // Let's rely on event listener for manual trigger
+          // If not chat page and not triggered, we hide it.
+          // However, to keep state persistent if user hasn't dismissed it, we might need more complex logic.
+          // For now, let's just stick to "auto show on ChatPage".
+          // If user triggered manually via event, we add it.
+
+          // Actually, if we navigate away from ChatPage, should it disappear?
+          // Previous logic: yes (re-render on location change).
+          // But manual trigger logic: `if (!config) setVisible(true)`.
+
+          // Let's keep it simple:
+          // Auto-check on ChatPage.
+          // Listen to event for other pages.
+          if (!notifications.some((n) => n.id === 'llm-config-missing')) {
+            // If not present, don't add it unless on ChatPage
+          }
+        }
+      } else {
+        updateNotification('llm-config-missing', null)
+      }
+    }
+
+    checkLLMConfig()
+
+    const handleCheckEvent = () => {
+      const config = getActiveConfig()
+      if (!config) {
+        updateNotification('llm-config-missing', {
+          id: 'llm-config-missing',
+          title: '未配置大模型 API',
+          description: '智能回答和对话功能需要配置 LLM API，请先完成配置。',
+          icon: <HiOutlineCog6Tooth className="text-xl" />,
+          action: {
+            label: '去配置',
+            onClick: () => navigate('/settings')
+          }
+        })
+      }
+    }
+
+    window.addEventListener('check-llm-config', handleCheckEvent)
+    return () => {
+      window.removeEventListener('check-llm-config', handleCheckEvent)
+    }
+  }, [location.pathname, isSettingsPage, isChatPage])
+
+  if (notifications.length === 0) return null
+
+  return (
+    <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-4 items-end pointer-events-none">
+      {notifications.map((item) => (
+        <Card
+          key={item.id}
+          className="w-80 shadow-lg border-[#D97757]/20 !bg-white/95 backdrop-blur-md pointer-events-auto animate-slide-in-right"
+          size="small"
+          actions={[
+            <Button
+              key="later"
+              type="text"
+              size="small"
+              onClick={() => updateNotification(item.id, null)}
+              className="text-[#999999]"
+            >
+              稍后
+            </Button>,
+            <Button
+              key="action"
+              type="primary"
+              size="small"
+              icon={item.id === 'model-missing' ? <HiCloudArrowDown /> : <HiOutlineCog6Tooth />}
+              onClick={() => {
+                updateNotification(item.id, null)
+                item.action.onClick()
+              }}
+              className="!bg-[#D97757] hover:!bg-[#C66A4A]"
+            >
+              {item.action.label}
+            </Button>
+          ]}
+        >
+          <Card.Meta
+            avatar={
+              <div className="w-10 h-10 rounded-lg bg-[#FBF5F2] flex items-center justify-center text-[#D97757]">
+                {item.icon}
+              </div>
+            }
+            title={<span className="text-[#1F1F1F]">{item.title}</span>}
+            description={<Text className="text-[#666666] text-xs">{item.description}</Text>}
+          />
+        </Card>
+      ))}
+    </div>
+  )
+}
+
+export default NotificationCenter

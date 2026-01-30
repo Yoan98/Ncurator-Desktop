@@ -56,3 +56,18 @@ body {
 mark {
   @apply bg-[#F4E5DF] text-[#D97757] rounded-sm px-0.5 font-medium;
 }
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.3s ease-out forwards;
+}

@@ -16,8 +16,8 @@ import SettingsPage from './pages/SettingsPage'
 import ImportPage from './pages/ImportPage'
 import TestPage from './pages/TestPage'
 import ModelDownloadPage from './pages/ModelDownloadPage'
+import NotificationCenter from './components/NotificationCenter'
 import brandIcon from '../../../resources/icon.png'
-import ModelStatusChecker from './components/ModelStatusChecker'
 
 const { Header, Content } = Layout
 
@@ -121,7 +121,7 @@ const MainLayout: React.FC = () => {
                 { key: 'kb', label: '知识库管理', icon: <HiOutlineBookOpen className="w-4 h-4" /> },
                 {
                   key: 'settings',
-                  label: '模型配置',
+                  label: '大模型配置',
                   icon: <HiOutlineCog6Tooth className="w-4 h-4" />
                 },
                 {
@@ -156,7 +156,7 @@ const MainLayout: React.FC = () => {
           <Route path="/test" element={<TestPage />} />
         </Routes>
       </Content>
-      <ModelStatusChecker />
+      <NotificationCenter />
     </Layout>
   )
 }

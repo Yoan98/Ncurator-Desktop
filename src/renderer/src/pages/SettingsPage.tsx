@@ -265,7 +265,7 @@ const SettingsPage: React.FC = () => {
           </div>
           <div>
             <Title level={3} className="!mb-0 !font-bold !text-[#1F1F1F]">
-              模型配置
+              大模型配置
             </Title>
             <p className="text-[#999999] text-sm mt-1">配置 LLM API 连接信息</p>
           </div>

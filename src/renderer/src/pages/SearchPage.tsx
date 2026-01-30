@@ -98,6 +98,13 @@ ${contextText}`
   }
 
   const handleAiSwitchChange = (checked: boolean) => {
+    if (checked) {
+      const config = getActiveConfig()
+      if (!config) {
+        window.dispatchEvent(new Event('check-llm-config'))
+        return
+      }
+    }
     setAiAnswerEnabled(checked)
     if (checked && results.length > 0 && searchValue.trim()) {
       generateAiAnswer(searchValue, results)
