@@ -72,6 +72,7 @@ app.whenReady().then(async () => {
   const ingestionService = IngestionService.getInstance()
   const embeddingService = EmbeddingService.getInstance()
   const unifiedStore = UnifiedStore.getInstance()
+  const modelService = ModelService.getInstance()
 
   // Start initialization in background (don't await)
   console.log('Starting background initialization of services...')
