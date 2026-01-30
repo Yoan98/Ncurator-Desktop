@@ -311,10 +311,26 @@ export function registerHandlers(services: {
 
   ipcMain.handle('download-model', async (event, repoId: string) => {
     try {
-      return await modelService.downloadModel(repoId, event.sender)
+      const result = await modelService.downloadModel(repoId, event.sender)
+      // After successful download, re-initialize embedding service
+      await embeddingService.initialize()
+      return result
     } catch (error: any) {
       console.error('❌ [DOWNLOAD-MODEL] ERROR:', error)
       return { success: false, error: error.message }
     }
+  })
+
+  ipcMain.handle('get-models', async () => {
+    try {
+      return modelService.getModels()
+    } catch (error: any) {
+      console.error('❌ [GET-MODELS] ERROR:', error)
+      return []
+    }
+  })
+
+  ipcMain.handle('get-embedding-status', () => {
+    return embeddingService.getStatus()
   })
 }

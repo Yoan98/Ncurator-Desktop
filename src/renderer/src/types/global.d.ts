@@ -47,6 +47,16 @@ declare global {
         }) => void
       ) => void
       removeDownloadProgressListeners: () => void
+      getModels: () => Promise<
+        Array<{
+          id: string
+          name: string
+          description: string
+          tags: string[]
+          isDownloaded: boolean
+        }>
+      >
+      getEmbeddingStatus: () => Promise<'uninitialized' | 'initializing' | 'ready' | 'error'>
       readFile: (filePath: string) => Promise<Uint8Array>
     }
   }

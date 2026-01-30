@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { Input, List, Card, Empty, Typography, Button, Switch } from 'antd'
+import React, { useState, useEffect } from 'react'
+import { Input, List, Card, Empty, Typography, Button, Switch, Modal } from 'antd'
 import { HiArrowUp, HiOutlineDocumentText } from 'react-icons/hi2'
 import type { SearchResult } from '../../../shared/types'
 import TextHighlighter from '../components/TextHighlighter'
@@ -7,6 +7,7 @@ import { parseIpcResult } from '../utils/serialization'
 import FileRender, { FileRenderDocument } from '../components/fileRenders'
 import { getActiveConfig, streamCompletion, ChatMessage } from '../services/llmService'
 import MarkdownRenderer from '../components/MarkdownRenderer'
+import { useNavigate } from 'react-router-dom'
 
 const { TextArea } = Input
 
@@ -20,6 +21,35 @@ const SearchPage: React.FC = () => {
   const [aiAnswerEnabled, setAiAnswerEnabled] = useState(false)
   const [aiAnswer, setAiAnswer] = useState<string>('')
   const [aiGenerating, setAiGenerating] = useState(false)
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    // Check if model is ready when component mounts
+    checkModelStatus()
+  }, [])
+
+  const checkModelStatus = async () => {
+    try {
+      const status = await window.api.getEmbeddingStatus()
+      if (status === 'error' || status === 'uninitialized') {
+        // Double check by getting models list to see if downloaded
+        const models = await window.api.getModels()
+        const isDownloaded = models.some(m => m.isDownloaded)
+        
+        if (!isDownloaded) {
+          Modal.confirm({
+            title: '需要下载模型',
+            content: '使用搜索功能需要先下载向量模型。是否前往下载？',
+            okText: '去下载',
+            cancelText: '稍后',
+            onOk: () => navigate('/model-download')
+          })
+        }
+      }
+    } catch (e) {
+      console.error('Failed to check model status', e)
+    }
+  }
 
   const generateAiAnswer = async (query: string, docs: SearchResult[]) => {
     const config = getActiveConfig()

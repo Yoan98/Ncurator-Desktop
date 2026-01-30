@@ -50,6 +50,8 @@ const api = {
     }) => void
   ) => ipcRenderer.on('download-progress', (_event, data) => cb(data)),
   removeDownloadProgressListeners: () => ipcRenderer.removeAllListeners('download-progress'),
+  getModels: (): Promise<any[]> => ipcRenderer.invoke('get-models'),
+  getEmbeddingStatus: (): Promise<string> => ipcRenderer.invoke('get-embedding-status'),
   readFile: (filePath: string): Promise<Uint8Array> => ipcRenderer.invoke('read-file', filePath)
 }
 

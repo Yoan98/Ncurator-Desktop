@@ -1,19 +1,29 @@
 import React, { useState, useEffect } from 'react'
-import { Card, Button, Progress, Typography, Steps, message, Tag } from 'antd'
-import { HiCloudArrowDown, HiCheckCircle, HiExclamationCircle, HiCube } from 'react-icons/hi2'
+import { Card, Button, Progress, Typography, message, Tag, List } from 'antd'
+import { HiCloudArrowDown, HiCheckCircle, HiExclamationCircle } from 'react-icons/hi2'
 
-const { Title, Paragraph } = Typography
+const { Title } = Typography
 
-const MODEL_ID = 'jinaai/jina-embeddings-v2-base-zh'
+interface ModelInfo {
+  id: string
+  name: string
+  description: string
+  tags: string[]
+  isDownloaded: boolean
+}
 
 const ModelDownloadPage: React.FC = () => {
-  const [status, setStatus] = useState<'idle' | 'downloading' | 'completed' | 'error'>('idle')
-  const [progress, setProgress] = useState(0)
+  const [models, setModels] = useState<ModelInfo[]>([])
+  const [loading, setLoading] = useState(false)
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
+  const [downloadProgress, setDownloadProgress] = useState(0)
   const [currentFile, setCurrentFile] = useState('')
   const [fileProgress, setFileProgress] = useState({ completed: 0, total: 0 })
   const [errorMsg, setErrorMsg] = useState('')
 
   useEffect(() => {
+    fetchModels()
+
     const handleProgress = (data: {
       repoId: string
       file?: string
@@ -23,24 +33,29 @@ const ModelDownloadPage: React.FC = () => {
       completedFiles?: number
       error?: string
     }) => {
-      if (data.repoId !== MODEL_ID) return
-
       if (data.status === 'downloading') {
-        setStatus('downloading')
-        setProgress(data.progress)
-        if (data.file) setCurrentFile(data.file)
-        if (data.totalFiles) {
+        setDownloadingId(data.repoId)
+        // Use file count for progress calculation if totalFiles is available
+        // because individual file progress might be too fast or granular.
+        if (data.totalFiles && data.totalFiles > 0) {
+          const percent = Math.round(((data.completedFiles || 0) / data.totalFiles) * 100)
+          setDownloadProgress(percent)
           setFileProgress({
             completed: data.completedFiles || 0,
             total: data.totalFiles
           })
+        } else {
+          setDownloadProgress(data.progress)
         }
+
+        if (data.file) setCurrentFile(data.file)
       } else if (data.status === 'completed') {
-        setStatus('completed')
-        setProgress(100)
+        setDownloadingId(null)
+        setDownloadProgress(100)
         message.success('模型下载完成！')
+        fetchModels() // Refresh status
       } else if (data.status === 'error') {
-        setStatus('error')
+        setDownloadingId(null)
         setErrorMsg(data.error || '未知错误')
         message.error('下载失败: ' + data.error)
       }
@@ -53,18 +68,35 @@ const ModelDownloadPage: React.FC = () => {
     }
   }, [])
 
-  const handleDownload = async () => {
-    setStatus('downloading')
-    setProgress(0)
+  const fetchModels = async () => {
+    setLoading(true)
+    try {
+      const list = await window.api.getModels()
+      setModels(list)
+    } catch (e) {
+      console.error(e)
+      message.error('获取模型列表失败')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDownload = async (repoId: string) => {
+    if (downloadingId) {
+      message.warning('已有任务正在下载中')
+      return
+    }
+    setDownloadingId(repoId)
+    setDownloadProgress(0)
     setErrorMsg('')
     try {
-      const res = await window.api.downloadModel(MODEL_ID)
+      const res = await window.api.downloadModel(repoId)
       if (!res.success) {
-        setStatus('error')
+        setDownloadingId(null)
         setErrorMsg(res.error || '启动下载失败')
       }
     } catch (e: any) {
-      setStatus('error')
+      setDownloadingId(null)
       setErrorMsg(e.message)
     }
   }
@@ -86,138 +118,93 @@ const ModelDownloadPage: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {/* Left Column: Explanation */}
-        <div className="md:col-span-1 space-y-6">
-          <Card className="bg-white border border-[#E5E5E4] shadow-sm !rounded-2xl">
-            <div className="flex items-center gap-2 mb-4">
-              <HiCube className="text-[#D97757] text-lg" />
-              <span className="font-bold text-[#1F1F1F]">什么是向量模型？</span>
-            </div>
-            <Paragraph className="text-[#666666] text-sm leading-relaxed">
-              向量模型（Embedding Model）是将文本转换为数值向量的 AI 模型。
-            </Paragraph>
-            <Paragraph className="text-[#666666] text-sm leading-relaxed">
-              它能捕捉文字背后的<span className="text-[#D97757] font-medium">语义信息</span>
-              ，使得计算机能够理解“苹果”和“水果”是相关的，而不仅仅是匹配关键词。
-            </Paragraph>
-            <Paragraph className="text-[#666666] text-sm leading-relaxed !mb-0">
-              这是实现<span className="text-[#D97757] font-medium">语义搜索</span>和
-              <span className="text-[#D97757] font-medium">RAG（检索增强生成）</span>的核心组件。
-            </Paragraph>
-          </Card>
-
-          <Steps
-            direction="vertical"
-            size="small"
-            current={status === 'completed' ? 2 : status === 'downloading' ? 1 : 0}
-            items={[
-              {
-                title: '准备',
-                description: '选择合适的模型'
-              },
-              {
-                title: '下载',
-                description: '从 HF-Mirror 镜像站下载'
-              },
-              {
-                title: '就绪',
-                description: '模型加载至本地，即可使用'
-              }
-            ]}
-          />
-        </div>
-
-        {/* Right Column: Download Card */}
-        <div className="md:col-span-2">
-          <Card className="bg-white border border-[#E5E5E4] shadow-sm !rounded-2xl h-full flex flex-col justify-center">
-            <div className="p-4">
-              <div className="flex justify-between items-start mb-6">
-                <div>
-                  <Title level={4} className="!mb-2 !text-[#1F1F1F]">
-                    jina-embeddings-v2-base-zh
-                  </Title>
-                  <Space size="small" className="mb-2">
-                    <Tag color="blue">中文优化</Tag>
-                    <Tag color="purple">8k 上下文</Tag>
-                    <Tag color="cyan">768 维度</Tag>
-                  </Space>
-                  <Paragraph className="text-[#666666] mt-2">
-                    由 Jina AI 发布的第二代文本嵌入模型，专为中文理解优化。支持长达 8192 token
-                    的上下文窗口，非常适合处理长文档。
-                  </Paragraph>
-                </div>
-                {status === 'completed' && <HiCheckCircle className="text-green-500 text-3xl" />}
-              </div>
-
-              {status === 'idle' && (
-                <Button
-                  type="primary"
-                  size="large"
-                  onClick={handleDownload}
-                  icon={<HiCloudArrowDown />}
-                  className="!bg-[#D97757] hover:!bg-[#C66A4A] h-12 px-8 rounded-xl shadow-md border-none w-full md:w-auto"
+        {/* Right Column: Model List */}
+        <div className="md:col-span-3">
+          <Card className="bg-white border border-[#E5E5E4] shadow-sm !rounded-2xl min-h-[400px]">
+            <List
+              loading={loading}
+              itemLayout="horizontal"
+              dataSource={models}
+              renderItem={(item) => (
+                <List.Item
+                  actions={[
+                    item.isDownloaded ? (
+                      <div className="flex items-center gap-2 text-green-600 font-medium">
+                        <HiCheckCircle className="text-lg" />
+                        <span>已安装</span>
+                      </div>
+                    ) : downloadingId === item.id ? (
+                      <Button disabled loading>
+                        下载中
+                      </Button>
+                    ) : (
+                      <Button
+                        type="primary"
+                        onClick={() => handleDownload(item.id)}
+                        className="!bg-[#D97757] hover:!bg-[#C66A4A] border-none shadow-sm"
+                        disabled={!!downloadingId}
+                      >
+                        下载
+                      </Button>
+                    )
+                  ]}
+                  className="!px-0 !py-6"
                 >
-                  开始下载
-                </Button>
-              )}
+                  <List.Item.Meta
+                    title={
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className="text-lg font-bold text-[#1F1F1F]">{item.name}</span>
+                        {item.tags.map((tag) => (
+                          <Tag key={tag} className="mr-0 text-xs">
+                            {tag}
+                          </Tag>
+                        ))}
+                      </div>
+                    }
+                    description={
+                      <div className="space-y-4">
+                        <p className="text-[#666666]">{item.description}</p>
 
-              {status === 'downloading' && (
-                <div className="space-y-4">
-                  <div>
-                    <div className="flex justify-between text-sm mb-1">
-                      <span className="text-[#666666]">总进度</span>
-                      <span className="text-[#D97757] font-medium">{progress}%</span>
-                    </div>
-                    <Progress
-                      percent={progress}
-                      strokeColor="#D97757"
-                      showInfo={false}
-                      className="!mb-0"
-                    />
-                  </div>
+                        {downloadingId === item.id && (
+                          <div className="bg-[#F5F5F4] p-4 rounded-xl border border-[#E5E5E4]">
+                            <div className="flex justify-between text-sm mb-2">
+                              <span className="text-[#1F1F1F] font-medium">正在下载...</span>
+                              <span className="text-[#D97757] font-medium">
+                                {downloadProgress}%
+                              </span>
+                            </div>
+                            <Progress
+                              percent={downloadProgress}
+                              strokeColor="#D97757"
+                              showInfo={false}
+                              className="!mb-2"
+                            />
+                            <div className="flex justify-between text-xs text-[#999999]">
+                              <span className="truncate max-w-[200px]">{currentFile}</span>
+                              <span>
+                                {fileProgress.completed}/{fileProgress.total} 文件
+                              </span>
+                            </div>
+                          </div>
+                        )}
 
-                  <div className="bg-[#F5F5F4] p-3 rounded-lg border border-[#E5E5E4]">
-                    <div className="flex justify-between text-xs text-[#999999] mb-1">
-                      <span>
-                        正在下载文件 ({fileProgress.completed + 1}/{fileProgress.total})
-                      </span>
-                    </div>
-                    <div className="text-sm text-[#1F1F1F] font-mono truncate">
-                      {currentFile || '准备中...'}
-                    </div>
-                  </div>
-                </div>
+                        {errorMsg && downloadingId === item.id && (
+                          <div className="text-red-500 text-sm flex items-center gap-1">
+                            <HiExclamationCircle />
+                            {errorMsg}
+                          </div>
+                        )}
+                      </div>
+                    }
+                  />
+                </List.Item>
               )}
-
-              {status === 'completed' && (
-                <div className="bg-[#F0FDF4] border border-[#DCFCE7] p-4 rounded-xl text-green-700 flex items-center gap-3">
-                  <HiCheckCircle className="text-xl" />
-                  <span>模型已成功下载并安装至本地。</span>
-                </div>
-              )}
-
-              {status === 'error' && (
-                <div className="space-y-4">
-                  <div className="bg-[#FEF2F2] border border-[#FEE2E2] p-4 rounded-xl text-red-700 flex items-start gap-3">
-                    <HiExclamationCircle className="text-xl mt-0.5" />
-                    <div>
-                      <div className="font-medium">下载失败</div>
-                      <div className="text-sm mt-1">{errorMsg}</div>
-                    </div>
-                  </div>
-                  <Button onClick={handleDownload} type="default">
-                    重试
-                  </Button>
-                </div>
-              )}
-            </div>
+            />
           </Card>
         </div>
       </div>
     </div>
   )
 }
-
-import { Space } from 'antd'
 
 export default ModelDownloadPage

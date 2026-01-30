@@ -39,14 +39,24 @@ export class EmbeddingService {
     this.status = ServiceStatus.INITIALIZING
     try {
       // Feature extraction pipeline
+      // Check if model exists locally first? transformers.js usually handles this if localModelPath is set.
+      // However, if files are missing, it might throw.
+      // We should wrap this in try-catch and set status to UNINITIALIZED or ERROR if it fails due to missing model,
+      // but let's see. If we catch error, we can stay in UNINITIALIZED or specific ERROR state.
+      
       this.extractor = await pipeline('feature-extraction', this.modelName, {
         dtype: 'fp32'
       })
       this.status = ServiceStatus.READY
-    } catch (error) {
+    } catch (error: any) {
+      console.warn('EmbeddingService initialization failed (likely model missing):', error.message)
+      // Do not throw, just set status to ERROR so app can continue
       this.status = ServiceStatus.ERROR
-      throw error
     }
+  }
+
+  public getStatus() {
+    return this.status
   }
 
   public async embed(

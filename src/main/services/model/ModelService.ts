@@ -4,6 +4,14 @@ import { MODELS_PATH } from '../../utils/paths'
 
 const HF_ENDPOINT = 'https://hf-mirror.com'
 
+export interface ModelInfo {
+  id: string
+  name: string
+  description: string
+  tags: string[]
+  isDownloaded: boolean
+}
+
 export class ModelService {
   private static instance: ModelService
 
@@ -14,6 +22,25 @@ export class ModelService {
       ModelService.instance = new ModelService()
     }
     return ModelService.instance
+  }
+
+  public getModels(): ModelInfo[] {
+    const models = [
+      {
+        id: 'jinaai/jina-embeddings-v2-base-zh',
+        name: '中文通用向量模型 (基础版)',
+        description: '专为中文语境优化，支持长文本（8k 上下文），适合大多数中文知识库场景。',
+        tags: ['中文优化', '8k 上下文', '768 维度']
+      }
+    ]
+
+    return models.map((m) => {
+      const modelPath = path.join(MODELS_PATH, m.id)
+      // Simple check: if directory exists and has some files.
+      // For more robust check, we might check for config.json or model.onnx
+      const isDownloaded = fs.existsSync(modelPath) && fs.readdirSync(modelPath).length > 0
+      return { ...m, isDownloaded }
+    })
   }
 
   async downloadModel(repoId: string, eventSender: Electron.WebContents) {
@@ -72,7 +99,7 @@ export class ModelService {
           completedFiles
         })
 
-        await this.downloadFile(fileUrl, filePath, (progress) => {
+        await this.downloadFile(fileUrl, filePath, () => {
           // Throttled updates could be better, but for now sending every chunk might be too much.
           // We can just send per-file completion or rough progress if needed.
           // For simplicity, let's just update "downloading file X"
