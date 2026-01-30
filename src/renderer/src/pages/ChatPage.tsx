@@ -158,7 +158,20 @@ const ChatPage: React.FC = () => {
       let searchResults: SearchResult[] = []
       try {
         const res = await window.api.search(userQuery)
-        searchResults = res.results.slice(0, 5).map(parseIpcResult) // Take top 5
+        const parsedResults = res.results.map(parseIpcResult)
+
+        // Deduplicate by document_id
+        const uniqueResults: SearchResult[] = []
+        const seenIds = new Set<string>()
+
+        for (const result of parsedResults) {
+          if (result.document_id && !seenIds.has(result.document_id)) {
+            seenIds.add(result.document_id)
+            uniqueResults.push(result)
+          }
+        }
+
+        searchResults = uniqueResults.slice(0, 5) // Take top 5 unique documents
 
         // Update user message with sources
         const messagesWithSource = updatedMessages.map((m) =>
@@ -248,7 +261,7 @@ ${contextText}`
         <Avatar
           icon={isUser ? <HiUser /> : <HiSparkles />}
           className={`flex-shrink-0 flex items-center justify-center ${
-            isUser ? 'bg-[#E5E5E4] text-[#1F1F1F]' : 'bg-[#D97757] text-white'
+            isUser ? 'bg-[#E5E5E4] text-[#1F1F1F]' : '!bg-[#FFF0E6] !text-[#D97757]'
           }`}
         />
         <div className={`flex flex-col max-w-[80%] ${isUser ? 'items-end' : 'items-start'}`}>
@@ -285,18 +298,21 @@ ${contextText}`
                 }
                 key="1"
               >
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-row overflow-x-auto gap-3 pb-2">
                   {msg.sources.map((source, idx) => (
                     <Card
                       key={idx}
                       size="small"
-                      className="bg-[#F5F5F4] border-[#E5E5E4] cursor-pointer hover:border-[#D97757] transition-colors"
+                      className="flex-shrink-0 w-48 bg-[#F5F5F4] border-[#E5E5E4] cursor-pointer hover:border-[#D97757] transition-colors"
                       onClick={() => openPreview(source)}
                     >
-                      <div className="text-xs font-bold text-[#666666] mb-1 truncate">
+                      <div
+                        className="text-xs font-bold text-[#666666] mb-1 truncate"
+                        title={source.document_name}
+                      >
                         {idx + 1}. {source.document_name}
                       </div>
-                      <div className="text-xs text-[#999999] line-clamp-2">{source.text}</div>
+                      <div className="text-xs text-[#999999] line-clamp-2 h-8">{source.text}</div>
                     </Card>
                   ))}
                 </div>
