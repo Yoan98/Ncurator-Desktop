@@ -7,7 +7,10 @@ import type {
   ChunkInput,
   DocumentListResponse,
   ChunkListResponse,
-  DocumentRecord
+  DocumentRecord,
+  ChatSession,
+  ChatMessage,
+  LLMConfig
 } from '../../types/store'
 
 enum ServiceStatus {
@@ -28,6 +31,9 @@ export class UnifiedStore {
   // Table name constants
   private readonly TABLE_CHUNK = 'chunk'
   private readonly TABLE_DOCUMENT = 'document'
+  private readonly TABLE_CHAT_SESSION = 'chat_session'
+  private readonly TABLE_CHAT_MESSAGE = 'chat_message'
+  private readonly TABLE_LLM_CONFIG = 'llm_config'
 
   private reranker: lancedb.rerankers.RRFReranker | null = null
 
@@ -140,6 +146,37 @@ export class UnifiedStore {
           new arrow.Field('file_path', new arrow.Utf8(), true),
           new arrow.Field('created_at', new arrow.Int64()),
           new arrow.Field('import_status', new arrow.Int32())
+        ])
+      },
+      {
+        name: this.TABLE_CHAT_SESSION,
+        schema: new arrow.Schema([
+          new arrow.Field('id', new arrow.Utf8()),
+          new arrow.Field('title', new arrow.Utf8()),
+          new arrow.Field('created_at', new arrow.Int64())
+        ])
+      },
+      {
+        name: this.TABLE_CHAT_MESSAGE,
+        schema: new arrow.Schema([
+          new arrow.Field('id', new arrow.Utf8()),
+          new arrow.Field('session_id', new arrow.Utf8()),
+          new arrow.Field('role', new arrow.Utf8()),
+          new arrow.Field('content', new arrow.Utf8()),
+          new arrow.Field('timestamp', new arrow.Int64()),
+          new arrow.Field('sources', new arrow.Utf8(), true), // Nullable
+          new arrow.Field('error', new arrow.Bool(), true) // Nullable
+        ])
+      },
+      {
+        name: this.TABLE_LLM_CONFIG,
+        schema: new arrow.Schema([
+          new arrow.Field('id', new arrow.Utf8()),
+          new arrow.Field('name', new arrow.Utf8()),
+          new arrow.Field('base_url', new arrow.Utf8()),
+          new arrow.Field('model_name', new arrow.Utf8()),
+          new arrow.Field('api_key', new arrow.Utf8()),
+          new arrow.Field('is_active', new arrow.Bool())
         ])
       }
     ]
@@ -531,6 +568,106 @@ export class UnifiedStore {
       return { success: false, msg: error.message }
     }
     return { success: true, msg: 'Documents deleted successfully' }
+  }
+
+  // === Chat Session Methods ===
+  public async saveChatSession(session: ChatSession): Promise<void> {
+    if (this.status !== ServiceStatus.READY) throw new Error('Store not ready')
+    const table = await this.db!.openTable(this.TABLE_CHAT_SESSION)
+    await table.delete(`id = '${session.id}'`)
+    await table.add([{ ...session }])
+  }
+
+  public async getChatSessions(): Promise<ChatSession[]> {
+    if (this.status !== ServiceStatus.READY) return []
+    const tableNames = await this.db!.tableNames()
+    if (!tableNames.includes(this.TABLE_CHAT_SESSION)) return []
+    const table = await this.db!.openTable(this.TABLE_CHAT_SESSION)
+    const results = await table.query().toArray()
+    // Sort in memory
+    return results
+      .map((r) => ({
+        id: r.id as string,
+        title: r.title as string,
+        created_at: Number(r.created_at)
+      }))
+      .sort((a, b) => b.created_at - a.created_at)
+  }
+
+  public async deleteChatSession(id: string): Promise<void> {
+    if (this.status !== ServiceStatus.READY) return
+    const sessionTable = await this.db!.openTable(this.TABLE_CHAT_SESSION)
+    await sessionTable.delete(`id = '${id}'`)
+
+    // Also delete messages
+    const msgTable = await this.db!.openTable(this.TABLE_CHAT_MESSAGE)
+    await msgTable.delete(`session_id = '${id}'`)
+  }
+
+  // === Chat Message Methods ===
+  public async saveChatMessage(message: ChatMessage): Promise<void> {
+    if (this.status !== ServiceStatus.READY) throw new Error('Store not ready')
+    const table = await this.db!.openTable(this.TABLE_CHAT_MESSAGE)
+    await table.delete(`id = '${message.id}'`)
+    await table.add([{ ...message }])
+  }
+
+  public async getChatMessages(sessionId: string): Promise<ChatMessage[]> {
+    if (this.status !== ServiceStatus.READY) return []
+    const tableNames = await this.db!.tableNames()
+    if (!tableNames.includes(this.TABLE_CHAT_MESSAGE)) return []
+    const table = await this.db!.openTable(this.TABLE_CHAT_MESSAGE)
+    const results = await table.query().where(`session_id = '${sessionId}'`).toArray()
+    return results
+      .map((r) => ({
+        id: r.id as string,
+        session_id: r.session_id as string,
+        role: r.role as any,
+        content: r.content as string,
+        timestamp: Number(r.timestamp),
+        sources: r.sources as string,
+        error: r.error as boolean
+      }))
+      .sort((a, b) => a.timestamp - b.timestamp)
+  }
+
+  // === LLM Config Methods ===
+  public async saveLLMConfig(config: LLMConfig): Promise<void> {
+    if (this.status !== ServiceStatus.READY) throw new Error('Store not ready')
+    const table = await this.db!.openTable(this.TABLE_LLM_CONFIG)
+    await table.delete(`id = '${config.id}'`)
+    await table.add([{ ...config }])
+  }
+
+  public async getLLMConfigs(): Promise<LLMConfig[]> {
+    if (this.status !== ServiceStatus.READY) return []
+    const tableNames = await this.db!.tableNames()
+    if (!tableNames.includes(this.TABLE_LLM_CONFIG)) return []
+    const table = await this.db!.openTable(this.TABLE_LLM_CONFIG)
+    const results = await table.query().toArray()
+    return results.map((r) => ({
+      id: r.id as string,
+      name: r.name as string,
+      base_url: r.base_url as string,
+      model_name: r.model_name as string,
+      api_key: r.api_key as string,
+      is_active: Boolean(r.is_active)
+    }))
+  }
+
+  public async deleteLLMConfig(id: string): Promise<void> {
+    if (this.status !== ServiceStatus.READY) return
+    const table = await this.db!.openTable(this.TABLE_LLM_CONFIG)
+    await table.delete(`id = '${id}'`)
+  }
+
+  public async setLLMConfigActive(id: string): Promise<void> {
+    if (this.status !== ServiceStatus.READY) return
+    const table = await this.db!.openTable(this.TABLE_LLM_CONFIG)
+    // Deactivate all
+    await table.update({ where: 'is_active = true', values: { is_active: false } })
+    // Activate target
+    await table.update({ where: `id = '${id}'`, values: { is_active: true } })
   }
 
   /**

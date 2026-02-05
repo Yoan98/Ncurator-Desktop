@@ -4,7 +4,14 @@ import { EmbeddingService } from '../services/vector/EmbeddingService'
 import { UnifiedStore } from '../services/storage/UnifiedStore'
 import { ModelService } from '../services/model/ModelService'
 import { v4 as uuidv4 } from 'uuid'
-import type { SearchResult, DocumentListResponse, ChunkListResponse } from '../types/store'
+import type {
+  SearchResult,
+  DocumentListResponse,
+  ChunkListResponse,
+  ChatSession,
+  ChatMessage,
+  LLMConfig
+} from '../types/store'
 import path from 'path'
 import fs from 'fs'
 import { DOCUMENTS_PATH } from '../utils/paths'
@@ -332,5 +339,94 @@ export function registerHandlers(services: {
 
   ipcMain.handle('get-embedding-status', () => {
     return embeddingService.getStatus()
+  })
+
+  // === Chat & LLM Handlers ===
+
+  ipcMain.handle('chat-session-list', async () => {
+    try {
+      return await unifiedStore.getChatSessions()
+    } catch (e: any) {
+      console.error('[CHAT-SESSION-LIST] Error:', e)
+      return []
+    }
+  })
+
+  ipcMain.handle('chat-session-save', async (_event, session: ChatSession) => {
+    try {
+      await unifiedStore.saveChatSession(session)
+      return { success: true }
+    } catch (e: any) {
+      console.error('[CHAT-SESSION-SAVE] Error:', e)
+      return { success: false, error: e.message }
+    }
+  })
+
+  ipcMain.handle('chat-session-delete', async (_event, id: string) => {
+    try {
+      await unifiedStore.deleteChatSession(id)
+      return { success: true }
+    } catch (e: any) {
+      console.error('[CHAT-SESSION-DELETE] Error:', e)
+      return { success: false, error: e.message }
+    }
+  })
+
+  ipcMain.handle('chat-message-list', async (_event, sessionId: string) => {
+    try {
+      return await unifiedStore.getChatMessages(sessionId)
+    } catch (e: any) {
+      console.error('[CHAT-MESSAGE-LIST] Error:', e)
+      return []
+    }
+  })
+
+  ipcMain.handle('chat-message-save', async (_event, message: ChatMessage) => {
+    try {
+      await unifiedStore.saveChatMessage(message)
+      return { success: true }
+    } catch (e: any) {
+      console.error('[CHAT-MESSAGE-SAVE] Error:', e)
+      return { success: false, error: e.message }
+    }
+  })
+
+  ipcMain.handle('llm-config-list', async () => {
+    try {
+      return await unifiedStore.getLLMConfigs()
+    } catch (e: any) {
+      console.error('[LLM-CONFIG-LIST] Error:', e)
+      return []
+    }
+  })
+
+  ipcMain.handle('llm-config-save', async (_event, config: LLMConfig) => {
+    try {
+      await unifiedStore.saveLLMConfig(config)
+      return { success: true }
+    } catch (e: any) {
+      console.error('[LLM-CONFIG-SAVE] Error:', e)
+      return { success: false, error: e.message }
+    }
+  })
+
+  ipcMain.handle('llm-config-delete', async (_event, id: string) => {
+    try {
+      await unifiedStore.deleteLLMConfig(id)
+      return { success: true }
+    } catch (e: any) {
+      console.error('[LLM-CONFIG-DELETE] Error:', e)
+      return { success: false, error: e.message }
+    }
+  })
+
+  ipcMain.handle('llm-config-set-active', async (_event, id: string) => {
+    try {
+      await unifiedStore.setLLMConfigActive(id)
+      return { success: true }
+    } catch (e: any) {
+      console.error('[LLM-CONFIG-SET-ACTIVE] Error:', e)
+      return { success: false, error: e.message }
+    }
   })
 }

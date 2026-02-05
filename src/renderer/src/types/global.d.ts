@@ -3,7 +3,10 @@ import type {
   SearchResult,
   DocumentRecord,
   SearchResponse,
-  ChunkListItem
+  ChunkListItem,
+  ChatSession,
+  ChatMessage,
+  LLMConfig
 } from '../../../shared/types'
 
 declare global {
@@ -58,6 +61,17 @@ declare global {
       >
       getEmbeddingStatus: () => Promise<'uninitialized' | 'initializing' | 'ready' | 'error'>
       readFile: (filePath: string) => Promise<Uint8Array>
+
+      // Chat & LLM
+      chatSessionList: () => Promise<ChatSession[]>
+      chatSessionSave: (session: ChatSession) => Promise<{ success: boolean; error?: string }>
+      chatSessionDelete: (id: string) => Promise<{ success: boolean; error?: string }>
+      chatMessageList: (sessionId: string) => Promise<ChatMessage[]>
+      chatMessageSave: (message: ChatMessage) => Promise<{ success: boolean; error?: string }>
+      llmConfigList: () => Promise<LLMConfig[]>
+      llmConfigSave: (config: LLMConfig) => Promise<{ success: boolean; error?: string }>
+      llmConfigDelete: (id: string) => Promise<{ success: boolean; error?: string }>
+      llmConfigSetActive: (id: string) => Promise<{ success: boolean; error?: string }>
     }
   }
 }

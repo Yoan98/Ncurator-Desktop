@@ -1,29 +1,15 @@
 import OpenAI from 'openai'
+import type { ChatMessage, LLMConfig } from '../../../shared/types'
 
-export interface LLMConfig {
-  id: string
-  name: string
-  baseUrl: string
-  modelName: string
-  apiKey: string
-  isActive: boolean
-}
+export type { ChatMessage, LLMConfig }
 
-export interface ChatMessage {
-  role: 'user' | 'assistant' | 'system'
-  content: string
-}
-
-export const STORAGE_KEY_CONFIGS = 'ncurator_llm_configs'
-
-export const getActiveConfig = (): LLMConfig | null => {
+// Helper to get active config asynchronously
+export const getActiveConfig = async (): Promise<LLMConfig | null> => {
   try {
-    const configsStr = localStorage.getItem(STORAGE_KEY_CONFIGS)
-    if (!configsStr) return null
-    const configs: LLMConfig[] = JSON.parse(configsStr)
-    return configs.find((c) => c.isActive) || null
+    const configs = await window.api.llmConfigList()
+    return configs.find((c) => c.is_active) || null
   } catch (e) {
-    console.error('Failed to parse LLM configs', e)
+    console.error('Failed to load LLM configs', e)
     return null
   }
 }
@@ -36,7 +22,7 @@ export const streamCompletion = async (
   onFinish: () => void
 ): Promise<void> => {
   try {
-    let baseURL = config.baseUrl
+    let baseURL = config.base_url
     // OpenAI SDK appends /chat/completions automatically, so we need to strip it if present
     if (baseURL.endsWith('/chat/completions')) {
       baseURL = baseURL.replace(/\/chat\/completions\/?$/, '')
@@ -54,13 +40,16 @@ export const streamCompletion = async (
 
     const client = new OpenAI({
       baseURL,
-      apiKey: config.apiKey,
+      apiKey: config.api_key,
       dangerouslyAllowBrowser: true
     })
 
     const stream = await client.chat.completions.create({
-      model: config.modelName,
-      messages: messages as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+      model: config.model_name,
+      messages: messages.map((m) => ({
+        role: m.role,
+        content: m.content
+      })) as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
       stream: true
     })
 

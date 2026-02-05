@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   Table,
   Button,
@@ -13,7 +13,7 @@ import {
   Popconfirm
 } from 'antd'
 import { HiPlus, HiPencil, HiTrash, HiCheckCircle, HiCog6Tooth } from 'react-icons/hi2'
-import { LLMConfig, STORAGE_KEY_CONFIGS } from '../services/llmService'
+import type { LLMConfig } from '../../../shared/types'
 
 import openaiLogo from '../assets/img/openai.png'
 import qianwenLogo from '../assets/img/qianwen.png'
@@ -100,19 +100,29 @@ const MODEL_MAPPING: Record<string, { value: string; label: string }[]> = {
 }
 
 const SettingsPage: React.FC = () => {
-  const [configs, setConfigs] = useState<LLMConfig[]>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY_CONFIGS)
-      return stored ? JSON.parse(stored) : []
-    } catch (error) {
-      console.error('Failed to load configs', error)
-      return []
-    }
-  })
+  const [configs, setConfigs] = useState<LLMConfig[]>([])
+  const [loading, setLoading] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingConfig, setEditingConfig] = useState<LLMConfig | null>(null)
   const [form] = Form.useForm()
-  const currentBaseUrl = Form.useWatch('baseUrl', form)
+  const currentBaseUrl = Form.useWatch('base_url', form)
+
+  const loadConfigs = async () => {
+    setLoading(true)
+    try {
+      const list = await window.api.llmConfigList()
+      setConfigs(list)
+    } catch (error) {
+      console.error('Failed to load configs', error)
+      message.error('加载配置失败')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadConfigs()
+  }, [])
 
   const modelOptions = React.useMemo(() => {
     if (!currentBaseUrl) {
@@ -133,11 +143,6 @@ const SettingsPage: React.FC = () => {
     return []
   }, [currentBaseUrl])
 
-  const saveConfigs = (newConfigs: LLMConfig[]) => {
-    setConfigs(newConfigs)
-    localStorage.setItem(STORAGE_KEY_CONFIGS, JSON.stringify(newConfigs))
-  }
-
   const handleAdd = () => {
     setEditingConfig(null)
     form.resetFields()
@@ -150,44 +155,51 @@ const SettingsPage: React.FC = () => {
     setIsModalOpen(true)
   }
 
-  const handleDelete = (id: string) => {
-    const newConfigs = configs.filter((c) => c.id !== id)
-    saveConfigs(newConfigs)
-    message.success('配置已删除')
+  const handleDelete = async (id: string) => {
+    try {
+      await window.api.llmConfigDelete(id)
+      message.success('配置已删除')
+      loadConfigs()
+    } catch (e) {
+      console.error(e)
+      message.error('删除失败')
+    }
   }
 
-  const handleActivate = (id: string) => {
-    const newConfigs = configs.map((c) => ({
-      ...c,
-      isActive: c.id === id
-    }))
-    saveConfigs(newConfigs)
-    message.success('已切换当前模型')
+  const handleActivate = async (id: string) => {
+    try {
+      await window.api.llmConfigSetActive(id)
+      message.success('已切换当前模型')
+      loadConfigs()
+      // Trigger global event to re-check config status
+      window.dispatchEvent(new Event('check-llm-config'))
+    } catch (e) {
+      console.error(e)
+      message.error('切换失败')
+    }
   }
 
   const handleOk = async () => {
     try {
       const values = await form.validateFields()
 
-      if (editingConfig) {
-        // Update
-        const newConfigs = configs.map((c) => (c.id === editingConfig.id ? { ...c, ...values } : c))
-        saveConfigs(newConfigs)
-        message.success('配置已更新')
-      } else {
-        // Create
-        const newConfig: LLMConfig = {
-          id: crypto.randomUUID(),
-          ...values,
-          isActive: configs.length === 0 // Make active if it's the first one
-        }
-        saveConfigs([...configs, newConfig])
-        message.success('配置已添加')
+      const newConfig: any = {
+        id: editingConfig ? editingConfig.id : crypto.randomUUID(),
+        ...values,
+        is_active: editingConfig ? editingConfig.is_active : configs.length === 0
       }
 
+      await window.api.llmConfigSave(newConfig)
+      message.success(editingConfig ? '配置已更新' : '配置已添加')
       setIsModalOpen(false)
-    } catch {
-      // Validation failed
+      loadConfigs()
+
+      if (newConfig.is_active) {
+        window.dispatchEvent(new Event('check-llm-config'))
+      }
+    } catch (e) {
+      // Validation failed or save failed
+      console.error(e)
     }
   }
 
@@ -199,7 +211,7 @@ const SettingsPage: React.FC = () => {
       render: (text: string, record: LLMConfig) => (
         <div className="flex items-center gap-2">
           <span className="font-medium text-[#1F1F1F]">{text}</span>
-          {record.isActive && (
+          {record.is_active && (
             <Tag color="#D97757" icon={<HiCheckCircle className="inline" />}>
               当前使用
             </Tag>
@@ -209,14 +221,14 @@ const SettingsPage: React.FC = () => {
     },
     {
       title: '模型名称',
-      dataIndex: 'modelName',
-      key: 'modelName',
+      dataIndex: 'model_name',
+      key: 'model_name',
       render: (text: string) => <Tag>{text}</Tag>
     },
     {
       title: '服务商/Base URL',
-      dataIndex: 'baseUrl',
-      key: 'baseUrl',
+      dataIndex: 'base_url',
+      key: 'base_url',
       ellipsis: true,
       render: (text: string) => <span className="text-[#666666]">{text}</span>
     },
@@ -226,7 +238,7 @@ const SettingsPage: React.FC = () => {
       width: 200,
       render: (_: any, record: LLMConfig) => (
         <Space size="small">
-          {!record.isActive && (
+          {!record.is_active && (
             <Button
               type="link"
               size="small"
@@ -286,6 +298,8 @@ const SettingsPage: React.FC = () => {
           columns={columns}
           rowKey="id"
           pagination={false}
+          loading={loading}
+          size="middle"
           className="[&_.ant-table-thead_th]:!bg-[#F5F5F4] [&_.ant-table-thead_th]:!text-[#666666] [&_.ant-table-thead_th]:!font-medium [&_.ant-table-tbody_td]:!py-4"
         />
       </div>
@@ -308,12 +322,13 @@ const SettingsPage: React.FC = () => {
           </Form.Item>
 
           <Form.Item
-            name="baseUrl"
+            name="base_url"
             label="服务商/Base URL"
             rules={[{ required: true, message: '请输入 Base URL' }]}
             help="选择常用地址或手动输入"
           >
             <AutoComplete
+              defaultActiveFirstOption
               placeholder="https://api.openai.com/v1"
               allowClear
               options={PROVIDER_OPTIONS.map((provider) => ({
@@ -343,7 +358,7 @@ const SettingsPage: React.FC = () => {
           </Form.Item>
 
           <Form.Item
-            name="modelName"
+            name="model_name"
             label="模型名称"
             rules={[{ required: true, message: '请输入模型名称' }]}
           >
@@ -361,7 +376,7 @@ const SettingsPage: React.FC = () => {
           </Form.Item>
 
           <Form.Item
-            name="apiKey"
+            name="api_key"
             label="API Key"
             rules={[{ required: true, message: '请输入 API Key' }]}
           >

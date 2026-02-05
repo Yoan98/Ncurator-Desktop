@@ -52,7 +52,25 @@ const api = {
   removeDownloadProgressListeners: () => ipcRenderer.removeAllListeners('download-progress'),
   getModels: (): Promise<any[]> => ipcRenderer.invoke('get-models'),
   getEmbeddingStatus: (): Promise<string> => ipcRenderer.invoke('get-embedding-status'),
-  readFile: (filePath: string): Promise<Uint8Array> => ipcRenderer.invoke('read-file', filePath)
+  readFile: (filePath: string): Promise<Uint8Array> => ipcRenderer.invoke('read-file', filePath),
+
+  // Chat & LLM
+  chatSessionList: (): Promise<any[]> => ipcRenderer.invoke('chat-session-list'),
+  chatSessionSave: (session: any): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('chat-session-save', session),
+  chatSessionDelete: (id: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('chat-session-delete', id),
+  chatMessageList: (sessionId: string): Promise<any[]> =>
+    ipcRenderer.invoke('chat-message-list', sessionId),
+  chatMessageSave: (message: any): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('chat-message-save', message),
+  llmConfigList: (): Promise<any[]> => ipcRenderer.invoke('llm-config-list'),
+  llmConfigSave: (config: any): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('llm-config-save', config),
+  llmConfigDelete: (id: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('llm-config-delete', id),
+  llmConfigSetActive: (id: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('llm-config-set-active', id)
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

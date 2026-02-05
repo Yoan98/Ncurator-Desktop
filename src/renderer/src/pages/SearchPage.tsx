@@ -26,7 +26,7 @@ const SearchPage: React.FC = () => {
   }, [])
 
   const generateAiAnswer = async (query: string, docs: SearchResult[]) => {
-    const config = getActiveConfig()
+    const config = await getActiveConfig()
     if (!config) {
       setAiAnswer('请先在设置页配置 AI 模型参数')
       return
@@ -53,8 +53,20 @@ const SearchPage: React.FC = () => {
 ${contextText}`
 
     const messages: ChatMessage[] = [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: query }
+      {
+        role: 'system',
+        content: systemPrompt,
+        id: 'system',
+        session_id: 'search',
+        timestamp: Date.now()
+      },
+      {
+        role: 'user',
+        content: query,
+        id: 'user',
+        session_id: 'search',
+        timestamp: Date.now()
+      }
     ]
 
     await streamCompletion(
@@ -97,9 +109,9 @@ ${contextText}`
     }
   }
 
-  const handleAiSwitchChange = (checked: boolean) => {
+  const handleAiSwitchChange = async (checked: boolean) => {
     if (checked) {
-      const config = getActiveConfig()
+      const config = await getActiveConfig()
       if (!config) {
         window.dispatchEvent(new Event('check-llm-config'))
         return

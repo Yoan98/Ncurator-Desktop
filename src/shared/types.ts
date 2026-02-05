@@ -62,3 +62,31 @@ export interface DocumentListResponse {
   items: DocumentRecord[]
   total: number
 }
+
+// Chat & LLM Types
+
+export interface LLMConfig {
+  id: string
+  name: string
+  base_url: string
+  model_name: string
+  api_key: string
+  is_active: boolean
+}
+
+export interface ChatMessage {
+  id: string
+  session_id: string
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  timestamp: number
+  // JSON string of SearchResult[]
+  sources?: string
+  error?: boolean
+}
+
+export interface ChatSession {
+  id: string
+  title: string
+  created_at: number
+}

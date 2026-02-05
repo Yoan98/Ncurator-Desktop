@@ -5,7 +5,10 @@ import {
   DocumentListItem,
   DocumentListResponse,
   ChunkListItem,
-  ChunkListResponse
+  ChunkListResponse,
+  ChatSession,
+  ChatMessage,
+  LLMConfig
 } from '../../shared/types'
 
 export type {
@@ -14,7 +17,10 @@ export type {
   DocumentListItem,
   DocumentListResponse,
   ChunkListItem,
-  ChunkListResponse
+  ChunkListResponse,
+  ChatSession,
+  ChatMessage,
+  LLMConfig
 }
 
 /**

@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Input, Button, Card, message, Collapse, Avatar, Tooltip, Space } from 'antd'
 import { HiArrowUp, HiPlus, HiTrash, HiUser, HiSparkles, HiBookOpen } from 'react-icons/hi2'
 import { LoadingOutlined } from '@ant-design/icons'
-import { LLMConfig, getActiveConfig, streamCompletion, ChatMessage } from '../services/llmService'
-import type { SearchResult } from '../../../shared/types'
+import { getActiveConfig, streamCompletion } from '../services/llmService'
+import type { SearchResult, ChatSession, ChatMessage, LLMConfig } from '../../../shared/types'
 import { parseIpcResult } from '../utils/serialization'
 import FileRender, { FileRenderDocument } from '../components/fileRenders'
 import MarkdownRenderer from '../components/MarkdownRenderer'
@@ -11,25 +11,10 @@ import MarkdownRenderer from '../components/MarkdownRenderer'
 const { TextArea } = Input
 const { Panel } = Collapse
 
-interface ChatMessageWithSource extends ChatMessage {
-  id: string
-  timestamp: number
-  sources?: SearchResult[]
-  error?: boolean
-}
-
-interface ChatSession {
-  id: string
-  title: string
-  createdAt: number
-  messages: ChatMessageWithSource[]
-}
-
-const STORAGE_KEY_SESSIONS = 'ncurator_chat_sessions'
-
 const ChatPage: React.FC = () => {
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
+  const [currentMessages, setCurrentMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [config, setConfig] = useState<LLMConfig | null>(null)
@@ -39,94 +24,82 @@ const ChatPage: React.FC = () => {
   const [previewVisible, setPreviewVisible] = useState(false)
   const [currentPreviewDoc, setCurrentPreviewDoc] = useState<SearchResult | null>(null)
 
-  const currentSession = sessions.find((s) => s.id === currentSessionId)
-
   const scrollToBottom = () => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }
 
-  const saveSessions = (newSessions: ChatSession[]) => {
-    setSessions(newSessions)
-    localStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(newSessions))
-  }
-
-  const createNewSession = () => {
-    const newSession: ChatSession = {
-      id: crypto.randomUUID(),
-      title: '新对话',
-      createdAt: Date.now(),
-      messages: []
-    }
-    const newSessions = [newSession, ...sessions]
-    saveSessions(newSessions)
-    setCurrentSessionId(newSession.id)
-    return newSession
-  }
-
-  const loadSessions = () => {
+  const loadSessions = async () => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY_SESSIONS)
-      if (stored) {
-        const parsed = JSON.parse(stored)
-        setSessions(parsed)
-        if (parsed.length > 0 && !currentSessionId) {
-          setCurrentSessionId(parsed[0].id)
-        }
+      const list = await window.api.chatSessionList()
+      setSessions(list)
+      if (list.length > 0 && !currentSessionId) {
+        setCurrentSessionId(list[0].id)
+      } else if (list.length === 0) {
+        createNewSession()
       }
     } catch (e) {
       console.error('Failed to load sessions', e)
     }
   }
 
-  useEffect(() => {
-    loadSessions()
-    const activeConfig = getActiveConfig()
-    setConfig(activeConfig)
-
-    // 如果没有会话，创建一个新的
-    const stored = localStorage.getItem(STORAGE_KEY_SESSIONS)
-    if (!stored || JSON.parse(stored).length === 0) {
-      createNewSession()
-    }
-  }, [])
-
-  useEffect(() => {
-    scrollToBottom()
-  }, [currentSession?.messages, currentSessionId])
-
-  const deleteSession = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation()
-    const newSessions = sessions.filter((s) => s.id !== id)
-    saveSessions(newSessions)
-    if (currentSessionId === id) {
-      setCurrentSessionId(newSessions[0]?.id || null)
-    }
-    if (newSessions.length === 0) {
-      createNewSession()
+  const loadMessages = async (sessionId: string) => {
+    try {
+      const msgs = await window.api.chatMessageList(sessionId)
+      setCurrentMessages(msgs)
+      scrollToBottom()
+    } catch (e) {
+      console.error('Failed to load messages', e)
     }
   }
 
-  const updateSessionMessages = (sessionId: string, messages: ChatMessageWithSource[]) => {
-    setSessions((prev) => {
-      const newSessions = prev.map((s) => {
-        if (s.id === sessionId) {
-          // Update title if it's the first user message
-          let title = s.title
-          if (s.messages.length === 0 && messages.length > 0) {
-            const firstMsg = messages[0]
-            if (firstMsg.role === 'user') {
-              title = firstMsg.content.slice(0, 20)
-            }
-          }
-          return { ...s, title, messages }
-        }
-        return s
-      })
-      localStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(newSessions))
-      return newSessions
-    })
+  const createNewSession = async () => {
+    try {
+      const timestamp = new Date().getTime()
+      const newSession: ChatSession = {
+        id: crypto.randomUUID(),
+        title: '新对话',
+        created_at: timestamp
+      }
+      await window.api.chatSessionSave(newSession)
+      await loadSessions()
+      setCurrentSessionId(newSession.id)
+    } catch (e) {
+      console.error(e)
+      message.error('创建会话失败')
+    }
+  }
+
+  useEffect(() => {
+    loadSessions()
+    getActiveConfig().then(setConfig)
+  }, [])
+
+  useEffect(() => {
+    if (currentSessionId) {
+      loadMessages(currentSessionId)
+    } else {
+      setCurrentMessages([])
+    }
+  }, [currentSessionId])
+
+  useEffect(() => {
+    scrollToBottom()
+  }, [currentMessages])
+
+  const deleteSession = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation()
+    try {
+      await window.api.chatSessionDelete(id)
+      if (currentSessionId === id) {
+        setCurrentSessionId(null)
+      }
+      await loadSessions()
+    } catch (err) {
+      console.error(err)
+      message.error('删除会话失败')
+    }
   }
 
   const handleSend = async () => {
@@ -143,15 +116,30 @@ const ChatPage: React.FC = () => {
 
     // 1. Create User Message
     const timestamp = new Date().getTime()
-    const userMsg: ChatMessageWithSource = {
+    const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
+      session_id: currentSessionId,
       role: 'user',
       content: userQuery,
-      timestamp
+      timestamp,
+      sources: undefined,
+      error: false
     }
 
-    const updatedMessages = [...(currentSession?.messages || []), userMsg]
-    updateSessionMessages(currentSessionId, updatedMessages)
+    const newMessages = [...currentMessages, userMsg]
+    setCurrentMessages(newMessages)
+    // Save user message async
+    window.api.chatMessageSave(userMsg).catch(console.error)
+
+    // Update session title if first message
+    if (currentMessages.length === 0) {
+      const session = sessions.find((s) => s.id === currentSessionId)
+      if (session) {
+        const newTitle = userQuery.slice(0, 20)
+        await window.api.chatSessionSave({ ...session, title: newTitle })
+        loadSessions() // Refresh sidebar
+      }
+    }
 
     try {
       // 2. Search for Context
@@ -174,13 +162,9 @@ const ChatPage: React.FC = () => {
         searchResults = uniqueResults.slice(0, 5) // Take top 5 unique documents
 
         // Update user message with sources
-        const messagesWithSource = updatedMessages.map((m) =>
-          m.id === userMsg.id ? { ...m, sources: searchResults } : m
-        )
-        updateSessionMessages(currentSessionId, messagesWithSource)
-
-        // Update local ref for next steps
-        userMsg.sources = searchResults
+        userMsg.sources = JSON.stringify(searchResults)
+        setCurrentMessages((prev) => prev.map((m) => (m.id === userMsg.id ? userMsg : m)))
+        window.api.chatMessageSave(userMsg).catch(console.error)
       } catch (e) {
         console.error('Search failed', e)
       }
@@ -197,17 +181,33 @@ const ChatPage: React.FC = () => {
 上下文信息：
 ${contextText}`
 
+      const now = new Date().getTime()
       const messagesPayload: ChatMessage[] = [
-        { role: 'system', content: systemPrompt },
+        { 
+          role: 'system', 
+          content: systemPrompt, 
+          id: 'system', 
+          session_id: currentSessionId, 
+          timestamp: now 
+        },
         // Add recent history (last 6 messages to save tokens)
-        ...updatedMessages.slice(-6).map((m) => ({ role: m.role, content: m.content }))
+        ...currentMessages.slice(-6).map((m) => ({
+          role: m.role,
+          content: m.content,
+          id: m.id,
+          session_id: m.session_id,
+          timestamp: m.timestamp
+        }))
       ]
+      // Add current user msg
+      messagesPayload.push(userMsg)
 
       // 4. Create Assistant Message Placeholder
       const assistantMsgId = crypto.randomUUID()
       const assistantTimestamp = new Date().getTime()
-      const assistantMsg: ChatMessageWithSource = {
+      const assistantMsg: ChatMessage = {
         id: assistantMsgId,
+        session_id: currentSessionId,
         role: 'assistant',
         content: '',
         timestamp: assistantTimestamp
@@ -216,7 +216,7 @@ ${contextText}`
       let currentContent = ''
 
       // Update UI with empty assistant message
-      updateSessionMessages(currentSessionId, [...updatedMessages, assistantMsg])
+      setCurrentMessages((prev) => [...prev, assistantMsg])
 
       // 5. Stream LLM Response
       await streamCompletion(
@@ -224,22 +224,28 @@ ${contextText}`
         config,
         (chunk) => {
           currentContent += chunk
-          updateSessionMessages(currentSessionId, [
-            ...updatedMessages,
-            { ...assistantMsg, content: currentContent }
-          ])
+          setCurrentMessages((prev) =>
+            prev.map((m) => (m.id === assistantMsgId ? { ...m, content: currentContent } : m))
+          )
           scrollToBottom()
         },
         (err) => {
           console.error(err)
           message.error('AI 回答出错: ' + err.message)
-          updateSessionMessages(currentSessionId, [
-            ...updatedMessages,
-            { ...assistantMsg, content: currentContent + '\n\n[出错: 连接中断]', error: true }
-          ])
+          const errorMsg = {
+            ...assistantMsg,
+            content: currentContent + '\n\n[出错: 连接中断]',
+            error: true
+          }
+          setCurrentMessages((prev) => prev.map((m) => (m.id === assistantMsgId ? errorMsg : m)))
+          window.api.chatMessageSave(errorMsg).catch(console.error)
         },
         () => {
           setLoading(false)
+          // Save completed message
+          window.api
+            .chatMessageSave({ ...assistantMsg, content: currentContent })
+            .catch(console.error)
         }
       )
     } catch (e) {
@@ -254,8 +260,17 @@ ${contextText}`
     setPreviewVisible(true)
   }
 
-  const renderMessage = (msg: ChatMessageWithSource) => {
+  const renderMessage = (msg: ChatMessage) => {
     const isUser = msg.role === 'user'
+    let sources: SearchResult[] = []
+    try {
+      if (msg.sources) {
+        sources = JSON.parse(msg.sources)
+      }
+    } catch (e) {
+      console.warn('Failed to parse sources', e)
+    }
+
     return (
       <div key={msg.id} className={`flex gap-4 mb-6 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
         <Avatar
@@ -283,7 +298,7 @@ ${contextText}`
           </div>
 
           {/* Sources for User Message */}
-          {isUser && msg.sources && msg.sources.length > 0 && (
+          {isUser && sources && sources.length > 0 && (
             <Collapse
               ghost
               size="small"
@@ -293,13 +308,13 @@ ${contextText}`
                 header={
                   <Space className="text-xs text-[#999999]">
                     <HiBookOpen />
-                    <span>参考了 {msg.sources.length} 个文档</span>
+                    <span>参考了 {sources.length} 个文档</span>
                   </Space>
                 }
                 key="1"
               >
                 <div className="flex flex-row overflow-x-auto gap-3 pb-2">
-                  {msg.sources.map((source, idx) => (
+                  {sources.map((source, idx) => (
                     <Card
                       key={idx}
                       size="small"
@@ -366,7 +381,7 @@ ${contextText}`
                 {session.title}
               </div>
               <div className="text-xs text-[#999999] mt-1">
-                {new Date(session.createdAt).toLocaleDateString()}
+                {new Date(session.created_at).toLocaleDateString()}
               </div>
               <Button
                 type="text"
@@ -384,7 +399,7 @@ ${contextText}`
       <div className="flex-1 flex flex-col h-[calc(100vh-64px)] relative">
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-6 pb-32" ref={scrollRef}>
-          {currentSession?.messages.length === 0 ? (
+          {currentMessages.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-[#999999] gap-4">
               <div className="w-16 h-16 bg-[#F5F5F4] rounded-full flex items-center justify-center">
                 <HiSparkles className="w-8 h-8 text-[#D97757]" />
@@ -395,7 +410,7 @@ ${contextText}`
               </div>
             </div>
           ) : (
-            currentSession?.messages.map(renderMessage)
+            currentMessages.map(renderMessage)
           )}
         </div>
 

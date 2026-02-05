@@ -88,8 +88,8 @@ const NotificationCenter: React.FC = () => {
       return
     }
 
-    const checkLLMConfig = () => {
-      const config = getActiveConfig()
+    const checkLLMConfig = async () => {
+      const config = await getActiveConfig()
       if (!config) {
         if (isChatPage) {
           updateNotification('llm-config-missing', {
@@ -133,8 +133,8 @@ const NotificationCenter: React.FC = () => {
 
     checkLLMConfig()
 
-    const handleCheckEvent = () => {
-      const config = getActiveConfig()
+    const handleCheckEvent = async () => {
+      const config = await getActiveConfig()
       if (!config) {
         updateNotification('llm-config-missing', {
           id: 'llm-config-missing',
