@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import { useEffect } from 'react'
 import jsPreviewDocx from '@js-preview/docx'
 import '@js-preview/docx/lib/index.css'
 import './index.css'

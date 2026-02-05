@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { pdfjs, Document, Page } from 'react-pdf'
 import { Pagination } from 'antd'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
