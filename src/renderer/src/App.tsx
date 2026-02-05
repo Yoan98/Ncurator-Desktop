@@ -2,13 +2,13 @@ import React from 'react'
 import { HashRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom'
 import { Layout, ConfigProvider, theme, Button, Dropdown, Segmented } from 'antd'
 import {
-  HiOutlineArrowLeft,
   HiOutlineCog6Tooth,
   HiOutlineBookOpen,
   HiOutlineBeaker,
   HiOutlineMagnifyingGlass,
   HiOutlineChatBubbleLeftRight,
-  HiCloudArrowDown
+  HiCloudArrowDown,
+  HiOutlineHome
 } from 'react-icons/hi2'
 import SearchPage from './pages/SearchPage'
 import ChatPage from './pages/ChatPage'
@@ -105,8 +105,8 @@ const MainLayout: React.FC = () => {
           ) : (
             <Button
               type="text"
-              icon={<HiOutlineArrowLeft className="w-5 h-5" />}
-              onClick={() => navigate(-1)}
+              icon={<HiOutlineHome className="w-5 h-5" />}
+              onClick={() => navigate('/')}
               className="ml-2 text-[#666666] hover:bg-black/5 hover:text-[#1F1F1F]"
             />
           )}
