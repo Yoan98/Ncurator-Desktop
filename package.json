@@ -34,6 +34,7 @@
     "@node-rs/jieba": "^2.0.1",
     "antd": "5.22.1",
     "apache-arrow": "^17.0.0",
+    "cheerio": "^1.2.0",
     "electron-updater": "^6.3.9",
     "katex": "^0.16.28",
     "mammoth": "^1.11.0",
