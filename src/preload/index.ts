@@ -1,6 +1,12 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { SearchResult, DocumentListResponse, ChunkListResponse } from '../shared/types'
+import type {
+  SearchResult,
+  DocumentListResponse,
+  ChunkListResponse,
+  SearchSourceFilter,
+  WebIngestPayload
+} from '../shared/types'
 
 // Custom APIs for renderer
 const api = {
@@ -11,13 +17,27 @@ const api = {
       'ingest-files',
       files.map((f) => ({ path: webUtils.getPathForFile(f), name: f.name }))
     ),
-  search: (query: string): Promise<{ results: SearchResult[]; tokens: string[] }> =>
-    ipcRenderer.invoke('search', query),
-  ftsSearch: (query: string): Promise<SearchResult[]> => ipcRenderer.invoke('fts-search', query),
-  vectorSearch: (query: string): Promise<SearchResult[]> =>
-    ipcRenderer.invoke('vector-search', query),
-  hybridSearch: (query: string): Promise<SearchResult[]> =>
-    ipcRenderer.invoke('hybrid-search', query),
+  ingestWeb: (
+    payload: WebIngestPayload
+  ): Promise<{ success: boolean; count?: number; error?: string }> =>
+    ipcRenderer.invoke('ingest-web', payload),
+  ingestWebs: (
+    payload: WebIngestPayload[]
+  ): Promise<{ success: boolean; created?: number; error?: string }> =>
+    ipcRenderer.invoke('ingest-webs', payload),
+  openExternal: (url: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('open-external', url),
+  search: (
+    query: string,
+    sourceType?: SearchSourceFilter
+  ): Promise<{ results: SearchResult[]; tokens: string[] }> =>
+    ipcRenderer.invoke('search', query, sourceType),
+  ftsSearch: (query: string, sourceType?: SearchSourceFilter): Promise<SearchResult[]> =>
+    ipcRenderer.invoke('fts-search', query, sourceType),
+  vectorSearch: (query: string, sourceType?: SearchSourceFilter): Promise<SearchResult[]> =>
+    ipcRenderer.invoke('vector-search', query, sourceType),
+  hybridSearch: (query: string, sourceType?: SearchSourceFilter): Promise<SearchResult[]> =>
+    ipcRenderer.invoke('hybrid-search', query, sourceType),
   listDocuments: (payload: {
     keyword?: string
     page: number

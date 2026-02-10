@@ -38,19 +38,19 @@ const CustomMarkdownRenderer = ({ mainState }) => {
       className="chat-markdown w-full h-full overflow-auto bg-white p-8 prose max-w-none"
     >
       <ReactMarkdown
-        children={markdownText}
         remarkPlugins={[remarkGfm]}
         components={{
-          code({ node, className, children, ...props }) {
+          code({ className, children, ...props }) {
             const match = /language-(\w+)/.exec(className || '')
             return match ? (
               <SyntaxHighlighter
-                children={String(children).replace(/\n$/, '')}
                 language={match[1]}
                 PreTag="div"
                 style={oneLight}
                 {...props}
-              />
+              >
+                {String(children).replace(/\n$/, '')}
+              </SyntaxHighlighter>
             ) : (
               <code
                 className={`${className} bg-gray-100 rounded px-1 py-0.5 text-sm text-gray-800`}
@@ -61,7 +61,9 @@ const CustomMarkdownRenderer = ({ mainState }) => {
             )
           }
         }}
-      ></ReactMarkdown>
+      >
+        {markdownText}
+      </ReactMarkdown>
     </div>
   )
 }

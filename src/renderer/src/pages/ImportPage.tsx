@@ -9,14 +9,16 @@ import {
   Modal,
   Segmented,
   Tag,
-  Spin
+  Spin,
+  Collapse
 } from 'antd'
 import {
   HiInboxArrowDown,
   HiArrowPath,
   HiMagnifyingGlass,
   HiDocumentText,
-  HiBookOpen
+  HiBookOpen,
+  HiGlobeAlt
 } from 'react-icons/hi2'
 import type { UploadProps, UploadFile } from 'antd'
 import type { DocumentRecord } from '../../../shared/types'
@@ -35,6 +37,11 @@ const ImportPage: React.FC = () => {
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
   const [deleting, setDeleting] = useState(false)
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false)
+  const [webModalVisible, setWebModalVisible] = useState(false)
+  const [webUrlsText, setWebUrlsText] = useState('')
+  const [webIncludeSelectorsText, setWebIncludeSelectorsText] = useState('')
+  const [webExcludeSelectorsText, setWebExcludeSelectorsText] = useState('')
+  const [webSubmitting, setWebSubmitting] = useState(false)
 
   const fetchDocuments = async () => {
     setLoading(true)
@@ -122,7 +129,82 @@ const ImportPage: React.FC = () => {
     return documents.filter((d) => d.source_type === typeFilter)
   }, [documents, typeFilter])
 
-  console.log('displayedDocuments', displayedDocuments)
+  const parseSelectors = (input: string): string[] | undefined => {
+    const list = input
+      .split(/[\n,]/g)
+      .map((s) => s.trim())
+      .filter(Boolean)
+    return list.length > 0 ? list : undefined
+  }
+
+  const handleWebImport = async () => {
+    if (webSubmitting) return
+    const urls = Array.from(
+      new Set(
+        webUrlsText
+          .split(/\r?\n/g)
+          .map((s) => s.trim())
+          .filter(Boolean)
+      )
+    )
+    if (urls.length === 0) {
+      message.warning('请输入至少一个 URL（每行一个）')
+      return
+    }
+
+    const invalid = urls.filter((u) => {
+      try {
+        const parsed = new URL(u)
+        return !['http:', 'https:'].includes(parsed.protocol)
+      } catch {
+        return true
+      }
+    })
+    if (invalid.length > 0) {
+      message.error(`URL 不合法：${invalid.slice(0, 3).join('，')}${invalid.length > 3 ? '…' : ''}`)
+      return
+    }
+
+    setWebSubmitting(true)
+    try {
+      const includeSelectors = parseSelectors(webIncludeSelectorsText)
+      const excludeSelectors = parseSelectors(webExcludeSelectorsText)
+      if (urls.length === 1) {
+        const res = await window.api.ingestWeb({
+          url: urls[0],
+          includeSelectors,
+          excludeSelectors
+        })
+        if (res.success) {
+          message.success(`已提交导入，新增 ${res.count || 0} 条内容`)
+        } else {
+          message.error(res.error || '提交导入失败')
+        }
+      } else {
+        const res = await window.api.ingestWebs(
+          urls.map((url) => ({
+            url,
+            includeSelectors,
+            excludeSelectors
+          }))
+        )
+        if (res.success) {
+          message.success(`已提交导入，新增 ${res.created || 0} 个网页`)
+        } else {
+          message.error(res.error || '提交导入失败')
+        }
+      }
+      setWebUrlsText('')
+      setWebIncludeSelectorsText('')
+      setWebExcludeSelectorsText('')
+      setWebModalVisible(false)
+      fetchDocuments()
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error)
+      message.error(`提交导入出错: ${msg}`)
+    }
+    setWebSubmitting(false)
+  }
 
   const columns = [
     {
@@ -131,7 +213,9 @@ const ImportPage: React.FC = () => {
       key: 'name',
       render: (text: string, record: DocumentRecord) => (
         <div className="flex items-center gap-2">
-          {record.name.toLowerCase().endsWith('.pdf') ? (
+          {record.source_type === 'web' ? (
+            <HiGlobeAlt className="text-[#3B82F6]" />
+          ) : record.name.toLowerCase().endsWith('.pdf') ? (
             <HiDocumentText className="text-[#D97757]" />
           ) : (
             <HiDocumentText className="text-[#666666]" />
@@ -139,6 +223,36 @@ const ImportPage: React.FC = () => {
           <span className="text-[#1F1F1F]">{text}</span>
         </div>
       )
+    },
+    {
+      title: '来源',
+      key: 'source',
+      ellipsis: true,
+      render: (_: unknown, record: DocumentRecord) => {
+        const source = record.file_path || ''
+        if (!source) return <span className="text-[#999999]">-</span>
+        if (record.source_type === 'web') {
+          return (
+            <Typography.Link
+              onClick={async (e) => {
+                e.preventDefault()
+                const res = await window.api.openExternal(source)
+                if (!res.success) {
+                  message.error(res.error || '打开链接失败')
+                }
+              }}
+              className="!text-[#D97757]"
+            >
+              {source}
+            </Typography.Link>
+          )
+        }
+        return (
+          <Typography.Text ellipsis={{ tooltip: source }} className="text-[#666666]">
+            {source}
+          </Typography.Text>
+        )
+      }
     },
     {
       title: '类型',
@@ -245,6 +359,13 @@ const ImportPage: React.FC = () => {
             onClick={() => setUploadModalVisible(true)}
           >
             新增文档
+          </Button>
+          <Button
+            icon={<HiGlobeAlt />}
+            className="border-[#F4E5DF] bg-[#FBF5F2] text-[#D97757] hover:!bg-[#F4E5DF] hover:!border-[#F4E5DF] h-9 px-5 rounded-lg shadow-sm"
+            onClick={() => setWebModalVisible(true)}
+          >
+            导入网页
           </Button>
         </div>
       </div>
@@ -362,6 +483,80 @@ const ImportPage: React.FC = () => {
               className="!bg-[#D97757] hover:!bg-[#C66A4A] h-10 px-6 rounded-lg font-medium shadow-sm hover:shadow-md transition-all border-none"
             >
               {processing ? '处理中...' : '开始导入'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={webModalVisible}
+        onCancel={() => setWebModalVisible(false)}
+        footer={null}
+        title={<span className="text-[#1F1F1F] font-bold">导入网页 URL</span>}
+        width={640}
+        className="[&_.ant-modal-content]:!rounded-2xl"
+      >
+        <div className="pt-4 space-y-4">
+          <div>
+            <div className="text-sm font-medium text-[#1F1F1F] mb-2">网页地址（每行一个）</div>
+            <Input.TextArea
+              value={webUrlsText}
+              onChange={(e) => setWebUrlsText(e.target.value)}
+              autoSize={{ minRows: 5, maxRows: 10 }}
+              placeholder={`https://example.com\nhttps://example.com/docs`}
+              className="rounded-xl"
+            />
+          </div>
+
+          <Collapse
+            items={[
+              {
+                key: 'advanced',
+                label: <span className="text-[#1F1F1F] font-medium">高级配置（可选）</span>,
+                children: (
+                  <div className="space-y-3">
+                    <div>
+                      <div className="text-sm text-[#666666] mb-1">
+                        include selectors（逗号或换行分隔）
+                      </div>
+                      <Input.TextArea
+                        value={webIncludeSelectorsText}
+                        onChange={(e) => setWebIncludeSelectorsText(e.target.value)}
+                        autoSize={{ minRows: 2, maxRows: 4 }}
+                        placeholder="article, main, .content"
+                        className="rounded-xl"
+                      />
+                    </div>
+                    <div>
+                      <div className="text-sm text-[#666666] mb-1">
+                        exclude selectors（逗号或换行分隔）
+                      </div>
+                      <Input.TextArea
+                        value={webExcludeSelectorsText}
+                        onChange={(e) => setWebExcludeSelectorsText(e.target.value)}
+                        autoSize={{ minRows: 2, maxRows: 4 }}
+                        placeholder=".sidebar, .ads, .toc"
+                        className="rounded-xl"
+                      />
+                    </div>
+                  </div>
+                )
+              }
+            ]}
+            className="bg-white"
+          />
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button onClick={() => setWebModalVisible(false)} disabled={webSubmitting}>
+              取消
+            </Button>
+            <Button
+              type="primary"
+              onClick={handleWebImport}
+              loading={webSubmitting}
+              className="!bg-[#D97757] hover:!bg-[#C66A4A] border-none rounded-lg h-10 px-6 font-medium shadow-sm hover:shadow-md transition-all"
+            >
+              开始导入
             </Button>
           </div>
         </div>

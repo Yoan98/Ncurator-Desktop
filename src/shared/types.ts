@@ -1,5 +1,12 @@
 export type DocumentSourceType = 'file' | 'web'
 export type DocumentImportStatus = 1 | 2 | 3
+export type SearchSourceFilter = 'all' | DocumentSourceType
+
+export interface WebIngestPayload {
+  url: string
+  includeSelectors?: string[]
+  excludeSelectors?: string[]
+}
 
 export interface DocumentRecord {
   id: string

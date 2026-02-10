@@ -1,5 +1,5 @@
-import { ipcMain } from 'electron'
-import { IngestionService } from '../services/ingestion/FileLoader'
+import { ipcMain, shell } from 'electron'
+import { IngestionService } from '../services/ingestion/loader'
 import { EmbeddingService } from '../services/vector/EmbeddingService'
 import { UnifiedStore } from '../services/storage/UnifiedStore'
 import { ModelService } from '../services/model/ModelService'
@@ -15,6 +15,7 @@ import type {
 import path from 'path'
 import fs from 'fs'
 import { DOCUMENTS_PATH } from '../utils/paths'
+import { WEB_INGEST_CONCURRENCY } from '../utils/constant'
 import { Jieba } from '@node-rs/jieba'
 import { dict } from '@node-rs/jieba/dict'
 import { normalizeForIpc } from '../utils/serialization'
@@ -186,11 +187,195 @@ export function registerHandlers(services: {
     }
   })
 
-  ipcMain.handle('search', async (_event, query: string) => {
+  ipcMain.handle(
+    'ingest-web',
+    async (
+      event,
+      payload: { url: string; includeSelectors?: string[]; excludeSelectors?: string[] }
+    ) => {
+      let documentId: string = ''
+      try {
+        const url = String(payload?.url || '').trim()
+        if (!url) throw new Error('URL 不能为空')
+        const parsed = new URL(url)
+        if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('仅支持 http/https URL')
+
+        documentId = uuidv4()
+        await unifiedStore.addDocument({
+          id: documentId,
+          name: url,
+          source_type: 'web',
+          file_path: url,
+          created_at: Date.now(),
+          import_status: 1
+        })
+        event.sender.send('document-list-refresh')
+
+        const splitDocs = await ingestionService.processWebUrl({
+          url,
+          includeSelectors: payload.includeSelectors,
+          excludeSelectors: payload.excludeSelectors
+        })
+        const documentName = splitDocs.title?.trim() || url
+        if (documentName !== url) {
+          await unifiedStore.updateDocumentById(documentId, { name: documentName })
+        }
+
+        const allSplitDocs = [...splitDocs.bigSplitDocs, ...splitDocs.miniSplitDocs]
+        const allChunkVectors: Float32Array[] = []
+        for (const doc of allSplitDocs) {
+          const { data: vector } = await embeddingService.embed(doc.pageContent)
+          allChunkVectors.push(vector)
+        }
+
+        const chunks = allChunkVectors.map((_, i) => ({
+          text: allSplitDocs[i].pageContent,
+          id: uuidv4(),
+          document_id: documentId,
+          document_name: documentName,
+          source_type: 'web',
+          metadata: {
+            page: 1
+          }
+        }))
+
+        await unifiedStore.addChunks({
+          vectors: allChunkVectors,
+          chunks
+        })
+        await unifiedStore.updateDocumentImportStatus(documentId, 2)
+        event.sender.send('document-list-refresh')
+        return { success: true, count: chunks.length }
+      } catch (error: any) {
+        console.error('❌ [INGEST-WEB] ERROR:', error)
+        if (documentId) {
+          await unifiedStore.updateDocumentImportStatus(documentId, 3).catch(() => {})
+          event.sender.send('document-list-refresh')
+        }
+        return { success: false, error: error.message }
+      }
+    }
+  )
+
+  ipcMain.handle(
+    'ingest-webs',
+    async (
+      event,
+      payload: Array<{ url: string; includeSelectors?: string[]; excludeSelectors?: string[] }>
+    ) => {
+      try {
+        const items = Array.isArray(payload) ? payload : []
+        const created: Array<{
+          id: string
+          url: string
+          includeSelectors?: string[]
+          excludeSelectors?: string[]
+        }> = []
+
+        for (const item of items) {
+          const url = String(item?.url || '').trim()
+          if (!url) continue
+          const parsed = new URL(url)
+          if (!['http:', 'https:'].includes(parsed.protocol)) continue
+
+          const documentId = uuidv4()
+          await unifiedStore.addDocument({
+            id: documentId,
+            name: url,
+            source_type: 'web',
+            file_path: url,
+            created_at: Date.now(),
+            import_status: 1
+          })
+          created.push({
+            id: documentId,
+            url,
+            includeSelectors: item.includeSelectors,
+            excludeSelectors: item.excludeSelectors
+          })
+        }
+
+        event.sender.send('document-list-refresh')
+
+        const concurrency = Math.max(1, WEB_INGEST_CONCURRENCY)
+        ;(async () => {
+          let index = 0
+          const runOne = async () => {
+            for (;;) {
+              const current = created[index++]
+              if (!current) return
+              try {
+                const splitDocs = await ingestionService.processWebUrl({
+                  url: current.url,
+                  includeSelectors: current.includeSelectors,
+                  excludeSelectors: current.excludeSelectors
+                })
+                const documentName = splitDocs.title?.trim() || current.url
+                if (documentName !== current.url) {
+                  await unifiedStore.updateDocumentById(current.id, { name: documentName })
+                }
+
+                const allSplitDocs = [...splitDocs.bigSplitDocs, ...splitDocs.miniSplitDocs]
+                const allChunkVectors: Float32Array[] = []
+                for (const doc of allSplitDocs) {
+                  const { data: vector } = await embeddingService.embed(doc.pageContent)
+                  allChunkVectors.push(vector)
+                }
+
+                const chunks = allChunkVectors.map((_, i) => ({
+                  text: allSplitDocs[i].pageContent,
+                  id: uuidv4(),
+                  document_id: current.id,
+                  document_name: documentName,
+                  source_type: 'web',
+                  metadata: {
+                    page: 1
+                  }
+                }))
+
+                await unifiedStore.addChunks({
+                  vectors: allChunkVectors,
+                  chunks
+                })
+                await unifiedStore.updateDocumentImportStatus(current.id, 2)
+                event.sender.send('document-list-refresh')
+              } catch (e: any) {
+                console.error('❌ [INGEST-WEBS] ERROR:', e)
+                await unifiedStore.updateDocumentImportStatus(current.id, 3).catch(() => {})
+                event.sender.send('document-list-refresh')
+              }
+            }
+          }
+
+          await Promise.all(Array.from({ length: concurrency }, () => runOne()))
+        })()
+
+        return { success: true, created: created.length }
+      } catch (error: any) {
+        console.error('❌ [INGEST-WEBS] ERROR:', error)
+        return { success: false, error: error.message }
+      }
+    }
+  )
+
+  ipcMain.handle('open-external', async (_event, url: string) => {
+    try {
+      const parsed = new URL(String(url))
+      if (!['http:', 'https:'].includes(parsed.protocol)) {
+        return { success: false, error: '仅支持 http/https URL' }
+      }
+      await shell.openExternal(parsed.toString())
+      return { success: true }
+    } catch (error: any) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  ipcMain.handle('search', async (_event, query: string, sourceType?: 'all' | 'file' | 'web') => {
     try {
       const { data: queryVector } = await embeddingService.embed(query)
-
-      const results = await unifiedStore.search(queryVector, query, 5)
+      const filter = sourceType && sourceType !== 'all' ? sourceType : undefined
+      const results = await unifiedStore.search(queryVector, query, 5, filter)
 
       const tokens = jieba.cutForSearch(query, true)
 
@@ -206,43 +391,55 @@ export function registerHandlers(services: {
     }
   })
 
-  ipcMain.handle('fts-search', async (_event, query: string): Promise<SearchResult[]> => {
-    try {
-      const results = await unifiedStore.ftsSearch(query, 20)
-      const normalized = results.map(normalizeForIpc)
-      // console.log('🔎 [FTS-SEARCH] RESULTS:', normalized)
-      return normalized
-    } catch (error: any) {
-      console.error('❌ [FTS-SEARCH] ERROR:', error)
-      return []
+  ipcMain.handle(
+    'fts-search',
+    async (_event, query: string, sourceType?: 'all' | 'file' | 'web'): Promise<SearchResult[]> => {
+      try {
+        const filter = sourceType && sourceType !== 'all' ? sourceType : undefined
+        const results = await unifiedStore.ftsSearch(query, 20, filter)
+        const normalized = results.map(normalizeForIpc)
+        // console.log('🔎 [FTS-SEARCH] RESULTS:', normalized)
+        return normalized
+      } catch (error: any) {
+        console.error('❌ [FTS-SEARCH] ERROR:', error)
+        return []
+      }
     }
-  })
+  )
 
-  ipcMain.handle('vector-search', async (_event, query: string): Promise<SearchResult[]> => {
-    try {
-      const { data: queryVector } = await embeddingService.embed(query)
-      const results = await unifiedStore.vectorSearch(queryVector, 20)
-      const normalized = results.map(normalizeForIpc)
-      console.log('🔎 [VECTOR-SEARCH] RESULTS:', normalized)
-      return normalized
-    } catch (error: any) {
-      console.error('❌ [VECTOR-SEARCH] ERROR:', error)
-      return []
+  ipcMain.handle(
+    'vector-search',
+    async (_event, query: string, sourceType?: 'all' | 'file' | 'web'): Promise<SearchResult[]> => {
+      try {
+        const { data: queryVector } = await embeddingService.embed(query)
+        const filter = sourceType && sourceType !== 'all' ? sourceType : undefined
+        const results = await unifiedStore.vectorSearch(queryVector, 20, filter)
+        const normalized = results.map(normalizeForIpc)
+        console.log('🔎 [VECTOR-SEARCH] RESULTS:', normalized)
+        return normalized
+      } catch (error: any) {
+        console.error('❌ [VECTOR-SEARCH] ERROR:', error)
+        return []
+      }
     }
-  })
+  )
 
-  ipcMain.handle('hybrid-search', async (_event, query: string): Promise<SearchResult[]> => {
-    try {
-      const { data: queryVector } = await embeddingService.embed(query)
-      const results = await unifiedStore.hybridSearch(queryVector, query, 20)
-      const normalized = results.map(normalizeForIpc)
-      console.log('🔎 [HYBRID-SEARCH] RESULTS:', normalized)
-      return normalized
-    } catch (error: any) {
-      console.error('❌ [HYBRID-SEARCH] ERROR:', error)
-      return []
+  ipcMain.handle(
+    'hybrid-search',
+    async (_event, query: string, sourceType?: 'all' | 'file' | 'web'): Promise<SearchResult[]> => {
+      try {
+        const { data: queryVector } = await embeddingService.embed(query)
+        const filter = sourceType && sourceType !== 'all' ? sourceType : undefined
+        const results = await unifiedStore.hybridSearch(queryVector, query, 20, filter)
+        const normalized = results.map(normalizeForIpc)
+        console.log('🔎 [HYBRID-SEARCH] RESULTS:', normalized)
+        return normalized
+      } catch (error: any) {
+        console.error('❌ [HYBRID-SEARCH] ERROR:', error)
+        return []
+      }
     }
-  })
+  )
 
   ipcMain.handle(
     'list-documents',

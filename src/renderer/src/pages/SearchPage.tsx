@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
-import { Input, List, Card, Empty, Typography, Button, Switch } from 'antd'
+import { Input, List, Card, Empty, Typography, Button, Switch, Segmented, message } from 'antd'
 import { HiArrowUp, HiOutlineDocumentText } from 'react-icons/hi2'
-import type { SearchResult } from '../../../shared/types'
+import type { SearchResult, SearchSourceFilter } from '../../../shared/types'
 import TextHighlighter from '../components/TextHighlighter'
 import { parseIpcResult } from '../utils/serialization'
 import FileRender, { FileRenderDocument } from '../components/fileRenders'
@@ -20,6 +20,7 @@ const SearchPage: React.FC = () => {
   const [aiAnswerEnabled, setAiAnswerEnabled] = useState(false)
   const [aiAnswer, setAiAnswer] = useState<string>('')
   const [aiGenerating, setAiGenerating] = useState(false)
+  const [sourceFilter, setSourceFilter] = useState<SearchSourceFilter>('all')
 
   useEffect(() => {
     // Check if model is ready when component mounts
@@ -93,7 +94,7 @@ ${contextText}`
     setAiAnswer('')
 
     try {
-      const response = await window.api.search(value)
+      const response = await window.api.search(value, sourceFilter)
       const parsedResults = response.results.map(parseIpcResult)
       console.log('Search results:', parsedResults)
       setResults(parsedResults)
@@ -123,13 +124,25 @@ ${contextText}`
     }
   }
 
-  const openPreview = (item: SearchResult) => {
+  const openPreview = async (item: SearchResult) => {
+    if (item.source_type === 'web') {
+      const url = item.document?.file_path
+      if (!url) {
+        message.warning('未找到网页链接')
+        return
+      }
+      const res = await window.api.openExternal(url)
+      if (!res.success) {
+        message.error(res.error || '打开链接失败')
+      }
+      return
+    }
     setCurrentDoc(item)
     setPreviewVisible(true)
   }
 
   const previewDocuments: FileRenderDocument[] =
-    currentDoc && currentDoc.document?.file_path
+    currentDoc && currentDoc.source_type === 'file' && currentDoc.document?.file_path
       ? [
           {
             uri: '', // Will be generated from filePath
@@ -163,7 +176,21 @@ ${contextText}`
             }}
           />
           <div className="flex justify-between items-center px-1">
-            <div className="text-xs text-[#999999] font-medium">Enter 发送，Shift + Enter 换行</div>
+            <div className="flex items-center gap-3">
+              <div className="text-xs text-[#999999] font-medium">
+                Enter 发送，Shift + Enter 换行
+              </div>
+              <Segmented
+                value={sourceFilter}
+                onChange={(val) => setSourceFilter(val as SearchSourceFilter)}
+                options={[
+                  { label: '全部', value: 'all' },
+                  { label: '文件', value: 'file' },
+                  { label: '网页', value: 'web' }
+                ]}
+                className="bg-[#F5F5F4] p-1 rounded-lg"
+              />
+            </div>
             <Button
               type="primary"
               shape="circle"
@@ -255,6 +282,27 @@ ${contextText}`
                             )}
                             <span>•</span>
                             <span>ID: {item.document_id?.substring(0, 6)}</span>
+                            {item.source_type === 'web' && item.document?.file_path && (
+                              <>
+                                <span>•</span>
+                                <Button
+                                  type="link"
+                                  size="small"
+                                  onClick={async (e) => {
+                                    e.stopPropagation()
+                                    const res = await window.api.openExternal(
+                                      item.document!.file_path!
+                                    )
+                                    if (!res.success) {
+                                      message.error(res.error || '打开链接失败')
+                                    }
+                                  }}
+                                  className="!p-0 !h-auto !text-[#D97757]"
+                                >
+                                  打开链接
+                                </Button>
+                              </>
+                            )}
                           </div>
                         </div>
                         <Typography.Paragraph

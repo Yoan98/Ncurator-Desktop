@@ -241,6 +241,19 @@ export class UnifiedStore {
     await table.update({ where: `id = '${id}'`, values: { import_status: status } })
   }
 
+  public async updateDocumentById(
+    id: string,
+    values: Partial<Pick<DocumentRecord, 'name' | 'file_path' | 'source_type'>>
+  ): Promise<void> {
+    if (this.status !== ServiceStatus.READY) {
+      throw new Error(
+        `UnifiedStore is not ready. Current status: ${this.status}. Please wait for initialization.`
+      )
+    }
+    const table = await this.db!.openTable(this.TABLE_DOCUMENT)
+    await table.update({ where: `id = '${id}'`, values })
+  }
+
   /**
    * Add document chunks with embeddings to the documents table
    */
@@ -275,7 +288,7 @@ export class UnifiedStore {
   /**
    * Vector similarity search
    */
-  public async vectorSearch(queryVector: Float32Array, limit = 50) {
+  public async vectorSearch(queryVector: Float32Array, limit = 50, sourceType?: string) {
     if (this.status !== ServiceStatus.READY) {
       throw new Error(
         `UnifiedStore is not ready. Current status: ${this.status}. Please wait for initialization.`
@@ -286,11 +299,11 @@ export class UnifiedStore {
     if (!tableNames.includes(this.TABLE_CHUNK)) return []
 
     const table = await this.db!.openTable(this.TABLE_CHUNK)
-    const results = await table
-      .vectorSearch(queryVector)
-      .distanceType('cosine')
-      .limit(limit)
-      .toArray()
+    const query = table.query()
+    if (sourceType) {
+      query.where(`source_type = '${sourceType.replace(/'/g, "''")}'`)
+    }
+    const results = await query.nearestTo(queryVector).distanceType('cosine').limit(limit).toArray()
 
     return results.map((item) => ({
       ...item,
@@ -298,7 +311,7 @@ export class UnifiedStore {
     }))
   }
 
-  public async search(queryVector: Float32Array, query: string, limit = 50) {
+  public async search(queryVector: Float32Array, query: string, limit = 50, sourceType?: string) {
     if (this.status !== ServiceStatus.READY) {
       throw new Error(
         `UnifiedStore is not ready. Current status: ${this.status}. Please wait for initialization.`
@@ -306,7 +319,7 @@ export class UnifiedStore {
     }
 
     // 1. Get hybrid search results
-    const results = await this.hybridSearch(queryVector, query, limit)
+    const results = await this.hybridSearch(queryVector, query, limit, sourceType)
     if (results.length === 0) return []
 
     // 2. Extract unique document IDs
@@ -361,7 +374,7 @@ export class UnifiedStore {
   /**
    * Full-text search
    */
-  public async ftsSearch(query: string, limit = 50) {
+  public async ftsSearch(query: string, limit = 50, sourceType?: string) {
     if (this.status !== ServiceStatus.READY) {
       throw new Error(
         `UnifiedStore is not ready. Current status: ${this.status}. Please wait for initialization.`
@@ -372,7 +385,11 @@ export class UnifiedStore {
     if (!tableNames.includes(this.TABLE_CHUNK)) return []
 
     const table = await this.db!.openTable(this.TABLE_CHUNK)
-    const results = await table.query().fullTextSearch(query).limit(limit).toArray()
+    const q = table.query()
+    if (sourceType) {
+      q.where(`source_type = '${sourceType.replace(/'/g, "''")}'`)
+    }
+    const results = await q.fullTextSearch(query).limit(limit).toArray()
 
     return results.map((item) => ({
       ...item,
@@ -380,7 +397,12 @@ export class UnifiedStore {
     }))
   }
 
-  public async hybridSearch(queryVector: Float32Array, query: string, limit = 50) {
+  public async hybridSearch(
+    queryVector: Float32Array,
+    query: string,
+    limit = 50,
+    sourceType?: string
+  ) {
     if (this.status !== ServiceStatus.READY) {
       throw new Error(
         `UnifiedStore is not ready. Current status: ${this.status}. Please wait for initialization.`
@@ -392,8 +414,11 @@ export class UnifiedStore {
 
     const reranker = await this.getRRFReranker()
     const table = await this.db!.openTable(this.TABLE_CHUNK)
-    const results = await table
-      .query()
+    const q = table.query()
+    if (sourceType) {
+      q.where(`source_type = '${sourceType.replace(/'/g, "''")}'`)
+    }
+    const results = await q
       .fullTextSearch(query)
       .nearestTo(queryVector)
       .distanceType('cosine')

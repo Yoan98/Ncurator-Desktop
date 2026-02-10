@@ -3,7 +3,9 @@ import type {
   SearchResult,
   DocumentRecord,
   SearchResponse,
+  SearchSourceFilter,
   ChunkListItem,
+  WebIngestPayload,
   ChatSession,
   ChatMessage,
   LLMConfig
@@ -17,10 +19,17 @@ declare global {
       ingestFiles: (
         files: File[]
       ) => Promise<{ success: boolean; created?: number; error?: string }>
-      search: (query: string) => Promise<SearchResponse>
-      ftsSearch: (query: string) => Promise<SearchResult[]>
-      vectorSearch: (query: string) => Promise<SearchResult[]>
-      hybridSearch: (query: string) => Promise<SearchResult[]>
+      ingestWeb: (
+        payload: WebIngestPayload
+      ) => Promise<{ success: boolean; count?: number; error?: string }>
+      ingestWebs: (
+        payload: WebIngestPayload[]
+      ) => Promise<{ success: boolean; created?: number; error?: string }>
+      openExternal: (url: string) => Promise<{ success: boolean; error?: string }>
+      search: (query: string, sourceType?: SearchSourceFilter) => Promise<SearchResponse>
+      ftsSearch: (query: string, sourceType?: SearchSourceFilter) => Promise<SearchResult[]>
+      vectorSearch: (query: string, sourceType?: SearchSourceFilter) => Promise<SearchResult[]>
+      hybridSearch: (query: string, sourceType?: SearchSourceFilter) => Promise<SearchResult[]>
       listDocuments: (payload: {
         keyword?: string
         page: number
