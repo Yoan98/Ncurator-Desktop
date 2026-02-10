@@ -9,8 +9,7 @@ import {
   Modal,
   Segmented,
   Tag,
-  Spin,
-  Collapse
+  Spin
 } from 'antd'
 import {
   HiInboxArrowDown,
@@ -507,44 +506,6 @@ const ImportPage: React.FC = () => {
               className="rounded-xl"
             />
           </div>
-
-          <Collapse
-            items={[
-              {
-                key: 'advanced',
-                label: <span className="text-[#1F1F1F] font-medium">高级配置（可选）</span>,
-                children: (
-                  <div className="space-y-3">
-                    <div>
-                      <div className="text-sm text-[#666666] mb-1">
-                        include selectors（逗号或换行分隔）
-                      </div>
-                      <Input.TextArea
-                        value={webIncludeSelectorsText}
-                        onChange={(e) => setWebIncludeSelectorsText(e.target.value)}
-                        autoSize={{ minRows: 2, maxRows: 4 }}
-                        placeholder="article, main, .content"
-                        className="rounded-xl"
-                      />
-                    </div>
-                    <div>
-                      <div className="text-sm text-[#666666] mb-1">
-                        exclude selectors（逗号或换行分隔）
-                      </div>
-                      <Input.TextArea
-                        value={webExcludeSelectorsText}
-                        onChange={(e) => setWebExcludeSelectorsText(e.target.value)}
-                        autoSize={{ minRows: 2, maxRows: 4 }}
-                        placeholder=".sidebar, .ads, .toc"
-                        className="rounded-xl"
-                      />
-                    </div>
-                  </div>
-                )
-              }
-            ]}
-            className="bg-white"
-          />
 
           <div className="flex justify-end gap-2 pt-2">
             <Button onClick={() => setWebModalVisible(false)} disabled={webSubmitting}>

@@ -77,7 +77,7 @@ const MainLayout: React.FC = () => {
             onClick={() => navigate('/')}
           >
             <div className="w-9 h-9 rounded-xl flex items-center justify-center  text-lg shadow-md group-hover:scale-105 transition-transform duration-300">
-              <img src={brandIcon} alt="N" className="w-6 h-6 invert  invert-100" />
+              <img src={brandIcon} alt="N" className="w-[50px] invert-100" />
             </div>
             <span className="font-bold text-xl tracking-tight text-[#1F1F1F] group-hover:text-[#D97757] transition-colors">
               馆长
