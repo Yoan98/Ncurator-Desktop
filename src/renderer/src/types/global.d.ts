@@ -8,7 +8,11 @@ import type {
   WebIngestPayload,
   ChatSession,
   ChatMessage,
-  LLMConfig
+  LLMConfig,
+  WritingFolderRecord,
+  WritingDocumentRecord,
+  WritingWorkflowRunRecord,
+  WritingWorkflowEvent
 } from '../../../shared/types'
 
 declare global {
@@ -81,6 +85,37 @@ declare global {
       llmConfigSave: (config: LLMConfig) => Promise<{ success: boolean; error?: string }>
       llmConfigDelete: (id: string) => Promise<{ success: boolean; error?: string }>
       llmConfigSetActive: (id: string) => Promise<{ success: boolean; error?: string }>
+
+      // Writing Workspace
+      writingFolderList: () => Promise<WritingFolderRecord[]>
+      writingFolderSave: (
+        folder: WritingFolderRecord
+      ) => Promise<{ success: boolean; error?: string }>
+      writingFolderDelete: (id: string) => Promise<{ success: boolean; error?: string }>
+      writingDocumentList: (payload: { folderId?: string }) => Promise<WritingDocumentRecord[]>
+      writingDocumentGet: (
+        id: string
+      ) => Promise<{ success: boolean; doc?: WritingDocumentRecord | null; error?: string }>
+      writingDocumentSave: (doc: WritingDocumentRecord) => Promise<{ success: boolean; error?: string }>
+      writingDocumentDelete: (id: string) => Promise<{ success: boolean; error?: string }>
+
+      // Writing AI Workflow
+      writingMentionDocuments: (payload: { keyword?: string; limit?: number }) => Promise<
+        DocumentRecord[]
+      >
+      writingRetrieve: (payload: {
+        query: string
+        selectedDocumentIds?: string[]
+      }) => Promise<SearchResult[]>
+      writingWorkflowStart: (payload: {
+        input: string
+        selectedDocumentIds?: string[]
+        writingDocumentId?: string
+      }) => Promise<{ success: boolean; runId?: string; error?: string }>
+      writingWorkflowCancel: (runId: string) => Promise<{ success: boolean; error?: string }>
+      writingWorkflowRunGet: (runId: string) => Promise<WritingWorkflowRunRecord | null>
+      onWritingWorkflowEvent: (cb: (event: WritingWorkflowEvent) => void) => void
+      removeWritingWorkflowEventListeners: () => void
     }
   }
 }

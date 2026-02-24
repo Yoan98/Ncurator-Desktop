@@ -20,13 +20,17 @@
 
 ### 后端逻辑 (Main Process)
 
-- **Orchestration**: LangChain JS (Core/Community/TextSplitters)
+- **Orchestration**: LangChain JS (Core/Community/TextSplitters) + LangGraph JS
 - **Embedding**: @huggingface/transformers **v3** (本地运行)
 - **Vector DB**: LanceDB **v0.23** (兼作向量搜索与全文搜索)
 - **Search Engine**: LanceDB FTS (Native Full-Text Search)
 - **Storage**: LanceDB (基于 Apache Arrow)
 - **Parsers**: `pdf-parse` (PDF), `mammoth` (DOCX)
 - **Tokenization**: `@node-rs/jieba` (中文分词)
+
+### 写作工作流提示词维护
+
+- 写作工作流的提示词请集中维护在 `src/main/services/writing/prompts.ts`，避免分散在业务逻辑文件中
 
 ## 4. UI/UX 注意事项
 

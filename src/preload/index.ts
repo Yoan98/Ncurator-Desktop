@@ -5,7 +5,12 @@ import type {
   DocumentListResponse,
   ChunkListResponse,
   SearchSourceFilter,
-  WebIngestPayload
+  WebIngestPayload,
+  DocumentRecord,
+  WritingFolderRecord,
+  WritingDocumentRecord,
+  WritingWorkflowRunRecord,
+  WritingWorkflowEvent
 } from '../shared/types'
 
 // Custom APIs for renderer
@@ -90,7 +95,48 @@ const api = {
   llmConfigDelete: (id: string): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('llm-config-delete', id),
   llmConfigSetActive: (id: string): Promise<{ success: boolean; error?: string }> =>
-    ipcRenderer.invoke('llm-config-set-active', id)
+    ipcRenderer.invoke('llm-config-set-active', id),
+
+  // Writing Workspace
+  writingFolderList: (): Promise<WritingFolderRecord[]> => ipcRenderer.invoke('writing-folder-list'),
+  writingFolderSave: (folder: WritingFolderRecord): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('writing-folder-save', folder),
+  writingFolderDelete: (id: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('writing-folder-delete', id),
+  writingDocumentList: (payload: { folderId?: string }): Promise<WritingDocumentRecord[]> =>
+    ipcRenderer.invoke('writing-document-list', payload),
+  writingDocumentGet: (
+    id: string
+  ): Promise<{ success: boolean; doc?: WritingDocumentRecord | null; error?: string }> =>
+    ipcRenderer.invoke('writing-document-get', id),
+  writingDocumentSave: (doc: WritingDocumentRecord): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('writing-document-save', doc),
+  writingDocumentDelete: (id: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('writing-document-delete', id),
+
+  // Writing AI Workflow
+  writingMentionDocuments: (payload: {
+    keyword?: string
+    limit?: number
+  }): Promise<DocumentRecord[]> => ipcRenderer.invoke('writing-mention-documents', payload),
+  writingRetrieve: (payload: {
+    query: string
+    selectedDocumentIds?: string[]
+  }): Promise<SearchResult[]> => ipcRenderer.invoke('writing-retrieve', payload),
+  writingWorkflowStart: (payload: {
+    input: string
+    selectedDocumentIds?: string[]
+    writingDocumentId?: string
+  }): Promise<{ success: boolean; runId?: string; error?: string }> =>
+    ipcRenderer.invoke('writing-workflow-start', payload),
+  writingWorkflowCancel: (runId: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('writing-workflow-cancel', runId),
+  writingWorkflowRunGet: (runId: string): Promise<WritingWorkflowRunRecord | null> =>
+    ipcRenderer.invoke('writing-workflow-run-get', runId),
+  onWritingWorkflowEvent: (cb: (event: WritingWorkflowEvent) => void) =>
+    ipcRenderer.on('writing-workflow-event', (_event, data) => cb(data)),
+  removeWritingWorkflowEventListeners: () =>
+    ipcRenderer.removeAllListeners('writing-workflow-event')
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

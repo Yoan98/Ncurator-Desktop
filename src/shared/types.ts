@@ -97,3 +97,83 @@ export interface ChatSession {
   title: string
   created_at: number
 }
+
+export interface WritingFolderRecord {
+  id: string
+  name: string
+  parent_id?: string
+  created_at: number
+  updated_at: number
+}
+
+export interface WritingDocumentRecord {
+  id: string
+  title: string
+  folder_id?: string
+  content: string
+  markdown?: string
+  created_at: number
+  updated_at: number
+}
+
+export type WritingWorkflowRunStatus = 'running' | 'completed' | 'failed' | 'cancelled'
+
+export interface WritingWorkflowRunRecord {
+  id: string
+  writing_document_id?: string
+  status: WritingWorkflowRunStatus
+  input: string
+  outline?: string
+  retrieval_plan?: string
+  retrieved?: string
+  citations?: string
+  draft_markdown?: string
+  error?: string
+  created_at: number
+  updated_at: number
+}
+
+export type WritingWorkflowStageId =
+  | 'validate_input'
+  | 'generate_outline'
+  | 'generate_retrieval_plan'
+  | 'retrieve_context'
+  | 'select_citations'
+  | 'generate_markdown_draft'
+
+export type WritingWorkflowEvent =
+  | {
+      type: 'run_started'
+      runId: string
+      createdAt: number
+    }
+  | {
+      type: 'stage_started'
+      runId: string
+      stageId: WritingWorkflowStageId
+    }
+  | {
+      type: 'stage_output'
+      runId: string
+      stageId: WritingWorkflowStageId
+      payload: any
+    }
+  | {
+      type: 'stage_completed'
+      runId: string
+      stageId: WritingWorkflowStageId
+    }
+  | {
+      type: 'run_completed'
+      runId: string
+    }
+  | {
+      type: 'run_failed'
+      runId: string
+      error: string
+      stageId?: WritingWorkflowStageId
+    }
+  | {
+      type: 'run_cancelled'
+      runId: string
+    }

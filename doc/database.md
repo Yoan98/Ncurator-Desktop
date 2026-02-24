@@ -81,3 +81,48 @@
 | model_name | Utf8    | 模型名称                                   |
 | api_key    | Utf8    | API Key                                    |
 | is_active  | Boolean | 是否为当前激活配置（通常只有一个为 True）  |
+
+### 表: writing_folder（写作空间文件夹表）
+
+存储写作空间中的文件夹树结构。
+
+| 字段名     | 类型             | 描述                 |
+| :--------- | :--------------- | :------------------- |
+| id         | Utf8             | 文件夹唯一标识       |
+| name       | Utf8             | 文件夹名称           |
+| parent_id  | Utf8（Nullable） | 父文件夹 ID（根为空）|
+| created_at | Int64            | 创建时间戳           |
+| updated_at | Int64            | 更新时间戳           |
+
+### 表: writing_document（写作空间文档表）
+
+存储写作空间中的文档内容与编辑态快照。
+
+| 字段名     | 类型             | 描述                             |
+| :--------- | :--------------- | :------------------------------- |
+| id         | Utf8             | 文档唯一标识                     |
+| title      | Utf8             | 文档标题                         |
+| folder_id  | Utf8（Nullable） | 所属文件夹 ID（根目录为空）      |
+| content    | Utf8             | 编辑器内容（BlockNote JSON 字符串） |
+| markdown   | Utf8（Nullable） | 可选的 Markdown 快照             |
+| created_at | Int64            | 创建时间戳                       |
+| updated_at | Int64            | 更新时间戳                       |
+
+### 表: writing_workflow_run（写作工作流运行记录表）
+
+存储一次 AI 写作运行的输入、阶段产物与状态。部分字段使用 JSON 字符串持久化结构化数据。
+
+| 字段名              | 类型             | 描述                                     |
+| :------------------ | :--------------- | :--------------------------------------- |
+| id                  | Utf8             | 运行唯一标识（runId）                    |
+| writing_document_id | Utf8（Nullable） | 关联的写作空间文档 ID（可为空）          |
+| status              | Utf8             | 运行状态（running/completed/failed/cancelled） |
+| input               | Utf8             | 用户输入的写作需求                       |
+| outline             | Utf8（Nullable） | 大纲（JSON 字符串）                      |
+| retrieval_plan      | Utf8（Nullable） | 检索计划（JSON 字符串）                  |
+| retrieved           | Utf8（Nullable） | 检索到的片段列表（JSON 字符串）          |
+| citations           | Utf8（Nullable） | 选择的引用列表（JSON 字符串）            |
+| draft_markdown      | Utf8（Nullable） | 生成的草稿 Markdown                      |
+| error               | Utf8（Nullable） | 失败或取消原因                           |
+| created_at          | Int64            | 创建时间戳                               |
+| updated_at          | Int64            | 更新时间戳                               |

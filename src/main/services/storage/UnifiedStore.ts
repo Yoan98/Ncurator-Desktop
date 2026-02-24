@@ -10,7 +10,11 @@ import type {
   DocumentRecord,
   ChatSession,
   ChatMessage,
-  LLMConfig
+  LLMConfig,
+  WritingFolderRecord,
+  WritingDocumentRecord,
+  WritingWorkflowRunRecord,
+  WritingWorkflowRunStatus
 } from '../../types/store'
 
 enum ServiceStatus {
@@ -34,6 +38,9 @@ export class UnifiedStore {
   private readonly TABLE_CHAT_SESSION = 'chat_session'
   private readonly TABLE_CHAT_MESSAGE = 'chat_message'
   private readonly TABLE_LLM_CONFIG = 'llm_config'
+  private readonly TABLE_WRITING_FOLDER = 'writing_folder'
+  private readonly TABLE_WRITING_DOCUMENT = 'writing_document'
+  private readonly TABLE_WRITING_WORKFLOW_RUN = 'writing_workflow_run'
 
   private reranker: lancedb.rerankers.RRFReranker | null = null
 
@@ -95,6 +102,23 @@ export class UnifiedStore {
 
     this.reranker = await lancedb.rerankers.RRFReranker.create()
     return this.reranker
+  }
+
+  private escapeSqlString(value: string): string {
+    return value.replace(/'/g, "''")
+  }
+
+  private buildInClause(column: string, values?: string[]): string | undefined {
+    const list = (values || []).map((v) => v.trim()).filter(Boolean)
+    if (list.length === 0) return undefined
+    return `${column} IN (${list.map((v) => `'${this.escapeSqlString(v)}'`).join(',')})`
+  }
+
+  private combineWhere(parts: Array<string | undefined>): string | undefined {
+    const clauses = parts.map((p) => (p || '').trim()).filter(Boolean)
+    if (clauses.length === 0) return undefined
+    if (clauses.length === 1) return clauses[0]
+    return clauses.map((c) => `(${c})`).join(' AND ')
   }
 
   /**
@@ -177,6 +201,45 @@ export class UnifiedStore {
           new arrow.Field('model_name', new arrow.Utf8()),
           new arrow.Field('api_key', new arrow.Utf8()),
           new arrow.Field('is_active', new arrow.Bool())
+        ])
+      },
+      {
+        name: this.TABLE_WRITING_FOLDER,
+        schema: new arrow.Schema([
+          new arrow.Field('id', new arrow.Utf8()),
+          new arrow.Field('name', new arrow.Utf8()),
+          new arrow.Field('parent_id', new arrow.Utf8(), true),
+          new arrow.Field('created_at', new arrow.Int64()),
+          new arrow.Field('updated_at', new arrow.Int64())
+        ])
+      },
+      {
+        name: this.TABLE_WRITING_DOCUMENT,
+        schema: new arrow.Schema([
+          new arrow.Field('id', new arrow.Utf8()),
+          new arrow.Field('title', new arrow.Utf8()),
+          new arrow.Field('folder_id', new arrow.Utf8(), true),
+          new arrow.Field('content', new arrow.Utf8()),
+          new arrow.Field('markdown', new arrow.Utf8(), true),
+          new arrow.Field('created_at', new arrow.Int64()),
+          new arrow.Field('updated_at', new arrow.Int64())
+        ])
+      },
+      {
+        name: this.TABLE_WRITING_WORKFLOW_RUN,
+        schema: new arrow.Schema([
+          new arrow.Field('id', new arrow.Utf8()),
+          new arrow.Field('writing_document_id', new arrow.Utf8(), true),
+          new arrow.Field('status', new arrow.Utf8()),
+          new arrow.Field('input', new arrow.Utf8()),
+          new arrow.Field('outline', new arrow.Utf8(), true),
+          new arrow.Field('retrieval_plan', new arrow.Utf8(), true),
+          new arrow.Field('retrieved', new arrow.Utf8(), true),
+          new arrow.Field('citations', new arrow.Utf8(), true),
+          new arrow.Field('draft_markdown', new arrow.Utf8(), true),
+          new arrow.Field('error', new arrow.Utf8(), true),
+          new arrow.Field('created_at', new arrow.Int64()),
+          new arrow.Field('updated_at', new arrow.Int64())
         ])
       }
     ]
@@ -288,7 +351,12 @@ export class UnifiedStore {
   /**
    * Vector similarity search
    */
-  public async vectorSearch(queryVector: Float32Array, limit = 50, sourceType?: string) {
+  public async vectorSearch(
+    queryVector: Float32Array,
+    limit = 50,
+    sourceType?: string,
+    documentIds?: string[]
+  ) {
     if (this.status !== ServiceStatus.READY) {
       throw new Error(
         `UnifiedStore is not ready. Current status: ${this.status}. Please wait for initialization.`
@@ -300,9 +368,11 @@ export class UnifiedStore {
 
     const table = await this.db!.openTable(this.TABLE_CHUNK)
     const query = table.query()
-    if (sourceType) {
-      query.where(`source_type = '${sourceType.replace(/'/g, "''")}'`)
-    }
+    const where = this.combineWhere([
+      sourceType ? `source_type = '${this.escapeSqlString(sourceType)}'` : undefined,
+      this.buildInClause('document_id', documentIds)
+    ])
+    if (where) query.where(where)
     const results = await query.nearestTo(queryVector).distanceType('cosine').limit(limit).toArray()
 
     return results.map((item) => ({
@@ -311,7 +381,13 @@ export class UnifiedStore {
     }))
   }
 
-  public async search(queryVector: Float32Array, query: string, limit = 50, sourceType?: string) {
+  public async search(
+    queryVector: Float32Array,
+    query: string,
+    limit = 50,
+    sourceType?: string,
+    documentIds?: string[]
+  ) {
     if (this.status !== ServiceStatus.READY) {
       throw new Error(
         `UnifiedStore is not ready. Current status: ${this.status}. Please wait for initialization.`
@@ -319,14 +395,14 @@ export class UnifiedStore {
     }
 
     // 1. Get hybrid search results
-    const results = await this.hybridSearch(queryVector, query, limit, sourceType)
+    const results = await this.hybridSearch(queryVector, query, limit, sourceType, documentIds)
     if (results.length === 0) return []
 
     // 2. Extract unique document IDs
-    const documentIds = Array.from(
+    const resultDocumentIds = Array.from(
       new Set(results.map((r) => r.document_id).filter(Boolean))
     ) as string[]
-    if (documentIds.length === 0) return results
+    if (resultDocumentIds.length === 0) return results
 
     // 3. Query documents details
     // We check if the document table exists first to be safe, though it should exist if initialized
@@ -336,7 +412,8 @@ export class UnifiedStore {
     const docTable = await this.db!.openTable(this.TABLE_DOCUMENT)
 
     // Construct SQL-like IN clause
-    const whereClause = `id IN (${documentIds.map((id) => `'${id}'`).join(',')})`
+    const whereClause = this.buildInClause('id', resultDocumentIds)
+    if (!whereClause) return results
     const documents = await docTable.query().where(whereClause).toArray()
 
     // 4. Map documents by ID
@@ -374,7 +451,7 @@ export class UnifiedStore {
   /**
    * Full-text search
    */
-  public async ftsSearch(query: string, limit = 50, sourceType?: string) {
+  public async ftsSearch(query: string, limit = 50, sourceType?: string, documentIds?: string[]) {
     if (this.status !== ServiceStatus.READY) {
       throw new Error(
         `UnifiedStore is not ready. Current status: ${this.status}. Please wait for initialization.`
@@ -386,9 +463,11 @@ export class UnifiedStore {
 
     const table = await this.db!.openTable(this.TABLE_CHUNK)
     const q = table.query()
-    if (sourceType) {
-      q.where(`source_type = '${sourceType.replace(/'/g, "''")}'`)
-    }
+    const where = this.combineWhere([
+      sourceType ? `source_type = '${this.escapeSqlString(sourceType)}'` : undefined,
+      this.buildInClause('document_id', documentIds)
+    ])
+    if (where) q.where(where)
     const results = await q.fullTextSearch(query).limit(limit).toArray()
 
     return results.map((item) => ({
@@ -401,7 +480,8 @@ export class UnifiedStore {
     queryVector: Float32Array,
     query: string,
     limit = 50,
-    sourceType?: string
+    sourceType?: string,
+    documentIds?: string[]
   ) {
     if (this.status !== ServiceStatus.READY) {
       throw new Error(
@@ -415,9 +495,11 @@ export class UnifiedStore {
     const reranker = await this.getRRFReranker()
     const table = await this.db!.openTable(this.TABLE_CHUNK)
     const q = table.query()
-    if (sourceType) {
-      q.where(`source_type = '${sourceType.replace(/'/g, "''")}'`)
-    }
+    const where = this.combineWhere([
+      sourceType ? `source_type = '${this.escapeSqlString(sourceType)}'` : undefined,
+      this.buildInClause('document_id', documentIds)
+    ])
+    if (where) q.where(where)
     const results = await q
       .fullTextSearch(query)
       .nearestTo(queryVector)
@@ -660,7 +742,7 @@ export class UnifiedStore {
   public async saveLLMConfig(config: LLMConfig): Promise<void> {
     if (this.status !== ServiceStatus.READY) throw new Error('Store not ready')
     const table = await this.db!.openTable(this.TABLE_LLM_CONFIG)
-    await table.delete(`id = '${config.id}'`)
+    await table.delete(`id = '${this.escapeSqlString(config.id)}'`)
     await table.add([{ ...config }])
   }
 
@@ -683,7 +765,7 @@ export class UnifiedStore {
   public async deleteLLMConfig(id: string): Promise<void> {
     if (this.status !== ServiceStatus.READY) return
     const table = await this.db!.openTable(this.TABLE_LLM_CONFIG)
-    await table.delete(`id = '${id}'`)
+    await table.delete(`id = '${this.escapeSqlString(id)}'`)
   }
 
   public async setLLMConfigActive(id: string): Promise<void> {
@@ -692,7 +774,181 @@ export class UnifiedStore {
     // Deactivate all
     await table.update({ where: 'is_active = true', values: { is_active: false } })
     // Activate target
-    await table.update({ where: `id = '${id}'`, values: { is_active: true } })
+    await table.update({ where: `id = '${this.escapeSqlString(id)}'`, values: { is_active: true } })
+  }
+
+  public async getActiveLLMConfig(): Promise<LLMConfig | null> {
+    const configs = await this.getLLMConfigs()
+    return configs.find((c) => c.is_active) || null
+  }
+
+  public async listWritingFolders(): Promise<WritingFolderRecord[]> {
+    if (this.status !== ServiceStatus.READY) return []
+    const table = await this.db!.openTable(this.TABLE_WRITING_FOLDER)
+    const rows = await table.query().toArray()
+    return rows
+      .map((r) => ({
+        id: r.id as string,
+        name: r.name as string,
+        parent_id: (r.parent_id as string | undefined) || undefined,
+        created_at: Number(r.created_at),
+        updated_at: Number(r.updated_at)
+      }))
+      .sort((a, b) => a.created_at - b.created_at)
+  }
+
+  public async saveWritingFolder(folder: WritingFolderRecord): Promise<void> {
+    if (this.status !== ServiceStatus.READY) throw new Error('Store not ready')
+    const now = Date.now()
+    const table = await this.db!.openTable(this.TABLE_WRITING_FOLDER)
+    const existing = await table
+      .query()
+      .where(`id = '${this.escapeSqlString(folder.id)}'`)
+      .toArray()
+    const createdAt =
+      existing.length > 0 ? Number(existing[0].created_at) : folder.created_at || now
+    await table.delete(`id = '${this.escapeSqlString(folder.id)}'`)
+    await table.add([
+      {
+        id: folder.id,
+        name: folder.name,
+        parent_id: folder.parent_id || null,
+        created_at: createdAt,
+        updated_at: folder.updated_at || now
+      }
+    ])
+  }
+
+  public async deleteWritingFolder(id: string): Promise<void> {
+    if (this.status !== ServiceStatus.READY) return
+    const folderTable = await this.db!.openTable(this.TABLE_WRITING_FOLDER)
+    await folderTable.delete(`id = '${this.escapeSqlString(id)}'`)
+  }
+
+  public async listWritingDocuments(folderId?: string): Promise<WritingDocumentRecord[]> {
+    if (this.status !== ServiceStatus.READY) return []
+    const table = await this.db!.openTable(this.TABLE_WRITING_DOCUMENT)
+    const q = table.query()
+    if (folderId) {
+      q.where(`folder_id = '${this.escapeSqlString(folderId)}'`)
+    } else {
+      q.where('folder_id IS NULL')
+    }
+    const rows = await q.toArray()
+    return rows
+      .map((r) => ({
+        id: r.id as string,
+        title: r.title as string,
+        folder_id: (r.folder_id as string | undefined) || undefined,
+        content: r.content as string,
+        markdown: (r.markdown as string | undefined) || undefined,
+        created_at: Number(r.created_at),
+        updated_at: Number(r.updated_at)
+      }))
+      .sort((a, b) => b.updated_at - a.updated_at)
+  }
+
+  public async getWritingDocument(id: string): Promise<WritingDocumentRecord | null> {
+    if (this.status !== ServiceStatus.READY) return null
+    const table = await this.db!.openTable(this.TABLE_WRITING_DOCUMENT)
+    const rows = await table
+      .query()
+      .where(`id = '${this.escapeSqlString(id)}'`)
+      .toArray()
+    if (rows.length === 0) return null
+    const r = rows[0]
+    return {
+      id: r.id as string,
+      title: r.title as string,
+      folder_id: (r.folder_id as string | undefined) || undefined,
+      content: r.content as string,
+      markdown: (r.markdown as string | undefined) || undefined,
+      created_at: Number(r.created_at),
+      updated_at: Number(r.updated_at)
+    }
+  }
+
+  public async saveWritingDocument(document: WritingDocumentRecord): Promise<void> {
+    if (this.status !== ServiceStatus.READY) throw new Error('Store not ready')
+    const now = Date.now()
+    const table = await this.db!.openTable(this.TABLE_WRITING_DOCUMENT)
+    const existing = await table
+      .query()
+      .where(`id = '${this.escapeSqlString(document.id)}'`)
+      .toArray()
+    const createdAt =
+      existing.length > 0 ? Number(existing[0].created_at) : document.created_at || now
+    await table.delete(`id = '${this.escapeSqlString(document.id)}'`)
+    await table.add([
+      {
+        id: document.id,
+        title: document.title,
+        folder_id: document.folder_id || null,
+        content: document.content,
+        markdown: document.markdown || null,
+        created_at: createdAt,
+        updated_at: document.updated_at || now
+      }
+    ])
+  }
+
+  public async deleteWritingDocument(id: string): Promise<void> {
+    if (this.status !== ServiceStatus.READY) return
+    const table = await this.db!.openTable(this.TABLE_WRITING_DOCUMENT)
+    await table.delete(`id = '${this.escapeSqlString(id)}'`)
+  }
+
+  public async saveWritingWorkflowRun(run: WritingWorkflowRunRecord): Promise<void> {
+    if (this.status !== ServiceStatus.READY) throw new Error('Store not ready')
+    const now = Date.now()
+    const table = await this.db!.openTable(this.TABLE_WRITING_WORKFLOW_RUN)
+    const existing = await table
+      .query()
+      .where(`id = '${this.escapeSqlString(run.id)}'`)
+      .toArray()
+    const createdAt = existing.length > 0 ? Number(existing[0].created_at) : run.created_at || now
+    await table.delete(`id = '${this.escapeSqlString(run.id)}'`)
+    await table.add([
+      {
+        id: run.id,
+        writing_document_id: run.writing_document_id || null,
+        status: run.status,
+        input: run.input,
+        outline: run.outline || null,
+        retrieval_plan: run.retrieval_plan || null,
+        retrieved: run.retrieved || null,
+        citations: run.citations || null,
+        draft_markdown: run.draft_markdown || null,
+        error: run.error || null,
+        created_at: createdAt,
+        updated_at: run.updated_at || now
+      }
+    ])
+  }
+
+  public async getWritingWorkflowRun(id: string): Promise<WritingWorkflowRunRecord | null> {
+    if (this.status !== ServiceStatus.READY) return null
+    const table = await this.db!.openTable(this.TABLE_WRITING_WORKFLOW_RUN)
+    const rows = await table
+      .query()
+      .where(`id = '${this.escapeSqlString(id)}'`)
+      .toArray()
+    if (rows.length === 0) return null
+    const r = rows[0]
+    return {
+      id: r.id as string,
+      writing_document_id: (r.writing_document_id as string | undefined) || undefined,
+      status: r.status as WritingWorkflowRunStatus,
+      input: r.input as string,
+      outline: (r.outline as string | undefined) || undefined,
+      retrieval_plan: (r.retrieval_plan as string | undefined) || undefined,
+      retrieved: (r.retrieved as string | undefined) || undefined,
+      citations: (r.citations as string | undefined) || undefined,
+      draft_markdown: (r.draft_markdown as string | undefined) || undefined,
+      error: (r.error as string | undefined) || undefined,
+      created_at: Number(r.created_at),
+      updated_at: Number(r.updated_at)
+    }
   }
 
   /**

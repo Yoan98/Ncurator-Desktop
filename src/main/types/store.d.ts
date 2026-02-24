@@ -8,7 +8,13 @@ import {
   ChunkListResponse,
   ChatSession,
   ChatMessage,
-  LLMConfig
+  LLMConfig,
+  WritingFolderRecord,
+  WritingDocumentRecord,
+  WritingWorkflowRunRecord,
+  WritingWorkflowRunStatus,
+  WritingWorkflowEvent,
+  WritingWorkflowStageId
 } from '../../shared/types'
 
 export type {
@@ -20,7 +26,13 @@ export type {
   ChunkListResponse,
   ChatSession,
   ChatMessage,
-  LLMConfig
+  LLMConfig,
+  WritingFolderRecord,
+  WritingDocumentRecord,
+  WritingWorkflowRunRecord,
+  WritingWorkflowRunStatus,
+  WritingWorkflowEvent,
+  WritingWorkflowStageId
 }
 
 /**
