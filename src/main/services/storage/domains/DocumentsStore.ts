@@ -3,7 +3,8 @@ import type {
   ChunkInput,
   ChunkListResponse,
   DocumentListResponse,
-  DocumentRecord
+  DocumentRecord,
+  SearchResult
 } from '../../../types/store'
 import { LanceDbCore, LANCE_TABLES } from '../core/LanceDbCore'
 
@@ -25,7 +26,10 @@ export class DocumentsStore {
 
   public async updateDocumentImportStatus(id: string, status: number): Promise<void> {
     const table = await this.core.openTable(LANCE_TABLES.DOCUMENT)
-    await table.update({ where: `id = '${this.core.escapeSqlString(id)}'`, values: { import_status: status } })
+    await table.update({
+      where: `id = '${this.core.escapeSqlString(id)}'`,
+      values: { import_status: status }
+    })
   }
 
   public async updateDocumentById(
@@ -58,7 +62,7 @@ export class DocumentsStore {
     limit = 50,
     sourceType?: string,
     documentIds?: string[]
-  ): Promise<any[]> {
+  ): Promise<SearchResult[]> {
     const table = await this.core.openTable(LANCE_TABLES.CHUNK)
     const query = table.query()
     const where = this.core.combineWhere([
@@ -67,7 +71,10 @@ export class DocumentsStore {
     ])
     if (where) query.where(where)
     const results = await query.nearestTo(queryVector).distanceType('cosine').limit(limit).toArray()
-    return results.map((item: any) => ({ ...item, created_at: Number(item.created_at) }))
+    return results.map((item: any) => ({
+      ...item,
+      created_at: Number(item.created_at)
+    })) as SearchResult[]
   }
 
   public async ftsSearch(
@@ -75,7 +82,7 @@ export class DocumentsStore {
     limit = 50,
     sourceType?: string,
     documentIds?: string[]
-  ): Promise<any[]> {
+  ): Promise<SearchResult[]> {
     const table = await this.core.openTable(LANCE_TABLES.CHUNK)
     const q = table.query()
     const where = this.core.combineWhere([
@@ -84,7 +91,10 @@ export class DocumentsStore {
     ])
     if (where) q.where(where)
     const results = await q.fullTextSearch(queryText).limit(limit).toArray()
-    return results.map((item: any) => ({ ...item, created_at: Number(item.created_at) }))
+    return results.map((item: any) => ({
+      ...item,
+      created_at: Number(item.created_at)
+    })) as SearchResult[]
   }
 
   public async hybridSearch(
@@ -93,7 +103,7 @@ export class DocumentsStore {
     limit = 50,
     sourceType?: string,
     documentIds?: string[]
-  ): Promise<any[]> {
+  ): Promise<SearchResult[]> {
     const reranker = await this.getRRFReranker()
     const table = await this.core.openTable(LANCE_TABLES.CHUNK)
     const q = table.query()
@@ -109,7 +119,10 @@ export class DocumentsStore {
       .rerank(reranker)
       .limit(limit)
       .toArray()
-    return results.map((item: any) => ({ ...item, created_at: Number(item.created_at) }))
+    return results.map((item: any) => ({
+      ...item,
+      created_at: Number(item.created_at)
+    })) as SearchResult[]
   }
 
   public async search(
@@ -118,11 +131,13 @@ export class DocumentsStore {
     limit = 50,
     sourceType?: string,
     documentIds?: string[]
-  ): Promise<any[]> {
+  ): Promise<SearchResult[]> {
     const results = await this.hybridSearch(queryVector, queryText, limit, sourceType, documentIds)
     if (results.length === 0) return []
 
-    const resultDocumentIds = Array.from(new Set(results.map((r: any) => r.document_id).filter(Boolean))) as string[]
+    const resultDocumentIds = Array.from(
+      new Set(results.map((r) => r.document_id).filter(Boolean))
+    ) as string[]
     if (resultDocumentIds.length === 0) return results
 
     const docTable = await this.core.openTable(LANCE_TABLES.DOCUMENT)
@@ -142,7 +157,7 @@ export class DocumentsStore {
     return results.map((item: any) => ({
       ...item,
       document: item.document_id ? docMap.get(item.document_id) : undefined
-    }))
+    })) as SearchResult[]
   }
 
   public async listDocuments(params: {
@@ -182,7 +197,11 @@ export class DocumentsStore {
     return { items, total }
   }
 
-  public async listChunks(params: { keyword?: string; page: number; pageSize: number }): Promise<ChunkListResponse> {
+  public async listChunks(params: {
+    keyword?: string
+    page: number
+    pageSize: number
+  }): Promise<ChunkListResponse> {
     const { keyword, page, pageSize } = params
     const table = await this.core.openTable(LANCE_TABLES.CHUNK)
 
@@ -202,7 +221,9 @@ export class DocumentsStore {
       source_type: item.source_type as any,
       metadata: item.metadata as any,
       created_at: Number(item.created_at),
-      vector: Array.isArray(item.vector) ? (item.vector as number[]) : Array.from((item.vector || []) as Float32Array)
+      vector: Array.isArray(item.vector)
+        ? (item.vector as number[])
+        : Array.from((item.vector || []) as Float32Array)
     }))
 
     return { items, total }
@@ -236,4 +257,3 @@ export class DocumentsStore {
     return { success: true, msg: 'Documents deleted successfully' }
   }
 }
-

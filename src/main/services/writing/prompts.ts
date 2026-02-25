@@ -108,7 +108,7 @@ ${stringifyJson(outline)}
     return { system, user, temperature: 0.2 }
   },
 
-  generateMarkdownDraft(input: string, outline: unknown, citations: Citation[]) {
+  generateMarkdownDraft(input: string, outline: Outline, citations: Citation[]) {
     const system =
       '你是一位专业的科技/学术内容创作者。你的任务是基于提供的“参考资料”和“文章大纲”，撰写一篇逻辑严密、内容详实、引用规范的 Markdown 文章。你必须严格依据事实写作，杜绝幻觉。'
     const sourceLines = (citations || [])
