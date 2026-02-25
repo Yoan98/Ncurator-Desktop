@@ -8,10 +8,12 @@ import type {
   WritingWorkflowRunStatus,
   WritingWorkflowStageId
 } from '../../types/store'
-import type { UnifiedStore } from '../storage/UnifiedStore'
 import type { EmbeddingService } from '../vector/EmbeddingService'
 import { normalizeForIpc } from '../../utils/serialization'
 import { writingWorkflowPrompts, type Citation, type Outline, type RetrievalPlan } from './prompts'
+import type { DocumentsStore } from '../storage/domains/DocumentsStore'
+import type { LlmConfigStore } from '../storage/domains/LlmConfigStore'
+import type { WritingStore } from '../storage/domains/WritingStore'
 
 type SendEvent = (event: WritingWorkflowEvent) => void
 
@@ -60,13 +62,16 @@ export class WritingWorkflowService {
   public async run(
     payload: WritingWorkflowStartPayload,
     deps: {
-      unifiedStore: UnifiedStore
+      documentsStore: DocumentsStore
+      llmStore: LlmConfigStore
+      writingStore: WritingStore
       embeddingService: EmbeddingService
       sendEvent: SendEvent
       isCancelled: () => boolean
     }
   ): Promise<void> {
-    const { unifiedStore, embeddingService, sendEvent, isCancelled } = deps
+    const { documentsStore, llmStore, writingStore, embeddingService, sendEvent, isCancelled } =
+      deps
 
     const State = new StateSchema({
       runId: z.string(),
@@ -103,7 +108,7 @@ export class WritingWorkflowService {
     }
 
     const writeRun = async (partial: Partial<WritingWorkflowRunRecord>) => {
-      const existing = await unifiedStore.getWritingWorkflowRun(payload.runId)
+      const existing = await writingStore.getWorkflowRun(payload.runId)
       const now = Date.now()
       const merged: WritingWorkflowRunRecord = {
         id: payload.runId,
@@ -120,11 +125,11 @@ export class WritingWorkflowService {
         error: existing?.error,
         ...partial
       }
-      await unifiedStore.saveWritingWorkflowRun(merged)
+      await writingStore.saveWorkflowRun(merged)
     }
 
     const getActiveConfig = async () => {
-      const config = await unifiedStore.getActiveLLMConfig()
+      const config = await llmStore.getActive()
       if (!config) throw new Error('未配置可用的大模型，请先在「大模型配置」中设置并启用一个模型')
       return config
     }
@@ -241,7 +246,7 @@ export class WritingWorkflowService {
       for (const q of queries.slice(0, 12)) {
         checkCancelled()
         const { data: vec } = await embeddingService.embed(q)
-        const rows = await unifiedStore.search(vec, q, 8, undefined, selectedDocumentIds)
+        const rows = await documentsStore.search(vec, q, 8, undefined, selectedDocumentIds)
         all.push(...rows)
       }
 

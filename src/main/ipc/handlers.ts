@@ -1,7 +1,7 @@
 import { ipcMain, shell } from 'electron'
 import { IngestionService } from '../services/ingestion/loader'
 import { EmbeddingService } from '../services/vector/EmbeddingService'
-import { UnifiedStore } from '../services/storage/UnifiedStore'
+import { StorageService } from '../services/storage/StorageService'
 import { ModelService } from '../services/model/ModelService'
 import { WritingWorkflowService } from '../services/writing/WritingWorkflowService'
 import { v4 as uuidv4 } from 'uuid'
@@ -30,11 +30,15 @@ const jieba = Jieba.withDict(dict)
 export function registerHandlers(services: {
   ingestionService: IngestionService
   embeddingService: EmbeddingService
-  unifiedStore: UnifiedStore
+  storageService: StorageService
   modelService: ModelService
 }) {
-  const { ingestionService, embeddingService, unifiedStore, modelService } = services
+  const { ingestionService, embeddingService, storageService, modelService } = services
   const activeWritingRuns = new Map<string, { cancelled: boolean; senderId: number }>()
+  const documentsStore = storageService.documents
+  const chatStore = storageService.chat
+  const llmStore = storageService.llm
+  const writingStore = storageService.writing
 
   ipcMain.handle('ingest-file', async (event, filePath: string, filename: string) => {
     let documentId: string = ''
@@ -57,7 +61,7 @@ export function registerHandlers(services: {
       fs.copyFileSync(filePath, savedFilePath)
 
       console.log('📝 [INGEST-FILE] ADDING DOCUMENT RECORD')
-      await unifiedStore.addDocument({
+      await documentsStore.addDocument({
         id: documentId,
         name: filename,
         source_type: 'file',
@@ -102,19 +106,19 @@ export function registerHandlers(services: {
         }
       }))
 
-      await unifiedStore.addChunks({
+      await documentsStore.addChunks({
         vectors: allChunkVectors,
         chunks
       })
       console.log('✅ [INGEST-FILE] STORED DOCS IN UNIFIED LANCEDB')
-      await unifiedStore.updateDocumentImportStatus(documentId, 2)
+      await documentsStore.updateDocumentImportStatus(documentId, 2)
       event.sender.send('document-list-refresh')
 
       return { success: true, count: chunks.length }
     } catch (error: any) {
       console.error('❌ [INGEST-FILE] ERROR:', error)
       if (documentId) {
-        await unifiedStore.updateDocumentImportStatus(documentId, 3).catch(() => {})
+        await documentsStore.updateDocumentImportStatus(documentId, 3).catch(() => {})
         event.sender.send('document-list-refresh')
       }
       return { success: false, error: error.message }
@@ -137,7 +141,7 @@ export function registerHandlers(services: {
         const savedFileName = `${f.name}`
         const savedFilePath = path.join(docsDir, savedFileName)
         fs.copyFileSync(f.path, savedFilePath)
-        await unifiedStore.addDocument({
+        await documentsStore.addDocument({
           id: documentId,
           name: f.name,
           source_type: 'file',
@@ -171,17 +175,17 @@ export function registerHandlers(services: {
             }))
 
             console.log(`STORE DOCS FOR ${c.name}`)
-            await unifiedStore.addChunks({
+            await documentsStore.addChunks({
               vectors: allChunkVectors,
               chunks
             })
             console.log(`STORED DOCS IN UNIFIED LANCEDB FOR ${c.name}`)
-            await unifiedStore.updateDocumentImportStatus(c.id, 2)
+            await documentsStore.updateDocumentImportStatus(c.id, 2)
             event.sender.send('document-list-refresh')
             console.log(`✅ [INGEST-FILES] DONE FOR ${c.name}`)
           } catch (error: any) {
             console.error('❌ [INGEST-FILES] ERROR:', error)
-            await unifiedStore.updateDocumentImportStatus(c.id, 3)
+            await documentsStore.updateDocumentImportStatus(c.id, 3)
             event.sender.send('document-list-refresh')
           }
         }
@@ -207,7 +211,7 @@ export function registerHandlers(services: {
         if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('仅支持 http/https URL')
 
         documentId = uuidv4()
-        await unifiedStore.addDocument({
+        await documentsStore.addDocument({
           id: documentId,
           name: url,
           source_type: 'web',
@@ -224,7 +228,7 @@ export function registerHandlers(services: {
         })
         const documentName = splitDocs.title?.trim() || url
         if (documentName !== url) {
-          await unifiedStore.updateDocumentById(documentId, { name: documentName })
+          await documentsStore.updateDocumentById(documentId, { name: documentName })
         }
 
         const allSplitDocs = [...splitDocs.bigSplitDocs, ...splitDocs.miniSplitDocs]
@@ -245,17 +249,17 @@ export function registerHandlers(services: {
           }
         }))
 
-        await unifiedStore.addChunks({
+        await documentsStore.addChunks({
           vectors: allChunkVectors,
           chunks
         })
-        await unifiedStore.updateDocumentImportStatus(documentId, 2)
+        await documentsStore.updateDocumentImportStatus(documentId, 2)
         event.sender.send('document-list-refresh')
         return { success: true, count: chunks.length }
       } catch (error: any) {
         console.error('❌ [INGEST-WEB] ERROR:', error)
         if (documentId) {
-          await unifiedStore.updateDocumentImportStatus(documentId, 3).catch(() => {})
+          await documentsStore.updateDocumentImportStatus(documentId, 3).catch(() => {})
           event.sender.send('document-list-refresh')
         }
         return { success: false, error: error.message }
@@ -285,7 +289,7 @@ export function registerHandlers(services: {
           if (!['http:', 'https:'].includes(parsed.protocol)) continue
 
           const documentId = uuidv4()
-          await unifiedStore.addDocument({
+          await documentsStore.addDocument({
             id: documentId,
             name: url,
             source_type: 'web',
@@ -318,7 +322,7 @@ export function registerHandlers(services: {
                 })
                 const documentName = splitDocs.title?.trim() || current.url
                 if (documentName !== current.url) {
-                  await unifiedStore.updateDocumentById(current.id, { name: documentName })
+                  await documentsStore.updateDocumentById(current.id, { name: documentName })
                 }
 
                 const allSplitDocs = [...splitDocs.bigSplitDocs, ...splitDocs.miniSplitDocs]
@@ -339,15 +343,15 @@ export function registerHandlers(services: {
                   }
                 }))
 
-                await unifiedStore.addChunks({
+                await documentsStore.addChunks({
                   vectors: allChunkVectors,
                   chunks
                 })
-                await unifiedStore.updateDocumentImportStatus(current.id, 2)
+                await documentsStore.updateDocumentImportStatus(current.id, 2)
                 event.sender.send('document-list-refresh')
               } catch (e: any) {
                 console.error('❌ [INGEST-WEBS] ERROR:', e)
-                await unifiedStore.updateDocumentImportStatus(current.id, 3).catch(() => {})
+                await documentsStore.updateDocumentImportStatus(current.id, 3).catch(() => {})
                 event.sender.send('document-list-refresh')
               }
             }
@@ -381,7 +385,7 @@ export function registerHandlers(services: {
     try {
       const { data: queryVector } = await embeddingService.embed(query)
       const filter = sourceType && sourceType !== 'all' ? sourceType : undefined
-      const results = await unifiedStore.search(queryVector, query, 5, filter)
+      const results = await documentsStore.search(queryVector, query, 5, filter)
 
       const tokens = jieba.cutForSearch(query, true)
 
@@ -402,7 +406,7 @@ export function registerHandlers(services: {
     async (_event, query: string, sourceType?: 'all' | 'file' | 'web'): Promise<SearchResult[]> => {
       try {
         const filter = sourceType && sourceType !== 'all' ? sourceType : undefined
-        const results = await unifiedStore.ftsSearch(query, 20, filter)
+        const results = await documentsStore.ftsSearch(query, 20, filter)
         const normalized = results.map(normalizeForIpc)
         // console.log('🔎 [FTS-SEARCH] RESULTS:', normalized)
         return normalized
@@ -419,7 +423,7 @@ export function registerHandlers(services: {
       try {
         const { data: queryVector } = await embeddingService.embed(query)
         const filter = sourceType && sourceType !== 'all' ? sourceType : undefined
-        const results = await unifiedStore.vectorSearch(queryVector, 20, filter)
+        const results = await documentsStore.vectorSearch(queryVector, 20, filter)
         const normalized = results.map(normalizeForIpc)
         console.log('🔎 [VECTOR-SEARCH] RESULTS:', normalized)
         return normalized
@@ -436,7 +440,7 @@ export function registerHandlers(services: {
       try {
         const { data: queryVector } = await embeddingService.embed(query)
         const filter = sourceType && sourceType !== 'all' ? sourceType : undefined
-        const results = await unifiedStore.hybridSearch(queryVector, query, 20, filter)
+        const results = await documentsStore.hybridSearch(queryVector, query, 20, filter)
         const normalized = results.map(normalizeForIpc)
         console.log('🔎 [HYBRID-SEARCH] RESULTS:', normalized)
         return normalized
@@ -455,7 +459,7 @@ export function registerHandlers(services: {
     ): Promise<DocumentListResponse> => {
       try {
         const { keyword, page, pageSize } = payload
-        const res = await unifiedStore.listDocuments({ keyword, page, pageSize })
+        const res = await documentsStore.listDocuments({ keyword, page, pageSize })
         return res
       } catch (error: any) {
         console.error('❌ [LIST-DOCUMENTS] ERROR:', error)
@@ -472,7 +476,7 @@ export function registerHandlers(services: {
     ): Promise<ChunkListResponse> => {
       try {
         const { keyword, page, pageSize } = payload
-        const res = await unifiedStore.listChunks({ keyword, page, pageSize })
+        const res = await documentsStore.listChunks({ keyword, page, pageSize })
         const normalized = res.items.map(normalizeForIpc)
         return { items: normalized, total: res.total }
       } catch (error: any) {
@@ -484,7 +488,7 @@ export function registerHandlers(services: {
 
   ipcMain.handle('drop-documents-table', async () => {
     try {
-      const result = await unifiedStore.dropDocumentsTable()
+      const result = await documentsStore.dropDocumentsStorage()
       console.log('🗑️ [DROP-DOCUMENTS] DONE:', result)
       return { success: true, existed: result.existed }
     } catch (error: any) {
@@ -496,7 +500,7 @@ export function registerHandlers(services: {
   ipcMain.handle('delete-documents', async (event, ids: string[]) => {
     try {
       console.log('🗑️ [DELETE-DOCUMENTS] REQUEST:', ids)
-      const res = await unifiedStore.deleteDocumentsByIds(ids || [])
+      const res = await documentsStore.deleteDocumentsByIds(ids || [])
       console.log('🗑️ [DELETE-DOCUMENTS] DONE:', res)
       event.sender.send('document-list-refresh')
       return res
@@ -548,7 +552,7 @@ export function registerHandlers(services: {
 
   ipcMain.handle('writing-folder-list', async (): Promise<WritingFolderRecord[]> => {
     try {
-      return await unifiedStore.listWritingFolders()
+      return await writingStore.listFolders()
     } catch (e: any) {
       console.error('[WRITING-FOLDER-LIST] Error:', e)
       return []
@@ -557,7 +561,7 @@ export function registerHandlers(services: {
 
   ipcMain.handle('writing-folder-save', async (_event, folder: WritingFolderRecord) => {
     try {
-      await unifiedStore.saveWritingFolder(folder)
+      await writingStore.saveFolder(folder)
       return { success: true }
     } catch (e: any) {
       console.error('[WRITING-FOLDER-SAVE] Error:', e)
@@ -567,7 +571,7 @@ export function registerHandlers(services: {
 
   ipcMain.handle('writing-folder-delete', async (_event, id: string) => {
     try {
-      await unifiedStore.deleteWritingFolder(id)
+      await writingStore.deleteFolder(id)
       return { success: true }
     } catch (e: any) {
       console.error('[WRITING-FOLDER-DELETE] Error:', e)
@@ -579,7 +583,7 @@ export function registerHandlers(services: {
     'writing-document-list',
     async (_event, payload: { folderId?: string }): Promise<WritingDocumentRecord[]> => {
       try {
-        return await unifiedStore.listWritingDocuments(payload?.folderId)
+        return await writingStore.listDocuments(payload?.folderId)
       } catch (e: any) {
         console.error('[WRITING-DOCUMENT-LIST] Error:', e)
         return []
@@ -589,7 +593,7 @@ export function registerHandlers(services: {
 
   ipcMain.handle('writing-document-get', async (_event, id: string) => {
     try {
-      const doc = await unifiedStore.getWritingDocument(id)
+      const doc = await writingStore.getDocument(id)
       return { success: true, doc }
     } catch (e: any) {
       console.error('[WRITING-DOCUMENT-GET] Error:', e)
@@ -599,7 +603,7 @@ export function registerHandlers(services: {
 
   ipcMain.handle('writing-document-save', async (_event, doc: WritingDocumentRecord) => {
     try {
-      await unifiedStore.saveWritingDocument(doc)
+      await writingStore.saveDocument(doc)
       return { success: true }
     } catch (e: any) {
       console.error('[WRITING-DOCUMENT-SAVE] Error:', e)
@@ -609,7 +613,7 @@ export function registerHandlers(services: {
 
   ipcMain.handle('writing-document-delete', async (_event, id: string) => {
     try {
-      await unifiedStore.deleteWritingDocument(id)
+      await writingStore.deleteDocument(id)
       return { success: true }
     } catch (e: any) {
       console.error('[WRITING-DOCUMENT-DELETE] Error:', e)
@@ -622,7 +626,7 @@ export function registerHandlers(services: {
     async (_event, payload: { keyword?: string; limit?: number }): Promise<DocumentRecord[]> => {
       try {
         const limit = Math.max(1, Math.min(50, Number(payload?.limit || 20)))
-        const res = await unifiedStore.listDocuments({
+        const res = await documentsStore.listDocuments({
           keyword: payload?.keyword,
           page: 1,
           pageSize: limit
@@ -648,7 +652,7 @@ export function registerHandlers(services: {
         const docIds = Array.isArray(payload?.selectedDocumentIds)
           ? payload!.selectedDocumentIds!.filter(Boolean)
           : undefined
-        const results = await unifiedStore.hybridSearch(queryVector, query, 20, undefined, docIds)
+        const results = await documentsStore.hybridSearch(queryVector, query, 20, undefined, docIds)
         return results.map(normalizeForIpc)
       } catch (e: any) {
         console.error('[WRITING-RETRIEVE] Error:', e)
@@ -661,7 +665,7 @@ export function registerHandlers(services: {
     'writing-workflow-run-get',
     async (_event, id: string): Promise<WritingWorkflowRunRecord | null> => {
       try {
-        return await unifiedStore.getWritingWorkflowRun(id)
+        return await writingStore.getWorkflowRun(id)
       } catch (e: any) {
         console.error('[WRITING-WORKFLOW-RUN-GET] Error:', e)
         return null
@@ -691,7 +695,9 @@ export function registerHandlers(services: {
               writingDocumentId: payload?.writingDocumentId
             },
             {
-              unifiedStore,
+              documentsStore,
+              llmStore,
+              writingStore,
               embeddingService,
               sendEvent,
               isCancelled: () => Boolean(activeWritingRuns.get(runId)?.cancelled)
@@ -717,7 +723,7 @@ export function registerHandlers(services: {
 
   ipcMain.handle('chat-session-list', async () => {
     try {
-      return await unifiedStore.getChatSessions()
+      return await chatStore.getChatSessions()
     } catch (e: any) {
       console.error('[CHAT-SESSION-LIST] Error:', e)
       return []
@@ -726,7 +732,7 @@ export function registerHandlers(services: {
 
   ipcMain.handle('chat-session-save', async (_event, session: ChatSession) => {
     try {
-      await unifiedStore.saveChatSession(session)
+      await chatStore.saveChatSession(session)
       return { success: true }
     } catch (e: any) {
       console.error('[CHAT-SESSION-SAVE] Error:', e)
@@ -736,7 +742,7 @@ export function registerHandlers(services: {
 
   ipcMain.handle('chat-session-delete', async (_event, id: string) => {
     try {
-      await unifiedStore.deleteChatSession(id)
+      await chatStore.deleteChatSession(id)
       return { success: true }
     } catch (e: any) {
       console.error('[CHAT-SESSION-DELETE] Error:', e)
@@ -746,7 +752,7 @@ export function registerHandlers(services: {
 
   ipcMain.handle('chat-message-list', async (_event, sessionId: string) => {
     try {
-      return await unifiedStore.getChatMessages(sessionId)
+      return await chatStore.getChatMessages(sessionId)
     } catch (e: any) {
       console.error('[CHAT-MESSAGE-LIST] Error:', e)
       return []
@@ -755,7 +761,7 @@ export function registerHandlers(services: {
 
   ipcMain.handle('chat-message-save', async (_event, message: ChatMessage) => {
     try {
-      await unifiedStore.saveChatMessage(message)
+      await chatStore.saveChatMessage(message)
       return { success: true }
     } catch (e: any) {
       console.error('[CHAT-MESSAGE-SAVE] Error:', e)
@@ -765,7 +771,7 @@ export function registerHandlers(services: {
 
   ipcMain.handle('llm-config-list', async () => {
     try {
-      return await unifiedStore.getLLMConfigs()
+      return await llmStore.list()
     } catch (e: any) {
       console.error('[LLM-CONFIG-LIST] Error:', e)
       return []
@@ -774,7 +780,7 @@ export function registerHandlers(services: {
 
   ipcMain.handle('llm-config-save', async (_event, config: LLMConfig) => {
     try {
-      await unifiedStore.saveLLMConfig(config)
+      await llmStore.save(config)
       return { success: true }
     } catch (e: any) {
       console.error('[LLM-CONFIG-SAVE] Error:', e)
@@ -784,7 +790,7 @@ export function registerHandlers(services: {
 
   ipcMain.handle('llm-config-delete', async (_event, id: string) => {
     try {
-      await unifiedStore.deleteLLMConfig(id)
+      await llmStore.delete(id)
       return { success: true }
     } catch (e: any) {
       console.error('[LLM-CONFIG-DELETE] Error:', e)
@@ -794,7 +800,7 @@ export function registerHandlers(services: {
 
   ipcMain.handle('llm-config-set-active', async (_event, id: string) => {
     try {
-      await unifiedStore.setLLMConfigActive(id)
+      await llmStore.setActive(id)
       return { success: true }
     } catch (e: any) {
       console.error('[LLM-CONFIG-SET-ACTIVE] Error:', e)

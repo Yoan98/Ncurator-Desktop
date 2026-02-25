@@ -51,3 +51,8 @@
 
 当涉及到数据库时，请阅读 [NCurator-Desktop 数据库设计](database.md)
 当涉及到 UI 样式时，请阅读 [UI/UX 设计规范与准则](ui-style.md)
+
+### 数据库操作约束（Main Process）
+
+- 数据库表结构与索引以 `src/main/services/storage/core/LanceDbCore.ts` 的 `getTableConfigs()` 为准
+- 业务代码不要直接操作 LanceDB 连接/表；新增/修改数据库行为优先通过 `src/main/services/storage/StorageService.ts` 暴露的各 `*Store`

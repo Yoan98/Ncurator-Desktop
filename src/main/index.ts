@@ -5,7 +5,7 @@ import icon from '../../resources/icon.png?asset'
 import { registerHandlers } from './ipc/handlers'
 import { IngestionService } from './services/ingestion/loader'
 import { EmbeddingService } from './services/vector/EmbeddingService'
-import { UnifiedStore } from './services/storage/UnifiedStore'
+import { StorageService } from './services/storage/StorageService'
 import { ModelService } from './services/model/ModelService'
 import { globalShortcut } from 'electron'
 
@@ -71,17 +71,16 @@ app.whenReady().then(async () => {
   // Initialize services
   const ingestionService = IngestionService.getInstance()
   const embeddingService = EmbeddingService.getInstance()
-  const unifiedStore = UnifiedStore.getInstance()
+  const storageService = StorageService.getInstance()
   const modelService = ModelService.getInstance()
 
-  // Start initialization in background (don't await)
   console.log('Starting background initialization of services...')
   embeddingService
     .initialize()
     .catch((err) => console.error('Failed to initialize EmbeddingService:', err))
-  unifiedStore.initialize().catch((err) => console.error('Failed to initialize UnifiedStore:', err))
+  await storageService.initialize()
 
-  registerHandlers({ ingestionService, embeddingService, unifiedStore, modelService })
+  registerHandlers({ ingestionService, embeddingService, storageService, modelService })
 
   createWindow()
 

@@ -4,6 +4,37 @@
 
 - 存储引擎: LanceDB v0.23
 - 全文检索: FTS 基于 `text` 列，Tokenizer 使用 ngram (min:2, max:3)
+- 数据库存储路径: Electron `app.getPath('userData')/lancedb`（见 `src/main/utils/paths.ts` 的 `LANCE_DB_PATH`）
+
+## 代码封装与表操作入口
+
+本项目的数据库访问已做分层封装，避免业务代码直接依赖 LanceDB 连接/表细节。
+
+### 分层结构（Main Process）
+
+- **连接与表初始化（Core）**: `src/main/services/storage/core/LanceDbCore.ts`
+  - 负责连接创建、建表、索引创建、表打开、SQL 字符串转义、常用 where 拼装
+  - 表名常量：`LANCE_TABLES`
+  - 表结构与索引“代码层真相来源”：`getTableConfigs()`
+- **领域表操作（Domains）**: `src/main/services/storage/domains/*Store.ts`
+  - `DocumentsStore`：`document` / `chunk`（导入、分页、混合检索、删除）
+  - `ChatStore`：`chat_session` / `chat_message`（会话与消息 CRUD）
+  - `LlmConfigStore`：`llm_config`（配置 CRUD 与激活态切换）
+  - `WritingStore`：`writing_folder` / `writing_document` / `writing_workflow_run`（写作空间与工作流运行记录）
+- **组合根（Facade）**: `src/main/services/storage/StorageService.ts`
+  - 统一持有 `core` 与各 domain store
+  - 应用启动时在 `src/main/index.ts` 调用 `await storageService.initialize()`
+
+### 约束与最佳实践
+
+- **不要在业务逻辑里直接 `lancedb.connect/openTable/createIndex`**；新增/修改数据库行为优先在 `LanceDbCore` 或对应 `*Store` 内完成。
+- **where 条件中拼接外部输入时必须转义**：使用 `LanceDbCore.escapeSqlString()`；`IN` 条件优先用 `buildInClause()`。
+- **keyword 搜索条件优先复用**：`LanceDbCore.buildWhereFromKeyword(keyword, fields)`。
+  - 该方法会在检测到“像 SQL 的输入”时直接返回原字符串，用于内部高级筛选；不要把不可信输入当作 SQL 传入。
+- **新增表/索引的入口**：
+  1. 在 `LanceDbCore.ts` 的 `LANCE_TABLES` 与 `getTableConfigs()` 增加配置
+  2. 在 `domains/` 新增或扩展 store，对外提供领域方法
+  3. 通过 `StorageService` 暴露给调用方（如 IPC handlers）
 
 ## 表定义
 
@@ -67,7 +98,7 @@
 | content    | Utf8             | 消息内容                                 |
 | timestamp  | Int64            | 消息时间戳                               |
 | sources    | Utf8（Nullable） | 引用来源（SearchResult[] 的 JSON 字符串） |
-| error      | Boolean          | 是否出错                                 |
+| error      | Boolean（Nullable） | 是否出错                               |
 
 ### 表: llm_config（大模型配置表）
 
