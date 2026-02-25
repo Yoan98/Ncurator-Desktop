@@ -8,17 +8,52 @@ export const retrieveContextNode = async (
   ctx.stageStarted('retrieve_context')
   ctx.checkCancelled()
   const plan = state.retrievalPlan
-  const queries = Array.isArray(plan?.queries) ? plan!.queries.filter(Boolean) : []
   const selectedDocumentIds = Array.isArray(state.selectedDocumentIds)
     ? state.selectedDocumentIds
     : []
 
   const all: SearchResult[] = []
-  for (const q of queries.slice(0, 12)) {
+
+  // 1. Global Queries (Hybrid Search)
+  const globalQueries = Array.isArray(plan?.queries) ? plan!.queries.filter(Boolean) : []
+  for (const q of globalQueries.slice(0, 5)) {
     ctx.checkCancelled()
-    const { data: vec } = await ctx.embeddingService.embed(q)
-    const rows = await ctx.documentsStore.search(vec, q, 8, undefined, selectedDocumentIds)
-    all.push(...rows)
+    try {
+      const { data: vec } = await ctx.embeddingService.embed(q)
+      const rows = await ctx.documentsStore.search(vec, q, 6, undefined, selectedDocumentIds)
+      all.push(...rows)
+    } catch (e) {
+      console.error(`[Retrieve] Error searching global query "${q}":`, e)
+    }
+  }
+
+  // 2. Section Queries (Hybrid Search)
+  const sectionQueriesMap = plan?.perSectionQueries || {}
+  const sectionQueries = Object.values(sectionQueriesMap)
+    .map((qs: any) => (Array.isArray(qs) ? qs[0] : null))
+    .filter(Boolean) as string[]
+
+  for (const q of sectionQueries) {
+    ctx.checkCancelled()
+    try {
+      const { data: vec } = await ctx.embeddingService.embed(q)
+      const rows = await ctx.documentsStore.search(vec, q, 4, undefined, selectedDocumentIds)
+      all.push(...rows)
+    } catch (e) {
+      console.error(`[Retrieve] Error searching section query "${q}":`, e)
+    }
+  }
+
+  // 3. Keywords (FTS Search)
+  const keywords = Array.isArray(plan?.keywords) ? plan!.keywords.filter(Boolean) : []
+  for (const k of keywords.slice(0, 8)) {
+    ctx.checkCancelled()
+    try {
+      const rows = await ctx.documentsStore.ftsSearch(k, 4, undefined, selectedDocumentIds)
+      all.push(...rows)
+    } catch (e) {
+      console.error(`[Retrieve] Error searching keyword "${k}":`, e)
+    }
   }
 
   const seen = new Set<string>()
@@ -30,7 +65,7 @@ export const retrieveContextNode = async (
     return true
   })
 
-  const top = deduped.slice(0, 30)
+  const top = deduped.slice(0, 50)
   const retrieved: RetrievedChunk[] = top.map((r) => ({
     chunkId: r.id,
     documentId: r.document_id,
