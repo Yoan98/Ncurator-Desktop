@@ -14,7 +14,15 @@ import {
   WritingWorkflowRunRecord,
   WritingWorkflowRunStatus,
   WritingWorkflowEvent,
-  WritingWorkflowStageId
+  WritingWorkflowStageId,
+  AiRunEvent,
+  AiPlanTask,
+  AiRunStatus,
+  AiRunStartRequest,
+  AiRunStartResponse,
+  AiRunCancelResponse,
+  ChatSessionMemory,
+  ChatSessionMemoryRow
 } from '../../shared/types'
 
 export type {
@@ -32,7 +40,15 @@ export type {
   WritingWorkflowRunRecord,
   WritingWorkflowRunStatus,
   WritingWorkflowEvent,
-  WritingWorkflowStageId
+  WritingWorkflowStageId,
+  AiRunEvent,
+  AiPlanTask,
+  AiRunStatus,
+  AiRunStartRequest,
+  AiRunStartResponse,
+  AiRunCancelResponse,
+  ChatSessionMemory,
+  ChatSessionMemoryRow
 }
 
 /**

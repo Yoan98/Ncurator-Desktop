@@ -21,7 +21,7 @@ export class DocumentsStore {
 
   public async addDocument(doc: DocumentRecord): Promise<void> {
     const table = await this.core.openTable(LANCE_TABLES.DOCUMENT)
-    await table.add([doc])
+    await table.add([doc as unknown as Record<string, unknown>])
   }
 
   public async updateDocumentImportStatus(id: string, status: number): Promise<void> {

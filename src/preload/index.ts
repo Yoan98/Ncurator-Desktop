@@ -10,7 +10,11 @@ import type {
   WritingFolderRecord,
   WritingDocumentRecord,
   WritingWorkflowRunRecord,
-  WritingWorkflowEvent
+  WritingWorkflowEvent,
+  AiRunEvent,
+  AiRunStartRequest,
+  AiRunStartResponse,
+  AiRunCancelResponse
 } from '../shared/types'
 
 // Custom APIs for renderer
@@ -136,7 +140,15 @@ const api = {
   onWritingWorkflowEvent: (cb: (event: WritingWorkflowEvent) => void) =>
     ipcRenderer.on('writing-workflow-event', (_event, data) => cb(data)),
   removeWritingWorkflowEventListeners: () =>
-    ipcRenderer.removeAllListeners('writing-workflow-event')
+    ipcRenderer.removeAllListeners('writing-workflow-event'),
+
+  aiRunStart: (payload: AiRunStartRequest): Promise<AiRunStartResponse> =>
+    ipcRenderer.invoke('ai-run-start', payload),
+  aiRunCancel: (runId: string): Promise<AiRunCancelResponse> =>
+    ipcRenderer.invoke('ai-run-cancel', runId),
+  onAiRunEvent: (cb: (event: AiRunEvent) => void) =>
+    ipcRenderer.on('ai-run-event', (_event, data) => cb(data)),
+  removeAiRunEventListeners: () => ipcRenderer.removeAllListeners('ai-run-event')
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

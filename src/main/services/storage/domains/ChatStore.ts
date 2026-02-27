@@ -1,8 +1,35 @@
-import type { ChatMessage, ChatSession } from '../../../types/store'
+import type { ChatMessage, ChatSession, ChatSessionMemory } from '../../../types/store'
 import { LanceDbCore, LANCE_TABLES } from '../core/LanceDbCore'
 
 export class ChatStore {
   public constructor(private readonly core: LanceDbCore) {}
+
+  public async saveSessionMemory(sessionId: string, memory: ChatSessionMemory): Promise<void> {
+    const safeId = this.core.escapeSqlString(sessionId)
+    const table = await this.core.openTable(LANCE_TABLES.CHAT_SESSION_MEMORY)
+    await table.delete(`session_id = '${safeId}'`)
+    await table.add([
+      {
+        session_id: sessionId,
+        memory_json: JSON.stringify(memory),
+        updated_at: Date.now()
+      }
+    ])
+  }
+
+  public async getSessionMemory(sessionId: string): Promise<ChatSessionMemory | null> {
+    const safeId = this.core.escapeSqlString(sessionId)
+    const table = await this.core.openTable(LANCE_TABLES.CHAT_SESSION_MEMORY)
+    const rows = await table.query().where(`session_id = '${safeId}'`).toArray()
+    const row = rows?.[0]
+    if (!row?.memory_json) return null
+    try {
+      return JSON.parse(String(row.memory_json)) as ChatSessionMemory
+    } catch (e) {
+      void e
+      return null
+    }
+  }
 
   public async saveChatSession(session: ChatSession): Promise<void> {
     const table = await this.core.openTable(LANCE_TABLES.CHAT_SESSION)
@@ -29,6 +56,9 @@ export class ChatStore {
 
     const msgTable = await this.core.openTable(LANCE_TABLES.CHAT_MESSAGE)
     await msgTable.delete(`session_id = '${safeId}'`)
+
+    const memoryTable = await this.core.openTable(LANCE_TABLES.CHAT_SESSION_MEMORY)
+    await memoryTable.delete(`session_id = '${safeId}'`)
   }
 
   public async saveChatMessage(message: ChatMessage): Promise<void> {
@@ -55,5 +85,11 @@ export class ChatStore {
       }))
       .sort((a, b) => a.timestamp - b.timestamp)
   }
-}
 
+  public async getRecentChatMessages(sessionId: string, limit: number): Promise<ChatMessage[]> {
+    const n = Math.max(1, Math.min(50, Number(limit || 0)))
+    const all = await this.getChatMessages(sessionId)
+    if (all.length <= n) return all
+    return all.slice(all.length - n)
+  }
+}

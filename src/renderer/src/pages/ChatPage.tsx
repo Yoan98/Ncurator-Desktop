@@ -2,8 +2,15 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Input, Button, Card, message, Collapse, Avatar, Tooltip, Space } from 'antd'
 import { HiArrowUp, HiPlus, HiTrash, HiUser, HiSparkles, HiBookOpen } from 'react-icons/hi2'
 import { LoadingOutlined } from '@ant-design/icons'
-import { getActiveConfig, streamCompletion } from '../services/llmService'
-import type { SearchResult, ChatSession, ChatMessage, LLMConfig } from '../../../shared/types'
+import { useNavigate } from 'react-router-dom'
+import type {
+  AiPlanTask,
+  AiRunEvent,
+  DocumentRecord,
+  SearchResult,
+  ChatSession,
+  ChatMessage
+} from '../../../shared/types'
 import { parseIpcResult } from '../utils/serialization'
 import FileRender, { FileRenderDocument } from '../components/fileRenders'
 import MarkdownRenderer from '../components/MarkdownRenderer'
@@ -11,13 +18,24 @@ import MarkdownRenderer from '../components/MarkdownRenderer'
 const { TextArea } = Input
 const { Panel } = Collapse
 
+const safeText = (v: any) => String(v ?? '').trim()
+
 const ChatPage: React.FC = () => {
+  const navigate = useNavigate()
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
   const [currentMessages, setCurrentMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
-  const [config, setConfig] = useState<LLMConfig | null>(null)
+  const [aiRunId, setAiRunId] = useState<string | null>(null)
+  const [aiEvents, setAiEvents] = useState<AiRunEvent[]>([])
+  const [aiPlan, setAiPlan] = useState<AiPlanTask[]>([])
+  const [rightPanel, setRightPanel] = useState<null | {
+    title: string
+    kind: 'chunks' | 'docs' | 'writing_docs' | 'writing_action' | 'json'
+    data: any
+  }>(null)
+  const assistantMsgIdRef = useRef<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   // Preview state
@@ -73,12 +91,16 @@ const ChatPage: React.FC = () => {
 
   useEffect(() => {
     loadSessions()
-    getActiveConfig().then(setConfig)
   }, [])
 
   useEffect(() => {
     if (currentSessionId) {
       loadMessages(currentSessionId)
+      setLoading(false)
+      setAiRunId(null)
+      setAiEvents([])
+      setAiPlan([])
+      setRightPanel(null)
     } else {
       setCurrentMessages([])
     }
@@ -102,17 +124,157 @@ const ChatPage: React.FC = () => {
     }
   }
 
+  useEffect(() => {
+    if (!aiRunId) return
+    window.api.removeAiRunEventListeners()
+    window.api.onAiRunEvent((evt) => {
+      if (evt.runId !== aiRunId) return
+      setAiEvents((prev) => [...prev, evt])
+
+      if (evt.type === 'tool_call_result') {
+        const toolName = evt.toolName
+        if (
+          toolName === 'kb_hybrid_search_chunks' ||
+          toolName === 'kb_vector_search_chunks' ||
+          toolName === 'kb_fts_search_chunks'
+        ) {
+          setRightPanel({
+            title: `检索结果 · ${toolName}`,
+            kind: 'chunks',
+            data: Array.isArray(evt.outputPreview) ? evt.outputPreview : []
+          })
+          return
+        }
+        if (toolName === 'kb_list_documents') {
+          setRightPanel({
+            title: `文档列表 · ${toolName}`,
+            kind: 'docs',
+            data: Array.isArray(evt.outputPreview) ? evt.outputPreview : []
+          })
+          return
+        }
+        if (toolName === 'writing_list_documents' || toolName === 'writing_search_documents') {
+          setRightPanel({
+            title: `写作空间 · ${toolName}`,
+            kind: 'writing_docs',
+            data: Array.isArray(evt.outputPreview) ? evt.outputPreview : []
+          })
+          return
+        }
+        if (
+          toolName === 'writing_create_document' ||
+          toolName === 'writing_update_document' ||
+          toolName === 'writing_apply_search_replace'
+        ) {
+          setRightPanel({
+            title: `写作操作 · ${toolName}`,
+            kind: 'writing_action',
+            data: evt.outputPreview
+          })
+          return
+        }
+        setRightPanel({
+          title: `工具输出 · ${toolName}`,
+          kind: 'json',
+          data: evt.outputPreview
+        })
+        return
+      }
+
+      if (evt.type === 'plan_created') {
+        setAiPlan(evt.plan)
+        return
+      }
+
+      if (evt.type === 'task_started') {
+        setAiPlan((prev) =>
+          prev.map((t) => (t.id === evt.taskId ? { ...t, status: 'running' } : t))
+        )
+        return
+      }
+
+      if (evt.type === 'task_completed') {
+        setAiPlan((prev) =>
+          prev.map((t) => (t.id === evt.taskId ? { ...t, status: 'completed' } : t))
+        )
+        return
+      }
+
+      if (evt.type === 'task_failed') {
+        setAiPlan((prev) =>
+          prev.map((t) => (t.id === evt.taskId ? { ...t, status: 'failed', error: evt.error } : t))
+        )
+        return
+      }
+
+      if (evt.type === 'answer_token') {
+        const msgId = assistantMsgIdRef.current
+        if (!msgId) return
+        setCurrentMessages((prev) =>
+          prev.map((m) => (m.id === msgId ? { ...m, content: (m.content || '') + evt.token } : m))
+        )
+        scrollToBottom()
+        return
+      }
+
+      if (evt.type === 'answer_completed') {
+        const msgId = assistantMsgIdRef.current
+        if (!msgId || !currentSessionId) return
+        setCurrentMessages((prev) =>
+          prev.map((m) => (m.id === msgId ? { ...m, content: evt.text } : m))
+        )
+        const assistantMsg = {
+          id: msgId,
+          session_id: currentSessionId,
+          role: 'assistant' as const,
+          content: evt.text,
+          timestamp: Date.now()
+        }
+        window.api.chatMessageSave(assistantMsg).catch(console.error)
+        return
+      }
+
+      if (evt.type === 'run_failed') {
+        setLoading(false)
+        const msgId = assistantMsgIdRef.current
+        if (msgId) {
+          setCurrentMessages((prev) =>
+            prev.map((m) =>
+              m.id === msgId
+                ? { ...m, error: true, content: (m.content || '') + `\n\n[失败] ${evt.error}` }
+                : m
+            )
+          )
+        }
+        message.error(evt.error || '运行失败')
+        return
+      }
+
+      if (evt.type === 'run_cancelled') {
+        setLoading(false)
+        message.info('已取消')
+        return
+      }
+
+      if (evt.type === 'run_completed') {
+        setLoading(false)
+      }
+    })
+    return () => {
+      window.api.removeAiRunEventListeners()
+    }
+  }, [aiRunId, currentSessionId])
+
   const handleSend = async () => {
     if (!input.trim() || !currentSessionId || loading) return
-
-    if (!config) {
-      message.error('请先在设置中配置模型参数')
-      return
-    }
 
     const userQuery = input.trim()
     setInput('')
     setLoading(true)
+    setAiEvents([])
+    setAiPlan([])
+    setRightPanel(null)
+    assistantMsgIdRef.current = null
 
     // 1. Create User Message
     const timestamp = new Date().getTime()
@@ -142,117 +304,266 @@ const ChatPage: React.FC = () => {
     }
 
     try {
-      // 2. Search for Context
-      let searchResults: SearchResult[] = []
-      try {
-        const res = await window.api.search(userQuery)
-        const parsedResults = res.results.map(parseIpcResult)
-
-        // Deduplicate by document_id
-        const uniqueResults: SearchResult[] = []
-        const seenIds = new Set<string>()
-
-        for (const result of parsedResults) {
-          if (result.document_id && !seenIds.has(result.document_id)) {
-            seenIds.add(result.document_id)
-            uniqueResults.push(result)
-          }
-        }
-
-        searchResults = uniqueResults.slice(0, 5) // Take top 5 unique documents
-
-        // Update user message with sources
-        userMsg.sources = JSON.stringify(searchResults)
-        setCurrentMessages((prev) => prev.map((m) => (m.id === userMsg.id ? userMsg : m)))
-        window.api.chatMessageSave(userMsg).catch(console.error)
-      } catch (e) {
-        console.error('Search failed', e)
-      }
-
-      // 3. Construct Prompt
-      const contextText = searchResults
-        .map((c, i) => `[${i + 1}] 文档: ${c.document_name}\n内容: ${c.text}`)
-        .join('\n\n')
-
-      const systemPrompt = `你是一个智能助手。请严格基于以下提供的上下文信息回答用户的问题。如果上下文中没有答案，请诚实告知“未找到相关信息”。
-请使用中文回答。
-请使用 Markdown 格式回答。
-
-上下文信息：
-${contextText}`
-
-      const now = new Date().getTime()
-      const messagesPayload: ChatMessage[] = [
-        { 
-          role: 'system', 
-          content: systemPrompt, 
-          id: 'system', 
-          session_id: currentSessionId, 
-          timestamp: now 
-        },
-        // Add recent history (last 6 messages to save tokens)
-        ...currentMessages.slice(-6).map((m) => ({
-          role: m.role,
-          content: m.content,
-          id: m.id,
-          session_id: m.session_id,
-          timestamp: m.timestamp
-        }))
-      ]
-      // Add current user msg
-      messagesPayload.push(userMsg)
-
-      // 4. Create Assistant Message Placeholder
       const assistantMsgId = crypto.randomUUID()
-      const assistantTimestamp = new Date().getTime()
+      assistantMsgIdRef.current = assistantMsgId
       const assistantMsg: ChatMessage = {
         id: assistantMsgId,
         session_id: currentSessionId,
         role: 'assistant',
         content: '',
-        timestamp: assistantTimestamp
+        timestamp: Date.now()
       }
-
-      let currentContent = ''
-
-      // Update UI with empty assistant message
       setCurrentMessages((prev) => [...prev, assistantMsg])
 
-      // 5. Stream LLM Response
-      await streamCompletion(
-        messagesPayload,
-        config,
-        (chunk) => {
-          currentContent += chunk
-          setCurrentMessages((prev) =>
-            prev.map((m) => (m.id === assistantMsgId ? { ...m, content: currentContent } : m))
-          )
-          scrollToBottom()
-        },
-        (err) => {
-          console.error(err)
-          message.error('AI 回答出错: ' + err.message)
-          const errorMsg = {
-            ...assistantMsg,
-            content: currentContent + '\n\n[出错: 连接中断]',
-            error: true
+      const res = await window.api.aiRunStart({ sessionId: currentSessionId, input: userQuery })
+      if (!res.success || !res.runId) {
+        setLoading(false)
+        message.error(res.error || '启动失败')
+        return
+      }
+      setAiRunId(res.runId)
+
+      // 2. Optional quick inline context for preview (no impact on model execution)
+      try {
+        const s = await window.api.search(userQuery)
+        const parsed = s.results.map(parseIpcResult)
+        const unique: SearchResult[] = []
+        const seenIds = new Set<string>()
+        for (const r of parsed) {
+          if (r.document_id && !seenIds.has(r.document_id)) {
+            seenIds.add(r.document_id)
+            unique.push(r)
           }
-          setCurrentMessages((prev) => prev.map((m) => (m.id === assistantMsgId ? errorMsg : m)))
-          window.api.chatMessageSave(errorMsg).catch(console.error)
-        },
-        () => {
-          setLoading(false)
-          // Save completed message
-          window.api
-            .chatMessageSave({ ...assistantMsg, content: currentContent })
-            .catch(console.error)
         }
-      )
+        userMsg.sources = JSON.stringify(unique.slice(0, 5))
+        setCurrentMessages((prev) => prev.map((m) => (m.id === userMsg.id ? userMsg : m)))
+        window.api.chatMessageSave(userMsg).catch(console.error)
+      } catch (e) {
+        void e
+      }
     } catch (e) {
       console.error(e)
       setLoading(false)
       message.error('发送失败')
     }
+  }
+
+  const handleCancel = async () => {
+    if (!aiRunId) return
+    try {
+      const res = await window.api.aiRunCancel(aiRunId)
+      if (!res.success) message.error(res.error || '取消失败')
+    } catch (e: any) {
+      message.error(e?.message || '取消失败')
+    }
+  }
+
+  const renderTrace = () => {
+    if (!aiRunId) return null
+
+    const toolCalls = aiEvents.filter(
+      (e) => e.type === 'tool_call_started' || e.type === 'tool_call_result'
+    ) as Array<any>
+
+    const byTask: Record<string, Array<any>> = {}
+    for (const evt of toolCalls) {
+      const key = String(evt.taskId || '__no_task__')
+      if (!byTask[key]) byTask[key] = []
+      byTask[key].push(evt)
+    }
+
+    const taskPanels = aiPlan.map((t) => {
+      const items = byTask[t.id] || []
+      return (
+        <Panel
+          key={t.id}
+          header={
+            <div className="flex items-center justify-between w-full">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-[#1F1F1F]">{t.title}</span>
+                <span className="text-xs text-[#999999]">{t.kind}</span>
+              </div>
+              <span className="text-xs text-[#666666]">{t.status}</span>
+            </div>
+          }
+        >
+          {items.length === 0 ? (
+            <div className="text-xs text-[#999999]">暂无工具步骤</div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {items.map((evt, idx) => (
+                <div
+                  key={`${evt.toolCallId}-${idx}`}
+                  className="border border-[#E5E5E4] rounded-lg bg-white px-3 py-2"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs font-medium text-[#1F1F1F]">{evt.toolName}</div>
+                    <div className="text-[11px] text-[#999999]">{evt.type}</div>
+                  </div>
+                  {evt.type === 'tool_call_started' ? (
+                    <div className="text-xs text-[#666666] mt-1 whitespace-pre-wrap">
+                      {JSON.stringify(evt.input)}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-[#666666] mt-1 whitespace-pre-wrap">
+                      {evt.error ? `[error] ${evt.error}` : JSON.stringify(evt.outputPreview)}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </Panel>
+      )
+    })
+
+    return (
+      <div className="px-6 pt-4">
+        <Collapse
+          defaultActiveKey={['plan']}
+          size="small"
+          className="bg-white border border-[#E5E5E4] rounded-xl overflow-hidden"
+        >
+          <Panel
+            header={
+              <div className="flex items-center justify-between w-full">
+                <div className="flex items-center gap-2">
+                  <HiSparkles className="text-[#D97757]" />
+                  <span className="text-sm font-medium text-[#1F1F1F]">执行轨迹</span>
+                </div>
+                <span className="text-xs text-[#999999]">{aiRunId.slice(0, 8)}</span>
+              </div>
+            }
+            key="plan"
+          >
+            {aiPlan.length === 0 ? (
+              <div className="text-xs text-[#999999]">等待计划生成…</div>
+            ) : (
+              <Collapse ghost size="small">
+                {taskPanels}
+              </Collapse>
+            )}
+          </Panel>
+        </Collapse>
+      </div>
+    )
+  }
+
+  const renderRightPanel = () => {
+    return (
+      <div className="w-[380px] border-l border-[#E5E5E4] bg-[#F5F5F4] flex flex-col h-full">
+        <div className="p-4">
+          <Card
+            className="bg-white border border-[#E5E5E4] rounded-xl shadow-sm"
+            styles={{ body: { padding: 0 } }}
+          >
+            <div className="px-4 py-3 border-b border-[#E5E5E4] flex items-center justify-between">
+              <div className="text-sm font-medium text-[#1F1F1F] truncate">
+                {rightPanel?.title || '右侧面板'}
+              </div>
+              <div className="text-xs text-[#999999]">{aiRunId ? aiRunId.slice(0, 8) : ''}</div>
+            </div>
+            <div className="p-4 max-h-[calc(100vh-220px)] overflow-auto">
+              {!rightPanel ? (
+                <div className="text-sm text-[#999999]">等待工具输出…</div>
+              ) : rightPanel.kind === 'chunks' ? (
+                <div className="flex flex-col gap-3">
+                  {(rightPanel.data as SearchResult[]).map((r, idx) => (
+                    <div
+                      key={`${r.id || idx}`}
+                      className="border border-[#E5E5E4] rounded-xl p-3 bg-white hover:border-[#D97757] transition-colors cursor-pointer"
+                      onClick={() => openPreview(r)}
+                    >
+                      <div className="text-xs font-semibold text-[#1F1F1F] truncate">
+                        {idx + 1}. {r.document_name}
+                      </div>
+                      <div className="text-xs text-[#999999] mt-2 whitespace-pre-wrap line-clamp-5">
+                        {r.text}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : rightPanel.kind === 'docs' ? (
+                <div className="flex flex-col gap-2">
+                  {(rightPanel.data as DocumentRecord[]).map((d, idx) => (
+                    <div
+                      key={`${d.id || idx}`}
+                      className="border border-[#E5E5E4] rounded-lg px-3 py-2 bg-white"
+                    >
+                      <div className="text-xs font-semibold text-[#1F1F1F] truncate">
+                        {idx + 1}. {d.name}
+                      </div>
+                      <div className="text-[11px] text-[#999999] mt-1 truncate">{d.id}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : rightPanel.kind === 'writing_docs' ? (
+                <div className="flex flex-col gap-2">
+                  {(
+                    rightPanel.data as Array<{ id: string; title: string; updated_at?: number }>
+                  ).map((d, idx) => (
+                    <div
+                      key={`${d.id || idx}`}
+                      className="border border-[#E5E5E4] rounded-lg px-3 py-2 bg-white"
+                    >
+                      <div className="text-xs font-semibold text-[#1F1F1F] truncate">
+                        {idx + 1}. {d.title}
+                      </div>
+                      <div className="text-[11px] text-[#999999] mt-1 truncate">{d.id}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : rightPanel.kind === 'writing_action' ? (
+                <div className="flex flex-col gap-3">
+                  <div className="border border-[#E5E5E4] rounded-xl p-3 bg-white">
+                    <div className="text-xs font-semibold text-[#1F1F1F]">动作结果</div>
+                    <div className="text-xs text-[#666666] mt-2 whitespace-pre-wrap">
+                      {JSON.stringify(rightPanel.data)}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={() => {
+                        const docId =
+                          safeText((rightPanel.data as any)?.id) ||
+                          safeText((rightPanel.data as any)?.docId) ||
+                          safeText((rightPanel.data as any)?.writing_document_id)
+                        navigator.clipboard.writeText(docId || '').catch(() => {})
+                        message.success('已复制文档 ID')
+                      }}
+                      className="border-[#E5E5E4]"
+                    >
+                      复制文档 ID
+                    </Button>
+                    <Button
+                      type="primary"
+                      onClick={() => {
+                        const docId =
+                          safeText((rightPanel.data as any)?.id) ||
+                          safeText((rightPanel.data as any)?.docId) ||
+                          safeText((rightPanel.data as any)?.writing_document_id)
+                        if (docId) {
+                          navigate(`/writing?docId=${encodeURIComponent(docId)}`)
+                          return
+                        }
+                        navigate('/writing')
+                      }}
+                      className="!bg-[#D97757] hover:!bg-[#C66A4A] border-none"
+                    >
+                      打开写作空间
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-xs text-[#666666] whitespace-pre-wrap">
+                  {JSON.stringify(rightPanel.data)}
+                </div>
+              )}
+            </div>
+          </Card>
+        </div>
+      </div>
+    )
   }
 
   const openPreview = (item: SearchResult) => {
@@ -397,21 +708,27 @@ ${contextText}`
 
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col h-[calc(100vh-64px)] relative">
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-6 pb-32" ref={scrollRef}>
-          {currentMessages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-[#999999] gap-4">
-              <div className="w-16 h-16 bg-[#F5F5F4] rounded-full flex items-center justify-center">
-                <HiSparkles className="w-8 h-8 text-[#D97757]" />
+        {renderTrace()}
+
+        <div className="flex-1 min-h-0 flex">
+          {/* Messages */}
+          <div className="flex-1 min-w-0 overflow-y-auto p-6 pb-32" ref={scrollRef}>
+            {currentMessages.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-[#999999] gap-4">
+                <div className="w-16 h-16 bg-[#F5F5F4] rounded-full flex items-center justify-center">
+                  <HiSparkles className="w-8 h-8 text-[#D97757]" />
+                </div>
+                <div className="text-center">
+                  <h3 className="text-lg font-medium text-[#1F1F1F] mb-2">有什么可以帮您？</h3>
+                  <p>你可以直接提问，系统会执行计划并展示过程</p>
+                </div>
               </div>
-              <div className="text-center">
-                <h3 className="text-lg font-medium text-[#1F1F1F] mb-2">有什么可以帮您？</h3>
-                <p>您可以询问关于文档库的任何问题</p>
-              </div>
-            </div>
-          ) : (
-            currentMessages.map(renderMessage)
-          )}
+            ) : (
+              currentMessages.map(renderMessage)
+            )}
+          </div>
+
+          {renderRightPanel()}
         </div>
 
         {/* Input Area */}
@@ -433,24 +750,29 @@ ${contextText}`
             />
             <div className="flex justify-between items-center">
               <div className="text-xs text-[#999999] flex items-center gap-2">
-                <Tooltip title="基于本地文档库回答">
+                <Tooltip title="由主进程执行计划并返回事件流">
                   <span className="flex items-center gap-1 bg-[#F5F5F4] px-2 py-1 rounded cursor-help">
                     <HiBookOpen className="text-[#D97757]" />
-                    <span>本地知识库</span>
+                    <span>AI Runner</span>
                   </span>
                 </Tooltip>
               </div>
-              <Button
-                type="primary"
-                shape="circle"
-                icon={<HiArrowUp />}
-                onClick={handleSend}
-                disabled={!input.trim() || loading}
-                loading={loading}
-                className={`${
-                  input.trim() ? '!bg-[#D97757]' : '!bg-[#E5E5E4] !text-white'
-                } border-none shadow-none`}
-              />
+              <div className="flex items-center gap-2">
+                {loading && aiRunId && (
+                  <Button onClick={handleCancel} className="border-[#E5E5E4]">
+                    取消
+                  </Button>
+                )}
+                <Button
+                  type="primary"
+                  shape="circle"
+                  icon={<HiArrowUp />}
+                  onClick={handleSend}
+                  disabled={!input.trim() || loading}
+                  loading={loading}
+                  className={`${input.trim() ? '!bg-[#D97757]' : '!bg-[#E5E5E4] !text-white'} border-none shadow-none`}
+                />
+              </div>
             </div>
           </div>
         </div>

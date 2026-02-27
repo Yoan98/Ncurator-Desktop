@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import {
   Button,
   Card,
@@ -124,6 +125,7 @@ const WritingEditor: React.FC<{
 }
 
 const WritingWorkspacePage: React.FC = () => {
+  const location = useLocation()
   const [loadingFolders, setLoadingFolders] = useState(false)
   const [loadingDocs, setLoadingDocs] = useState(false)
 
@@ -206,6 +208,14 @@ const WritingWorkspacePage: React.FC = () => {
   useEffect(() => {
     loadFolders()
   }, [loadFolders])
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search || '')
+    const docId = String(params.get('docId') || '').trim()
+    if (!docId) return
+    setActiveFolderId(undefined)
+    setActiveDocId(docId)
+  }, [location.search])
 
   useEffect(() => {
     loadDocs(activeFolderId)

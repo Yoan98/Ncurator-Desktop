@@ -16,6 +16,7 @@ export const LANCE_TABLES = {
   DOCUMENT: 'document',
   CHAT_SESSION: 'chat_session',
   CHAT_MESSAGE: 'chat_message',
+  CHAT_SESSION_MEMORY: 'chat_session_memory',
   LLM_CONFIG: 'llm_config',
   WRITING_FOLDER: 'writing_folder',
   WRITING_DOCUMENT: 'writing_document',
@@ -71,7 +72,7 @@ export class LanceDbCore {
     return names.includes(name)
   }
 
-  public async openTable(name: LanceTableName | string): Promise<any> {
+  public async openTable(name: LanceTableName | string) {
     this.assertReady()
     const names = await this.db!.tableNames()
     if (!names.includes(String(name))) {
@@ -206,6 +207,14 @@ export class LanceDbCore {
         ])
       },
       {
+        name: LANCE_TABLES.CHAT_SESSION_MEMORY,
+        schema: new arrow.Schema([
+          new arrow.Field('session_id', new arrow.Utf8()),
+          new arrow.Field('memory_json', new arrow.Utf8()),
+          new arrow.Field('updated_at', new arrow.Int64())
+        ])
+      },
+      {
         name: LANCE_TABLES.LLM_CONFIG,
         schema: new arrow.Schema([
           new arrow.Field('id', new arrow.Utf8()),
@@ -258,4 +267,3 @@ export class LanceDbCore {
     ]
   }
 }
-

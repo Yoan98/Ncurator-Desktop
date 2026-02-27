@@ -12,7 +12,11 @@ import type {
   WritingFolderRecord,
   WritingDocumentRecord,
   WritingWorkflowRunRecord,
-  WritingWorkflowEvent
+  WritingWorkflowEvent,
+  AiRunEvent,
+  AiRunStartRequest,
+  AiRunStartResponse,
+  AiRunCancelResponse
 } from '../../../shared/types'
 
 declare global {
@@ -116,6 +120,11 @@ declare global {
       writingWorkflowRunGet: (runId: string) => Promise<WritingWorkflowRunRecord | null>
       onWritingWorkflowEvent: (cb: (event: WritingWorkflowEvent) => void) => void
       removeWritingWorkflowEventListeners: () => void
+
+      aiRunStart: (payload: AiRunStartRequest) => Promise<AiRunStartResponse>
+      aiRunCancel: (runId: string) => Promise<AiRunCancelResponse>
+      onAiRunEvent: (cb: (event: AiRunEvent) => void) => void
+      removeAiRunEventListeners: () => void
     }
   }
 }

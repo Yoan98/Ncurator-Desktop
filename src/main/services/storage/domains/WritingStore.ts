@@ -30,7 +30,8 @@ export class WritingStore {
       .query()
       .where(`id = '${this.core.escapeSqlString(folder.id)}'`)
       .toArray()
-    const createdAt = existing.length > 0 ? Number(existing[0].created_at) : folder.created_at || now
+    const createdAt =
+      existing.length > 0 ? Number(existing[0].created_at) : folder.created_at || now
     await table.delete(`id = '${this.core.escapeSqlString(folder.id)}'`)
     await table.add([
       {
@@ -70,6 +71,29 @@ export class WritingStore {
       .sort((a, b) => b.updated_at - a.updated_at)
   }
 
+  public async searchDocuments(keyword: string, limit = 20): Promise<WritingDocumentRecord[]> {
+    const kw = String(keyword || '').trim()
+    if (!kw) return []
+    const table = await this.core.openTable(LANCE_TABLES.WRITING_DOCUMENT)
+    const where = this.core.buildWhereFromKeyword(kw, ['title', 'markdown'])
+    const rows = await table
+      .query()
+      .where(where || "title LIKE '%__never__match__%'")
+      .limit(Math.max(1, Math.min(50, Number(limit || 20))))
+      .toArray()
+    return rows
+      .map((r: any) => ({
+        id: r.id as string,
+        title: r.title as string,
+        folder_id: (r.folder_id as string | undefined) || undefined,
+        content: r.content as string,
+        markdown: (r.markdown as string | undefined) || undefined,
+        created_at: Number(r.created_at),
+        updated_at: Number(r.updated_at)
+      }))
+      .sort((a, b) => b.updated_at - a.updated_at)
+  }
+
   public async getDocument(id: string): Promise<WritingDocumentRecord | null> {
     const table = await this.core.openTable(LANCE_TABLES.WRITING_DOCUMENT)
     const rows = await table
@@ -96,7 +120,8 @@ export class WritingStore {
       .query()
       .where(`id = '${this.core.escapeSqlString(document.id)}'`)
       .toArray()
-    const createdAt = existing.length > 0 ? Number(existing[0].created_at) : document.created_at || now
+    const createdAt =
+      existing.length > 0 ? Number(existing[0].created_at) : document.created_at || now
     await table.delete(`id = '${this.core.escapeSqlString(document.id)}'`)
     await table.add([
       {
@@ -119,7 +144,10 @@ export class WritingStore {
   public async saveWorkflowRun(run: WritingWorkflowRunRecord): Promise<void> {
     const now = Date.now()
     const table = await this.core.openTable(LANCE_TABLES.WRITING_WORKFLOW_RUN)
-    const existing = await table.query().where(`id = '${this.core.escapeSqlString(run.id)}'`).toArray()
+    const existing = await table
+      .query()
+      .where(`id = '${this.core.escapeSqlString(run.id)}'`)
+      .toArray()
     const createdAt = existing.length > 0 ? Number(existing[0].created_at) : run.created_at || now
     await table.delete(`id = '${this.core.escapeSqlString(run.id)}'`)
     await table.add([
@@ -142,7 +170,10 @@ export class WritingStore {
 
   public async getWorkflowRun(id: string): Promise<WritingWorkflowRunRecord | null> {
     const table = await this.core.openTable(LANCE_TABLES.WRITING_WORKFLOW_RUN)
-    const rows = await table.query().where(`id = '${this.core.escapeSqlString(id)}'`).toArray()
+    const rows = await table
+      .query()
+      .where(`id = '${this.core.escapeSqlString(id)}'`)
+      .toArray()
     if (rows.length === 0) return null
     const r = rows[0]
     return {
@@ -161,4 +192,3 @@ export class WritingStore {
     }
   }
 }
-

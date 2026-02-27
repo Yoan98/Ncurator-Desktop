@@ -120,7 +120,11 @@ const MainLayout: React.FC = () => {
             placement="bottomRight"
             menu={{
               items: [
-                { key: 'writing', label: '写作空间', icon: <HiOutlinePencilSquare className="w-4 h-4" /> },
+                {
+                  key: 'writing',
+                  label: '写作空间',
+                  icon: <HiOutlinePencilSquare className="w-4 h-4" />
+                },
                 { key: 'kb', label: '知识库管理', icon: <HiOutlineBookOpen className="w-4 h-4" /> },
                 {
                   key: 'settings',

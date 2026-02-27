@@ -4,6 +4,8 @@ import { EmbeddingService } from '../services/vector/EmbeddingService'
 import { StorageService } from '../services/storage/StorageService'
 import { ModelService } from '../services/model/ModelService'
 import { WritingWorkflowService } from '../services/writing/WritingWorkflowService'
+import { AiRunService } from '../services/ai/AiRunService'
+import { updateSessionMemoryAfterRun } from '../services/ai/memory'
 import { v4 as uuidv4 } from 'uuid'
 import type {
   SearchResult,
@@ -15,12 +17,16 @@ import type {
   LLMConfig,
   WritingFolderRecord,
   WritingDocumentRecord,
-  WritingWorkflowRunRecord
+  WritingWorkflowRunRecord,
+  AiRunEvent,
+  AiRunStartRequest,
+  AiRunStartResponse,
+  AiRunCancelResponse
 } from '../types/store'
 import path from 'path'
 import fs from 'fs'
 import { DOCUMENTS_PATH } from '../utils/paths'
-import { WEB_INGEST_CONCURRENCY } from '../utils/constant'
+import { ENABLE_LEGACY_WRITING_WORKFLOW, WEB_INGEST_CONCURRENCY } from '../utils/constant'
 import { Jieba } from '@node-rs/jieba'
 import { dict } from '@node-rs/jieba/dict'
 import { normalizeForIpc } from '../utils/serialization'
@@ -35,6 +41,7 @@ export function registerHandlers(services: {
 }) {
   const { ingestionService, embeddingService, storageService, modelService } = services
   const activeWritingRuns = new Map<string, { cancelled: boolean; senderId: number }>()
+  const activeAiRuns = new Map<string, { cancelled: boolean; senderId: number }>()
   const documentsStore = storageService.documents
   const chatStore = storageService.chat
   const llmStore = storageService.llm
@@ -665,6 +672,7 @@ export function registerHandlers(services: {
     'writing-workflow-run-get',
     async (_event, id: string): Promise<WritingWorkflowRunRecord | null> => {
       try {
+        if (!ENABLE_LEGACY_WRITING_WORKFLOW) return null
         return await writingStore.getWorkflowRun(id)
       } catch (e: any) {
         console.error('[WRITING-WORKFLOW-RUN-GET] Error:', e)
@@ -679,6 +687,12 @@ export function registerHandlers(services: {
       event,
       payload: { input: string; selectedDocumentIds?: string[]; writingDocumentId?: string }
     ) => {
+      if (!ENABLE_LEGACY_WRITING_WORKFLOW) {
+        return {
+          success: false,
+          error: 'deprecated: use ai-run-start'
+        }
+      }
       const runId = uuidv4()
       activeWritingRuns.set(runId, { cancelled: false, senderId: event.sender.id })
       ;(async () => {
@@ -713,7 +727,103 @@ export function registerHandlers(services: {
   )
 
   ipcMain.handle('writing-workflow-cancel', async (_event, runId: string) => {
+    if (!ENABLE_LEGACY_WRITING_WORKFLOW) {
+      return { success: false, error: 'deprecated: use ai-run-cancel' }
+    }
     const entry = activeWritingRuns.get(runId)
+    if (!entry) return { success: false, error: 'run not found' }
+    entry.cancelled = true
+    return { success: true }
+  })
+
+  ipcMain.handle(
+    'ai-run-start',
+    async (event, payload: AiRunStartRequest): Promise<AiRunStartResponse> => {
+      const sessionId = String(payload?.sessionId || '').trim()
+      const input = String(payload?.input || '').trim()
+      if (!sessionId) return { success: false, error: 'sessionId is required' }
+      if (!input) return { success: false, error: 'input is required' }
+
+      const runId = uuidv4()
+      activeAiRuns.set(runId, { cancelled: false, senderId: event.sender.id })
+
+      const sendEvent = (evt: AiRunEvent) => {
+        if (event.sender.isDestroyed()) return
+        event.sender.send('ai-run-event', evt)
+      }
+
+      sendEvent({ type: 'run_started', runId, sessionId, createdAt: Date.now(), input })
+      ;(async () => {
+        const streamText = async (text: string) => {
+          const raw = String(text || '')
+          if (!raw) return
+          const chunkSize = 24
+          for (let i = 0; i < raw.length; i += chunkSize) {
+            if (activeAiRuns.get(runId)?.cancelled) break
+            sendEvent({ type: 'answer_token', runId, token: raw.slice(i, i + chunkSize) })
+          }
+          sendEvent({ type: 'answer_completed', runId, text: raw })
+        }
+
+        try {
+          const result = await AiRunService.getInstance().run(
+            { runId, sessionId, input },
+            {
+              llmStore,
+              chatStore,
+              documentsStore,
+              writingStore,
+              embeddingService,
+              isCancelled: () => Boolean(activeAiRuns.get(runId)?.cancelled),
+              sendEvent
+            }
+          )
+
+          if (result.status === 'cancelled') {
+            sendEvent({ type: 'run_cancelled', runId })
+            return
+          }
+
+          if (result.outputText) {
+            await streamText(result.outputText)
+          }
+
+          if (result.status === 'failed') {
+            sendEvent({ type: 'run_failed', runId, error: result.error || 'failed' })
+            return
+          }
+
+          try {
+            await updateSessionMemoryAfterRun({
+              sessionId,
+              userInput: input,
+              assistantOutput: result.outputText || '',
+              chatStore,
+              llmStore
+            })
+          } catch (e) {
+            void e
+          }
+
+          sendEvent({ type: 'run_completed', runId })
+        } catch (e: any) {
+          if (activeAiRuns.get(runId)?.cancelled) {
+            sendEvent({ type: 'run_cancelled', runId })
+            return
+          }
+          const msg = e instanceof Error ? e.message : String(e)
+          sendEvent({ type: 'run_failed', runId, error: msg })
+        } finally {
+          activeAiRuns.delete(runId)
+        }
+      })()
+
+      return { success: true, runId }
+    }
+  )
+
+  ipcMain.handle('ai-run-cancel', async (_event, runId: string): Promise<AiRunCancelResponse> => {
+    const entry = activeAiRuns.get(String(runId || ''))
     if (!entry) return { success: false, error: 'run not found' }
     entry.cancelled = true
     return { success: true }

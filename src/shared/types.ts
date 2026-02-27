@@ -177,3 +177,118 @@ export type WritingWorkflowEvent =
       type: 'run_cancelled'
       runId: string
     }
+
+export type AiTaskKind = 'retrieval' | 'writer'
+export type AiTaskStatus = 'pending' | 'running' | 'completed' | 'failed'
+export type AiRunStatus = 'running' | 'completed' | 'failed' | 'cancelled'
+
+export type AiPlanTask = {
+  id: string
+  title: string
+  kind: AiTaskKind
+  status: AiTaskStatus
+  attempts: number
+  error?: string
+}
+
+export type AiRunStartRequest = {
+  sessionId: string
+  input: string
+}
+
+export type AiRunStartResponse = {
+  success: boolean
+  runId?: string
+  error?: string
+}
+
+export type AiRunCancelResponse = {
+  success: boolean
+  error?: string
+}
+
+export type AiRunEvent =
+  | {
+      type: 'run_started'
+      runId: string
+      sessionId: string
+      createdAt: number
+      input: string
+    }
+  | {
+      type: 'plan_created'
+      runId: string
+      plan: AiPlanTask[]
+    }
+  | {
+      type: 'task_started'
+      runId: string
+      taskId: string
+    }
+  | {
+      type: 'task_completed'
+      runId: string
+      taskId: string
+    }
+  | {
+      type: 'task_failed'
+      runId: string
+      taskId: string
+      error: string
+    }
+  | {
+      type: 'tool_call_started'
+      runId: string
+      taskId?: string
+      toolCallId: string
+      toolName: string
+      input: any
+      createdAt: number
+    }
+  | {
+      type: 'tool_call_result'
+      runId: string
+      taskId?: string
+      toolCallId: string
+      toolName: string
+      outputPreview: any
+      completedAt: number
+      error?: string
+    }
+  | {
+      type: 'answer_token'
+      runId: string
+      token: string
+    }
+  | {
+      type: 'answer_completed'
+      runId: string
+      text: string
+    }
+  | {
+      type: 'run_completed'
+      runId: string
+    }
+  | {
+      type: 'run_failed'
+      runId: string
+      error: string
+    }
+  | {
+      type: 'run_cancelled'
+      runId: string
+    }
+
+export type ChatSessionMemory = {
+  summary: string
+  openTasks: string[]
+  userPrefs: string[]
+  pinnedFacts: string[]
+  linkedWritingDocumentIds: string[]
+}
+
+export type ChatSessionMemoryRow = {
+  session_id: string
+  memory_json: string
+  updated_at: number
+}

@@ -1,0 +1,58 @@
+import { buildAiRunGraph } from './graph'
+import { createAiRunContext } from './runtime'
+import type { AiRunDeps, AiRunStartPayload, AiRunState } from './types'
+
+export class AiRunService {
+  private static instance: AiRunService
+
+  private constructor() {}
+
+  public static getInstance(): AiRunService {
+    if (!AiRunService.instance) {
+      AiRunService.instance = new AiRunService()
+    }
+    return AiRunService.instance
+  }
+
+  public async run(payload: AiRunStartPayload, deps: AiRunDeps): Promise<AiRunState> {
+    const ctx = createAiRunContext(payload, deps)
+    const graph = buildAiRunGraph(ctx)
+    try {
+      const res = await graph.invoke({
+        runId: payload.runId,
+        sessionId: payload.sessionId,
+        status: 'running',
+        input: String(payload.input || ''),
+        plan: []
+      } as AiRunState)
+      return res as AiRunState
+    } catch (e: any) {
+      if (
+        e?.code === 'CANCELLED' ||
+        String(e?.message || '')
+          .toLowerCase()
+          .includes('cancel')
+      ) {
+        return {
+          runId: payload.runId,
+          sessionId: payload.sessionId,
+          status: 'cancelled',
+          input: payload.input,
+          plan: [],
+          error: 'cancelled',
+          outputText: '已取消。'
+        }
+      }
+      const msg = e instanceof Error ? e.message : String(e)
+      return {
+        runId: payload.runId,
+        sessionId: payload.sessionId,
+        status: 'failed',
+        input: payload.input,
+        plan: [],
+        error: msg,
+        outputText: `失败：${msg}`
+      }
+    }
+  }
+}
