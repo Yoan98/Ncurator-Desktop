@@ -29,6 +29,8 @@ import { dict } from '@node-rs/jieba/dict'
 import { normalizeForIpc } from '../utils/serialization'
 
 const jieba = Jieba.withDict(dict)
+const getErrorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error)
 
 export function registerHandlers(services: {
   ingestionService: IngestionService
@@ -127,13 +129,13 @@ export function registerHandlers(services: {
       event.sender.send('document-list-refresh')
 
       return { success: true, count: chunks.length }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ [INGEST-FILE] ERROR:', error)
       if (documentId) {
         await documentsStore.updateDocumentImportStatus(documentId, 3).catch(() => {})
         event.sender.send('document-list-refresh')
       }
-      return { success: false, error: error.message }
+      return { success: false, error: getErrorMessage(error) }
     }
   })
 
@@ -195,7 +197,7 @@ export function registerHandlers(services: {
             await documentsStore.updateDocumentImportStatus(c.id, 2)
             event.sender.send('document-list-refresh')
             console.log(`✅ [INGEST-FILES] DONE FOR ${c.name}`)
-          } catch (error: any) {
+          } catch (error: unknown) {
             console.error('❌ [INGEST-FILES] ERROR:', error)
             await documentsStore.updateDocumentImportStatus(c.id, 3)
             event.sender.send('document-list-refresh')
@@ -203,9 +205,9 @@ export function registerHandlers(services: {
         }
       })()
       return { success: true, created: created.length }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ [INGEST-FILES] ERROR:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: getErrorMessage(error) }
     }
   })
 
@@ -268,13 +270,13 @@ export function registerHandlers(services: {
         await documentsStore.updateDocumentImportStatus(documentId, 2)
         event.sender.send('document-list-refresh')
         return { success: true, count: chunks.length }
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('❌ [INGEST-WEB] ERROR:', error)
         if (documentId) {
           await documentsStore.updateDocumentImportStatus(documentId, 3).catch(() => {})
           event.sender.send('document-list-refresh')
         }
-        return { success: false, error: error.message }
+        return { success: false, error: getErrorMessage(error) }
       }
     }
   )
@@ -361,7 +363,7 @@ export function registerHandlers(services: {
                 })
                 await documentsStore.updateDocumentImportStatus(current.id, 2)
                 event.sender.send('document-list-refresh')
-              } catch (e: any) {
+              } catch (e: unknown) {
                 console.error('❌ [INGEST-WEBS] ERROR:', e)
                 await documentsStore.updateDocumentImportStatus(current.id, 3).catch(() => {})
                 event.sender.send('document-list-refresh')
@@ -373,9 +375,9 @@ export function registerHandlers(services: {
         })()
 
         return { success: true, created: created.length }
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('❌ [INGEST-WEBS] ERROR:', error)
-        return { success: false, error: error.message }
+        return { success: false, error: getErrorMessage(error) }
       }
     }
   )
@@ -388,8 +390,8 @@ export function registerHandlers(services: {
       }
       await shell.openExternal(parsed.toString())
       return { success: true }
-    } catch (error: any) {
-      return { success: false, error: error.message }
+    } catch (error: unknown) {
+      return { success: false, error: getErrorMessage(error) }
     }
   })
 
@@ -402,8 +404,8 @@ export function registerHandlers(services: {
       const err = await shell.openPath(resolved)
       if (err) return { success: false, error: err }
       return { success: true }
-    } catch (error: any) {
-      return { success: false, error: error.message }
+    } catch (error: unknown) {
+      return { success: false, error: getErrorMessage(error) }
     }
   })
 
@@ -421,7 +423,7 @@ export function registerHandlers(services: {
         results: finalResults,
         tokens
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ [SEARCH] ERROR:', error)
       throw error
     }
@@ -436,7 +438,7 @@ export function registerHandlers(services: {
         const normalized = results.map(normalizeForIpc)
         // console.log('🔎 [FTS-SEARCH] RESULTS:', normalized)
         return normalized
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('❌ [FTS-SEARCH] ERROR:', error)
         return []
       }
@@ -453,7 +455,7 @@ export function registerHandlers(services: {
         const normalized = results.map(normalizeForIpc)
         console.log('🔎 [VECTOR-SEARCH] RESULTS:', normalized)
         return normalized
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('❌ [VECTOR-SEARCH] ERROR:', error)
         return []
       }
@@ -470,7 +472,7 @@ export function registerHandlers(services: {
         const normalized = results.map(normalizeForIpc)
         console.log('🔎 [HYBRID-SEARCH] RESULTS:', normalized)
         return normalized
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('❌ [HYBRID-SEARCH] ERROR:', error)
         return []
       }
@@ -487,7 +489,7 @@ export function registerHandlers(services: {
         const { keyword, page, pageSize } = payload
         const res = await documentsStore.listDocuments({ keyword, page, pageSize })
         return res
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('❌ [LIST-DOCUMENTS] ERROR:', error)
         return { items: [], total: 0 }
       }
@@ -505,7 +507,7 @@ export function registerHandlers(services: {
         const res = await documentsStore.listChunks({ keyword, page, pageSize })
         const normalized = res.items.map(normalizeForIpc)
         return { items: normalized, total: res.total }
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('❌ [LIST-CHUNKS] ERROR:', error)
         return { items: [], total: 0 }
       }
@@ -517,9 +519,9 @@ export function registerHandlers(services: {
       const result = await documentsStore.dropDocumentsStorage()
       console.log('🗑️ [DROP-DOCUMENTS] DONE:', result)
       return { success: true, existed: result.existed }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ [DROP-DOCUMENTS] ERROR:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: getErrorMessage(error) }
     }
   })
 
@@ -530,9 +532,9 @@ export function registerHandlers(services: {
       console.log('🗑️ [DELETE-DOCUMENTS] DONE:', res)
       event.sender.send('document-list-refresh')
       return res
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ [DELETE-DOCUMENTS] ERROR:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: getErrorMessage(error) }
     }
   })
 
@@ -543,7 +545,7 @@ export function registerHandlers(services: {
       }
       const buffer = fs.readFileSync(filePath)
       return buffer
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ [READ-FILE] ERROR:', error)
       throw error
     }
@@ -555,16 +557,16 @@ export function registerHandlers(services: {
       // After successful download, re-initialize embedding service
       await embeddingService.initialize()
       return result
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ [DOWNLOAD-MODEL] ERROR:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: getErrorMessage(error) }
     }
   })
 
   ipcMain.handle('get-models', async () => {
     try {
       return modelService.getModels()
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ [GET-MODELS] ERROR:', error)
       return []
     }
@@ -712,12 +714,12 @@ export function registerHandlers(services: {
           }
 
           sendEvent({ type: 'run_completed', runId })
-        } catch (e: any) {
+        } catch (e: unknown) {
           if (activeAiRuns.get(runId)?.cancelled) {
             sendEvent({ type: 'run_cancelled', runId })
             return
           }
-          const msg = e instanceof Error ? e.message : String(e)
+          const msg = e instanceof Error ? getErrorMessage(e) : String(e)
           sendEvent({ type: 'run_failed', runId, error: msg })
         } finally {
           const approvals = activeAiApprovals.get(runId)
@@ -775,7 +777,7 @@ export function registerHandlers(services: {
   ipcMain.handle('chat-session-list', async () => {
     try {
       return await chatStore.getChatSessions()
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('[CHAT-SESSION-LIST] Error:', e)
       return []
     }
@@ -785,9 +787,9 @@ export function registerHandlers(services: {
     try {
       await chatStore.saveChatSession(session)
       return { success: true }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('[CHAT-SESSION-SAVE] Error:', e)
-      return { success: false, error: e.message }
+      return { success: false, error: getErrorMessage(e) }
     }
   })
 
@@ -795,16 +797,16 @@ export function registerHandlers(services: {
     try {
       await chatStore.deleteChatSession(id)
       return { success: true }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('[CHAT-SESSION-DELETE] Error:', e)
-      return { success: false, error: e.message }
+      return { success: false, error: getErrorMessage(e) }
     }
   })
 
   ipcMain.handle('chat-message-list', async (_event, sessionId: string) => {
     try {
       return await chatStore.getChatMessages(sessionId)
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('[CHAT-MESSAGE-LIST] Error:', e)
       return []
     }
@@ -814,16 +816,16 @@ export function registerHandlers(services: {
     try {
       await chatStore.saveChatMessage(message)
       return { success: true }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('[CHAT-MESSAGE-SAVE] Error:', e)
-      return { success: false, error: e.message }
+      return { success: false, error: getErrorMessage(e) }
     }
   })
 
   ipcMain.handle('llm-config-list', async () => {
     try {
       return await llmStore.list()
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('[LLM-CONFIG-LIST] Error:', e)
       return []
     }
@@ -833,9 +835,9 @@ export function registerHandlers(services: {
     try {
       await llmStore.save(config)
       return { success: true }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('[LLM-CONFIG-SAVE] Error:', e)
-      return { success: false, error: e.message }
+      return { success: false, error: getErrorMessage(e) }
     }
   })
 
@@ -843,9 +845,9 @@ export function registerHandlers(services: {
     try {
       await llmStore.delete(id)
       return { success: true }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('[LLM-CONFIG-DELETE] Error:', e)
-      return { success: false, error: e.message }
+      return { success: false, error: getErrorMessage(e) }
     }
   })
 
@@ -853,9 +855,9 @@ export function registerHandlers(services: {
     try {
       await llmStore.setActive(id)
       return { success: true }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('[LLM-CONFIG-SET-ACTIVE] Error:', e)
-      return { success: false, error: e.message }
+      return { success: false, error: getErrorMessage(e) }
     }
   })
 }

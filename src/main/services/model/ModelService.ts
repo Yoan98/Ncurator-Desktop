@@ -3,6 +3,8 @@ import path from 'path'
 import { MODELS_PATH } from '../../utils/paths'
 
 const HF_ENDPOINT = 'https://hf-mirror.com'
+const getErrorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error)
 
 export interface ModelInfo {
   id: string
@@ -125,12 +127,12 @@ export class ModelService {
       })
 
       return { success: true }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[ModelService] Download error:', error)
       eventSender.send('download-progress', {
         repoId,
         status: 'error',
-        error: error.message
+        error: getErrorMessage(error)
       })
       throw error
     }

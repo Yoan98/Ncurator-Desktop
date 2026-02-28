@@ -14,9 +14,30 @@ enum ServiceStatus {
   ERROR = 'error'
 }
 
+type FeatureExtractorResult = {
+  data: unknown
+  dims: unknown
+}
+
+type FeatureExtractor = (
+  texts: string[],
+  options: { pooling: 'mean'; normalize: true }
+) => Promise<FeatureExtractorResult>
+
+const toEmbeddingDims = (value: unknown): [number, number] => {
+  if (!Array.isArray(value)) return [0, 0]
+  return [Number(value[0] ?? 0), Number(value[1] ?? 0)]
+}
+
+const toEmbeddingVector = (value: unknown): Float32Array => {
+  if (value instanceof Float32Array) return value
+  if (Array.isArray(value)) return Float32Array.from(value.map((v) => Number(v || 0)))
+  return new Float32Array()
+}
+
 export class EmbeddingService {
   private static instance: EmbeddingService
-  private extractor: any = null
+  private extractor: FeatureExtractor | null = null
   private modelName: string = 'jinaai/jina-embeddings-v2-base-zh' // Using a Chinese model as default for now
   private status: ServiceStatus = ServiceStatus.UNINITIALIZED
 
@@ -43,13 +64,17 @@ export class EmbeddingService {
       // However, if files are missing, it might throw.
       // We should wrap this in try-catch and set status to UNINITIALIZED or ERROR if it fails due to missing model,
       // but let's see. If we catch error, we can stay in UNINITIALIZED or specific ERROR state.
-      
-      this.extractor = await pipeline('feature-extraction', this.modelName, {
-        dtype: 'fp32'
-      })
+      // transformers.js pipeline return type is dynamic; keep it isolated in this adapter field.
+      const createExtractor = pipeline as (
+        task: string,
+        model: string,
+        options: { dtype: 'fp32' }
+      ) => Promise<FeatureExtractor>
+      this.extractor = await createExtractor('feature-extraction', this.modelName, { dtype: 'fp32' })
       this.status = ServiceStatus.READY
-    } catch (error: any) {
-      console.warn('EmbeddingService initialization failed (likely model missing):', error.message)
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
+      console.warn('EmbeddingService initialization failed (likely model missing):', message)
       // Do not throw, just set status to ERROR so app can continue
       this.status = ServiceStatus.ERROR
     }
@@ -69,14 +94,17 @@ export class EmbeddingService {
     }
 
     const inputTexts = Array.isArray(texts) ? texts : [texts]
+    if (!this.extractor) {
+      throw new Error('EmbeddingService extractor is not initialized')
+    }
 
     const output = await this.extractor(inputTexts, {
       pooling: 'mean',
       normalize: true
     })
 
-    const data = output.data as Float32Array
-    const dims = output.dims as [number, number]
+    const data = toEmbeddingVector(output.data)
+    const dims = toEmbeddingDims(output.dims)
 
     return {
       data,

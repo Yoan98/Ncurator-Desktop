@@ -20,7 +20,16 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, className 
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[rehypeKatex]}
         components={{
-          code({ inline, className, children, ...props }: any) {
+          code({
+            inline,
+            className,
+            children,
+            ...props
+          }: {
+            inline?: boolean
+            className?: string
+            children?: React.ReactNode
+          } & React.HTMLAttributes<HTMLElement>) {
             const match = /language-(\w+)/.exec(className || '')
             return !inline && match ? (
               <SyntaxHighlighter

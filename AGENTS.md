@@ -51,16 +51,33 @@
 - 数据库表结构与索引以 `src/main/services/storage/core/LanceDbCore.ts` 的 `getTableConfigs()` 为准
 - 业务代码不要直接操作 LanceDB 连接/表；新增/修改数据库行为优先通过 `src/main/services/storage/StorageService.ts` 暴露的各 `*Store`
 
-## 4. TypeScript `any` 使用规范
+## 4. Type 分类与存放位置
 
-- 默认禁止使用 `any`，优先使用明确接口、联合类型、泛型和 `unknown + type guard`。
-- IPC 边界、模型输出、外部库动态数据优先先收敛为 `unknown`，再在适配层中窄化。
-- 仅当确实无法避免时，允许局部使用 `any`，但必须满足：
+- **共享契约类型（跨进程）**：统一存放在 `src/shared/types.ts`（或 `src/shared/types/*`）。
+  - 包含 IPC request/response、事件、跨进程共享实体。
+  - Renderer 与 Main 共享的数据结构必须从这里导出，禁止在两侧重复定义同名业务类型。
+- **Main 进程内部运行态类型**：存放在 `src/main/**/types.ts`。
+  - 仅用于 Main 内部编排/运行时状态，不得反向复制到 shared。
+- **Renderer 视图类型（ViewModel）**：存放在 `src/renderer/src/**/types.ts`。
+  - 仅用于展示态/组件态，不得作为 IPC 契约真相来源。
+- **Preload API 类型**：
+  - `window.api` 的类型应以 preload 导出的类型为单一来源，避免在 `preload` 和 `renderer global.d.ts` 双份漂移维护。
+- **外部边界解码类型**：
+  - 数据库原始行、LLM 输出、`JSON.parse` 结果等边界输入的收敛类型，放在对应领域的 `adapters/codec/decoder` 模块中，避免散落在业务逻辑中。
+
+## 5. TypeScript `any` / `unknown` 使用规范
+
+- 默认禁止使用 `any`；优先使用明确接口、联合类型、泛型、`unknown + type guard`、zod/decoder 收敛。
+- `unknown` 只允许出现在边界层入参：
+  - IPC 边界、外部库动态数据、数据库原始行、`JSON.parse`、`catch`。
+- `unknown` 必须在同一适配函数内完成窄化，禁止透传到业务层/领域层。
+- 仅当**确实无法定义类型**时才允许局部 `any`，且必须同时满足：
   1. 作用域最小化（仅限单个适配函数/局部变量）。
-  2. 在同一代码块内完成显式窄化，不得把 `any` 扩散到业务层。
-  3. 添加简短注释说明原因与后续可替换方向。
+  2. 在同一代码块内完成显式窄化，不得扩散到业务层。
+  3. 添加简短注释说明：为何无法定义、临时方案、后续替换方向。
+- 禁止无注释的 `as unknown as` 双重断言；如必须使用，需附原因注释并在同文件内给出替代计划。
 
-## 5. UI/UX 注意事项
+## 6. UI/UX 注意事项
 
 - **禁用 Modal.confirm**: 由于兼容性问题，项目中禁止使用 `Modal.confirm`、`Modal.info` 等静态方法。请使用 ContextHolder 方式或者自定义组件替代。
 - **全局提示**: 涉及全局状态（如模型下载提示）的通知，应使用全局组件（如悬浮组件）在 `App.tsx` 或 `MainLayout` 中统一处理，避免在每个页面重复逻辑。

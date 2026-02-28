@@ -95,9 +95,9 @@ const ModelDownloadPage: React.FC = () => {
         setDownloadingId(null)
         setErrorMsg(res.error || '启动下载失败')
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       setDownloadingId(null)
-      setErrorMsg(e.message)
+      setErrorMsg(e instanceof Error ? e.message : String(e))
     }
   }
 

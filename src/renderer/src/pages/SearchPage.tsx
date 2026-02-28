@@ -9,6 +9,19 @@ import { getActiveConfig, streamCompletion, ChatMessage } from '../services/llmS
 import MarkdownRenderer from '../components/MarkdownRenderer'
 
 const { TextArea } = Input
+const getMetadataPageNumber = (metadata: SearchResult['metadata']): number => {
+  if (!metadata) return 1
+  if (typeof metadata === 'string') {
+    try {
+      const parsed = JSON.parse(metadata) as { page?: unknown }
+      return typeof parsed.page === 'number' ? parsed.page : 1
+    } catch (e) {
+      void e
+      return 1
+    }
+  }
+  return typeof metadata.page === 'number' ? metadata.page : 1
+}
 
 const SearchPage: React.FC = () => {
   const [loading, setLoading] = useState(false)
@@ -149,7 +162,7 @@ ${contextText}`
             filePath: currentDoc.document.file_path,
             fileName: currentDoc.document_name,
             metadata: {
-              pageNumber: (currentDoc.metadata as any)?.page || 1
+              pageNumber: getMetadataPageNumber(currentDoc.metadata)
             }
           }
         ]

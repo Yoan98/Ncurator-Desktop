@@ -99,6 +99,10 @@ const MODEL_MAPPING: Record<string, { value: string; label: string }[]> = {
   ]
 }
 
+type LlmConfigFormValues = Pick<LLMConfig, 'name' | 'base_url' | 'model_name' | 'api_key'>
+type FlatModelOption = { value: string; label: string }
+type GroupedModelOption = { label: string; options: FlatModelOption[] }
+
 const SettingsPage: React.FC = () => {
   const [configs, setConfigs] = useState<LLMConfig[]>([])
   const [loading, setLoading] = useState(false)
@@ -124,7 +128,7 @@ const SettingsPage: React.FC = () => {
     loadConfigs()
   }, [])
 
-  const modelOptions = React.useMemo(() => {
+  const modelOptions = React.useMemo<Array<FlatModelOption | GroupedModelOption>>(() => {
     if (!currentBaseUrl) {
       // Return all grouped
       return Object.entries(MODEL_MAPPING).map(([url, models]) => {
@@ -181,9 +185,9 @@ const SettingsPage: React.FC = () => {
 
   const handleOk = async () => {
     try {
-      const values = await form.validateFields()
+      const values = (await form.validateFields()) as LlmConfigFormValues
 
-      const newConfig: any = {
+      const newConfig: LLMConfig = {
         id: editingConfig ? editingConfig.id : crypto.randomUUID(),
         ...values,
         is_active: editingConfig ? editingConfig.is_active : configs.length === 0
@@ -236,7 +240,7 @@ const SettingsPage: React.FC = () => {
       title: '操作',
       key: 'action',
       width: 200,
-      render: (_: any, record: LLMConfig) => (
+      render: (_: unknown, record: LLMConfig) => (
         <Space size="small">
           {!record.is_active && (
             <Button
@@ -365,11 +369,15 @@ const SettingsPage: React.FC = () => {
             <AutoComplete
               placeholder="例如：gpt-4o-mini"
               allowClear
-              options={modelOptions as any}
+              options={modelOptions}
               filterOption={(inputValue, option) => {
                 const upperInput = inputValue.toUpperCase()
-                const upperValue = option?.value?.toString().toUpperCase()
-                const upperLabel = option?.label?.toString().toUpperCase()
+                const hasValue = Boolean(option && 'value' in option)
+                const hasLabel = Boolean(option && 'label' in option)
+                const upperValue = hasValue
+                  ? String((option as FlatModelOption).value).toUpperCase()
+                  : ''
+                const upperLabel = hasLabel ? String(option?.label).toUpperCase() : ''
                 return !!(upperValue?.includes(upperInput) || upperLabel?.includes(upperInput))
               }}
             />

@@ -7,6 +7,7 @@ import type { AiPlanTask, AiRunContext, AiRunState, AiTaskKind } from './types'
 import { createChatModel } from '../llm/chatModel'
 import { AIMessage, BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages'
 import type { JsonObject } from '../../../shared/types'
+import { asRecord, toString } from '../../utils/decoder'
 import { buildRetrievalTools } from './tools/retrievalTools'
 import { runTerminalCommand } from './tools/terminalExec'
 
@@ -20,8 +21,31 @@ const TERMINAL_MAX_OUTPUT_CHARS = 8000
 const TERMINAL_SAFE_PREVIEW_CHARS = 600
 
 type ChatContentChunk = { text?: string }
-type ToolCallCarrier = { tool_calls?: unknown[]; content?: unknown }
-type ToolNodeOutput = { messages?: unknown[] }
+
+const getCarrierContent = (value: unknown): unknown => asRecord(value).content
+
+const getCarrierToolCalls = (value: unknown): unknown[] => {
+  const raw = asRecord(value).tool_calls
+  return Array.isArray(raw) ? raw : []
+}
+
+const getToolNodeMessages = (value: unknown): BaseMessage[] => {
+  const raw = asRecord(value).messages
+  if (!Array.isArray(raw)) return []
+  return raw.filter((item): item is BaseMessage => item instanceof BaseMessage)
+}
+
+const toPlannedTask = (value: unknown, index: number): AiPlanTask => {
+  const raw = asRecord(value)
+  return {
+    id: toString(raw.id || `task-${index + 1}`),
+    title: toString(raw.title || 'Task'),
+    kind: normalizePlannedKind(raw.kind),
+    input: raw.input == null ? undefined : toString(raw.input).trim(),
+    status: 'pending',
+    attempts: 0
+  }
+}
 
 const parseJsonObject = <T extends JsonObject>(text: string): T => {
   const trimmed = String(text || '').trim()
@@ -44,9 +68,9 @@ const getMessageText = (content: unknown): string => {
   if (!Array.isArray(content)) return String(content ?? '')
 
   return content
-    .map((chunk: unknown) => {
+    .map((chunk) => {
       if (typeof chunk === 'string') return chunk
-      const c = chunk as ChatContentChunk
+      const c = asRecord(chunk) as ChatContentChunk
       if (typeof c?.text === 'string') return c.text
       return ''
     })
@@ -218,17 +242,7 @@ const ensurePlan = async (ctx: AiRunContext, state: AiRunState): Promise<AiPlanT
     if (!Array.isArray(json?.tasks)) return heuristic
 
     const mapped: AiPlanTask[] = json.tasks
-      .map((t: unknown, i: number) => {
-        const raw = t && typeof t === 'object' ? (t as Record<string, unknown>) : {}
-        return {
-          id: String(raw.id || `task-${i + 1}`),
-          title: String(raw.title || 'Task'),
-          kind: normalizePlannedKind(raw.kind),
-          input: raw.input == null ? undefined : String(raw.input || '').trim(),
-          status: 'pending' as const,
-          attempts: 0
-        }
-      })
+      .map((task, i) => toPlannedTask(task, i))
       .filter((t) => Boolean(t.id && t.title))
 
     return mapped
@@ -255,7 +269,7 @@ const buildHostFinalAnswer = async (ctx: AiRunContext, state: AiRunState): Promi
         `用户输入:\n${state.input}\n\n计划执行情况:\n${planText || '无计划任务'}\n\n已知结论:\n${String(state.outputText || '').trim() || '无'}\n\n请直接给最终答复。`
       )
     ])
-    const text = getMessageText((res as ToolCallCarrier)?.content).trim()
+    const text = getMessageText(getCarrierContent(res)).trim()
     if (text) return text
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e)
@@ -401,15 +415,15 @@ const executeLocalKbRetrieval: CapabilityExecutor = async (ctx, state, task) => 
     lastAi = ai
     messages.push(ai)
 
-    const toolCalls = (ai as ToolCallCarrier).tool_calls
-    if (Array.isArray(toolCalls) && toolCalls.length > 0) {
-      const out = (await toolNode.invoke({ messages: [ai] })) as ToolNodeOutput
-      const toolMessages = (Array.isArray(out?.messages) ? out.messages : []) as BaseMessage[]
+    const toolCalls = getCarrierToolCalls(ai)
+    if (toolCalls.length > 0) {
+      const out = await toolNode.invoke({ messages: [ai] })
+      const toolMessages = getToolNodeMessages(out)
       messages.push(...toolMessages)
       continue
     }
 
-    const content = getMessageText((ai as ToolCallCarrier)?.content)
+    const content = getMessageText(getCarrierContent(ai))
     try {
       const json = parseJsonObject<{ satisfied?: boolean; note?: string }>(content)
       satisfied = Boolean(json?.satisfied)
@@ -469,12 +483,13 @@ const executeLocalKbRetrieval: CapabilityExecutor = async (ctx, state, task) => 
       : t
   )
 
-  return {
-    plan,
-    activeTaskId: undefined,
-    outputText: note || getMessageText((lastAi as ToolCallCarrier | null)?.content || '') || state.outputText
+    return {
+      plan,
+      activeTaskId: undefined,
+      outputText:
+        note || getMessageText(getCarrierContent(lastAi)) || state.outputText
+    }
   }
-}
 
 const decideTerminalNextStep = async (input: {
   ctx: AiRunContext
@@ -791,7 +806,7 @@ export const buildAiRunGraph = (ctx: AiRunContext) => {
       if (s.status === 'failed' || s.status === 'completed' || s.status === 'cancelled') {
         return END
       }
-      const next = pickNextTask((s.plan || []) as AiPlanTask[])
+      const next = pickNextTask(s.plan || [])
       if (!next) return END
       return 'capability'
     })

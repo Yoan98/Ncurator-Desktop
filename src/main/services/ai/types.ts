@@ -2,23 +2,17 @@ import type { ChatStore } from '../storage/domains/ChatStore'
 import type { DocumentsStore } from '../storage/domains/DocumentsStore'
 import type { LlmConfigStore } from '../storage/domains/LlmConfigStore'
 import type { EmbeddingService } from '../vector/EmbeddingService'
-import type { AiRunEvent, JsonObject, LLMConfig } from '../../../shared/types'
+import type {
+  AiPlanTask,
+  AiTaskKind,
+  AiTaskStatus,
+  AiRunEvent,
+  AiRunStatus,
+  JsonObject,
+  LLMConfig
+} from '../../../shared/types'
 
-export type AiTaskKind = 'local_kb_retrieval' | 'terminal_exec' | 'docx'
-export type AiTaskStatus = 'pending' | 'running' | 'completed' | 'failed'
-export type AiRunStatus = 'running' | 'completed' | 'failed' | 'cancelled'
-
-export type AiPlanTask = {
-  id: string
-  title: string
-  kind: AiTaskKind | string
-  input?: string
-  status: AiTaskStatus
-  attempts: number
-  error?: string
-  resultCode?: 'ok' | 'not_implemented'
-  resultMessage?: string
-}
+export type { AiTaskKind, AiTaskStatus, AiRunStatus, AiPlanTask }
 
 export type AiRunState = {
   runId: string

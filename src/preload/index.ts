@@ -1,32 +1,13 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import type {
-  SearchResult,
-  DocumentListResponse,
-  ChunkListResponse,
-  SearchSourceFilter,
-  WebIngestPayload,
-  ChatSession,
-  ChatMessage,
-  LLMConfig,
   AiRunEvent,
-  AiRunStartRequest,
-  AiRunStartResponse,
-  AiRunCancelResponse,
-  AiRunApprovalDecisionRequest,
-  AiRunApprovalDecisionResponse
+  SearchSourceFilter
 } from '../shared/types'
-
-type ModelInfo = {
-  id: string
-  name: string
-  description: string
-  tags: string[]
-  isDownloaded: boolean
-}
+import type { DesktopApi } from './api'
 
 // Custom APIs for renderer
-const api = {
+const api: DesktopApi = {
   ingestFile: (file: File): Promise<{ success: boolean; count?: number; error?: string }> =>
     ipcRenderer.invoke('ingest-file', webUtils.getPathForFile(file), file.name),
   ingestFiles: (files: File[]): Promise<{ success: boolean; created?: number; error?: string }> =>
@@ -34,13 +15,9 @@ const api = {
       'ingest-files',
       files.map((f) => ({ path: webUtils.getPathForFile(f), name: f.name }))
     ),
-  ingestWeb: (
-    payload: WebIngestPayload
-  ): Promise<{ success: boolean; count?: number; error?: string }> =>
+  ingestWeb: (payload): Promise<{ success: boolean; count?: number; error?: string }> =>
     ipcRenderer.invoke('ingest-web', payload),
-  ingestWebs: (
-    payload: WebIngestPayload[]
-  ): Promise<{ success: boolean; created?: number; error?: string }> =>
+  ingestWebs: (payload): Promise<{ success: boolean; created?: number; error?: string }> =>
     ipcRenderer.invoke('ingest-webs', payload),
   openExternal: (url: string): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('open-external', url),
@@ -49,24 +26,16 @@ const api = {
   search: (
     query: string,
     sourceType?: SearchSourceFilter
-  ): Promise<{ results: SearchResult[]; tokens: string[] }> =>
+  ) =>
     ipcRenderer.invoke('search', query, sourceType),
-  ftsSearch: (query: string, sourceType?: SearchSourceFilter): Promise<SearchResult[]> =>
+  ftsSearch: (query: string, sourceType?: SearchSourceFilter) =>
     ipcRenderer.invoke('fts-search', query, sourceType),
-  vectorSearch: (query: string, sourceType?: SearchSourceFilter): Promise<SearchResult[]> =>
+  vectorSearch: (query: string, sourceType?: SearchSourceFilter) =>
     ipcRenderer.invoke('vector-search', query, sourceType),
-  hybridSearch: (query: string, sourceType?: SearchSourceFilter): Promise<SearchResult[]> =>
+  hybridSearch: (query: string, sourceType?: SearchSourceFilter) =>
     ipcRenderer.invoke('hybrid-search', query, sourceType),
-  listDocuments: (payload: {
-    keyword?: string
-    page: number
-    pageSize: number
-  }): Promise<DocumentListResponse> => ipcRenderer.invoke('list-documents', payload),
-  listChunks: (payload: {
-    keyword?: string
-    page: number
-    pageSize: number
-  }): Promise<ChunkListResponse> => ipcRenderer.invoke('list-chunks', payload),
+  listDocuments: (payload) => ipcRenderer.invoke('list-documents', payload),
+  listChunks: (payload) => ipcRenderer.invoke('list-chunks', payload),
   deleteDocuments: (
     ids: string[]
   ): Promise<{ success: boolean; deletedDocs?: number; deletedChunks?: number; error?: string }> =>
@@ -77,47 +46,34 @@ const api = {
   removeDocumentListRefreshListeners: () => ipcRenderer.removeAllListeners('document-list-refresh'),
   downloadModel: (repoId: string): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('download-model', repoId),
-  onDownloadProgress: (
-    cb: (progressData: {
-      repoId: string
-      file?: string
-      status: string
-      progress: number
-      totalFiles?: number
-      completedFiles?: number
-      error?: string
-    }) => void
-  ) => ipcRenderer.on('download-progress', (_event, data) => cb(data)),
+  onDownloadProgress: (cb) => ipcRenderer.on('download-progress', (_event, data) => cb(data)),
   removeDownloadProgressListeners: () => ipcRenderer.removeAllListeners('download-progress'),
-  getModels: (): Promise<ModelInfo[]> => ipcRenderer.invoke('get-models'),
-  getEmbeddingStatus: (): Promise<string> => ipcRenderer.invoke('get-embedding-status'),
+  getModels: () => ipcRenderer.invoke('get-models'),
+  getEmbeddingStatus: () => ipcRenderer.invoke('get-embedding-status'),
   readFile: (filePath: string): Promise<Uint8Array> => ipcRenderer.invoke('read-file', filePath),
 
   // Chat & LLM
-  chatSessionList: (): Promise<ChatSession[]> => ipcRenderer.invoke('chat-session-list'),
-  chatSessionSave: (session: ChatSession): Promise<{ success: boolean; error?: string }> =>
+  chatSessionList: () => ipcRenderer.invoke('chat-session-list'),
+  chatSessionSave: (session) =>
     ipcRenderer.invoke('chat-session-save', session),
-  chatSessionDelete: (id: string): Promise<{ success: boolean; error?: string }> =>
+  chatSessionDelete: (id: string) =>
     ipcRenderer.invoke('chat-session-delete', id),
-  chatMessageList: (sessionId: string): Promise<ChatMessage[]> =>
+  chatMessageList: (sessionId: string) =>
     ipcRenderer.invoke('chat-message-list', sessionId),
-  chatMessageSave: (message: ChatMessage): Promise<{ success: boolean; error?: string }> =>
+  chatMessageSave: (message) =>
     ipcRenderer.invoke('chat-message-save', message),
-  llmConfigList: (): Promise<LLMConfig[]> => ipcRenderer.invoke('llm-config-list'),
-  llmConfigSave: (config: LLMConfig): Promise<{ success: boolean; error?: string }> =>
+  llmConfigList: () => ipcRenderer.invoke('llm-config-list'),
+  llmConfigSave: (config) =>
     ipcRenderer.invoke('llm-config-save', config),
-  llmConfigDelete: (id: string): Promise<{ success: boolean; error?: string }> =>
+  llmConfigDelete: (id: string) =>
     ipcRenderer.invoke('llm-config-delete', id),
-  llmConfigSetActive: (id: string): Promise<{ success: boolean; error?: string }> =>
+  llmConfigSetActive: (id: string) =>
     ipcRenderer.invoke('llm-config-set-active', id),
 
-  aiRunStart: (payload: AiRunStartRequest): Promise<AiRunStartResponse> =>
+  aiRunStart: (payload) =>
     ipcRenderer.invoke('ai-run-start', payload),
-  aiRunCancel: (runId: string): Promise<AiRunCancelResponse> =>
-    ipcRenderer.invoke('ai-run-cancel', runId),
-  aiRunApprovalDecide: (
-    payload: AiRunApprovalDecisionRequest
-  ): Promise<AiRunApprovalDecisionResponse> => ipcRenderer.invoke('ai-run-approval-decide', payload),
+  aiRunCancel: (runId: string) => ipcRenderer.invoke('ai-run-cancel', runId),
+  aiRunApprovalDecide: (payload) => ipcRenderer.invoke('ai-run-approval-decide', payload),
   onAiRunEvent: (cb: (event: AiRunEvent) => void) =>
     ipcRenderer.on('ai-run-event', (_event, data) => cb(data)),
   removeAiRunEventListeners: () => ipcRenderer.removeAllListeners('ai-run-event')

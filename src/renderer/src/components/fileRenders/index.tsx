@@ -68,8 +68,7 @@ const FileRender: React.FC<FileRenderProps> = React.memo(({ open, documents, onC
             if (doc.filePath) {
               try {
                 const buffer = await window.api.readFile(doc.filePath)
-                // Convert Uint8Array to ArrayBuffer for Blob. Explicitly cast buffer to any to avoid TS issues with SharedArrayBuffer in some envs
-                const blob = new Blob([buffer as any], {
+                const blob = new Blob([new Uint8Array(buffer)], {
                   type: getMimeType(doc.fileName || doc.filePath || '')
                 })
 

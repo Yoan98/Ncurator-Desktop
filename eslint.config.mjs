@@ -40,14 +40,31 @@ export default defineConfig(
       'src/main/services/storage/domains/ChatStore.ts',
       'src/main/services/storage/domains/DocumentsStore.ts',
       'src/main/services/storage/domains/LlmConfigStore.ts',
+      'src/main/services/vector/EmbeddingService.ts',
+      'src/main/services/model/ModelService.ts',
+      'src/main/ipc/handlers.ts',
       'src/preload/index.ts',
+      'src/preload/api.ts',
       'src/shared/types.ts',
       'src/main/utils/serialization.ts',
+      'src/main/utils/decoder.ts',
       'src/renderer/src/utils/serialization.ts',
-      'src/renderer/src/pages/ChatPage.tsx'
+      'src/renderer/src/pages/ChatPage.tsx',
+      'src/renderer/src/pages/SettingsPage.tsx',
+      'src/renderer/src/pages/SearchPage.tsx',
+      'src/renderer/src/pages/ModelDownloadPage.tsx',
+      'src/renderer/src/types/global.d.ts'
     ],
     rules: {
-      '@typescript-eslint/no-explicit-any': 'error'
+      '@typescript-eslint/no-explicit-any': 'error',
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "TSAsExpression[expression.type='TSAsExpression']",
+          message:
+            'Avoid chained type assertions (`as X as Y`). Use decoder/type guard narrowing instead.'
+        }
+      ]
     }
   },
   eslintConfigPrettier
