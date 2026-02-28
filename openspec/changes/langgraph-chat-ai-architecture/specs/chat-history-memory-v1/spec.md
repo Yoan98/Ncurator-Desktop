@@ -1,36 +1,29 @@
 ## ADDED Requirements
 
 ### Requirement: Load bounded recent turns per run
-For each run, the system MUST load a bounded number of recent user/assistant turns from the session message history and include them in the host planning context.
+For each run, the host context builder MUST load a bounded number of recent turns from session history.
 
-#### Scenario: History loading stays bounded
-- **WHEN** a session contains more messages than the configured recent-turn limit
-- **THEN** the system loads only the most recent turns up to the limit
+#### Scenario: Recent-turn limit is enforced
+- **WHEN** session message count exceeds configured limit
+- **THEN** only the newest bounded turns are included in host context
 
-### Requirement: Maintain a compact session summary
-The system MUST maintain a compact per-session summary that is bounded in size and suitable for inclusion in every run prompt.
+### Requirement: Maintain compact bounded session summary
+The system MUST maintain a compact session summary suitable for inclusion in run prompts.
 
-#### Scenario: Summary is used for planning
-- **WHEN** the host node constructs its planning context
-- **THEN** it includes the current session summary and recent turns
+#### Scenario: Summary participates in host decisions
+- **WHEN** host begins analysis for a run
+- **THEN** host receives both bounded summary and bounded recent turns
 
-### Requirement: Update summary after successful runs
-The system MUST update the session summary after a run completes successfully.
+### Requirement: Persist structured memory with generic linked ids
+Session memory MUST persist structured fields including summary, open tasks, user preferences, pinned facts, and generic linked document/file ids.
 
-#### Scenario: Summary is refreshed on completion
-- **WHEN** a run completes
-- **THEN** the system generates and stores an updated compact summary for the session
+#### Scenario: Memory update persists linked targets
+- **WHEN** memory is updated after run completion
+- **THEN** linked ids are stored as generic target references rather than writing-document-only ids
 
-### Requirement: Store structured memory fields
-The system MUST store the session memory as structured fields including summary text, open tasks, user preferences, pinned facts, and linked writing document identifiers.
+### Requirement: Exclude secrets from memory
+The system MUST NOT persist API keys, tokens, or credentials in session memory fields.
 
-#### Scenario: Memory fields are persisted
-- **WHEN** the session memory is updated
-- **THEN** the system persists the structured memory object associated with the session id
-
-### Requirement: Exclude secrets from stored memory
-The system MUST NOT store secrets or model credentials in session memory.
-
-#### Scenario: Sensitive fields are not persisted
-- **WHEN** the system updates session memory
-- **THEN** it excludes API keys, tokens, and other secrets from persisted memory fields
+#### Scenario: Sensitive values are filtered
+- **WHEN** memory is generated from run context
+- **THEN** sensitive values are excluded from persisted memory

@@ -1,199 +1,202 @@
 ## Context
 
-The app currently provides:
+The current migration is incomplete for the new target architecture:
 
-- A chat page that performs “search → build prompt → stream completion” in the renderer process, including direct model invocation via the OpenAI SDK.
-- A separate writing workflow implemented as a fixed LangGraph pipeline that emits stage events (validate/outline/retrieve/draft) and persists run state.
-- Local retrieval capabilities backed by LanceDB, including vector search, FTS, and hybrid RRF reranking for chunk-level retrieval.
-- A writing workspace backed by two core tables: `writing_folder` and `writing_document`, accessed via the main-process storage service.
+- Runtime still carries writing-era assumptions (`writer` task shape, legacy writing paths).
+- Retrieval node naming and semantics do not clearly distinguish local KB retrieval.
+- There is no dedicated terminal execution capability that the host can invoke for local operations.
+- Execution lacks an explicit workspace-first gate and unified sandbox policy model.
+- `docx` support is needed as an architectural capability, but concrete implementation should come later.
 
-This change introduces a unified, tool-driven AI runtime for chat mode that can:
+The intended architecture is:
 
-- Plan and execute multi-step tasks across retrieval and writing operations.
-- Emit a structured execution trace so the UI can visualize plans, tasks, and tool steps.
-- Keep prompts bounded via chat history memory V1 (recent turns + compact session summary).
-
-Constraints:
-
-- Use LangGraph JS (including ToolNode) for orchestration.
-- Use `@langchain/openai` for LLM calls and keep model credentials in the main process.
-- All heavy compute and storage access remain in the main process; the renderer consumes IPC events and renders UI.
-- `@` mentions in chat must only reference writing workspace documents (not knowledge base documents).
-
-Stakeholders:
-
-- End users: need transparent multi-step execution and controllable edits to writing documents.
-- Product: want a single AI mode that covers knowledge-base Q&A and document writing/editing.
-- Engineering: need a stable event protocol and bounded prompts for reliability and debuggability.
+1. Host-led context building via `local_kb_retrieval` loops.
+2. Host decision: direct response vs. execution plan.
+3. Capability execution through extensible nodes (`terminal_exec`, `docx`, future `excel`).
+4. Mandatory workspace binding for executable operations.
+5. Policy-controlled sandbox + approval gating for risky commands/actions.
 
 ## Goals / Non-Goals
 
-**Goals:**
+**Goals**
 
-- Provide a LangGraph-based chat runtime with four nodes: host, retrieval, writer, answer.
-- Implement a stable execution event stream for:
-  - Plan creation and per-task progress
-  - Tool call start/result
-  - Final answer token streaming
-  - Run completion/failure/cancellation
-- Implement chat history memory V1:
-  - Load bounded recent turns per request
-  - Maintain bounded per-session summary, updated periodically
-- Replace the existing writing workflow pipeline with the new runtime for writing-related operations initiated from chat.
-- Rebuild the chat UI to visualize plan execution and render a context-aware right panel (retrieval results or writing panel).
+- Establish canonical node/capability set: `host`, `local_kb_retrieval`, `terminal_exec`, `docx` (placeholder), and future `excel`.
+- Make `terminal_exec` accept raw command strings and run its own bounded internal loop.
+- Require workspace selection before executable runs and enforce workspace-root boundaries.
+- Introduce explicit sandbox and approval policies integrated into runtime events.
+- Provide clear execution transparency in chat with inline activities and plan visualization.
+- Reserve `docx` extension points with Node.js-first constraints, without implementing docx editing now.
+- Remove writing-workflow interactions and writing-domain persistence from active runtime architecture.
 
-**Non-Goals:**
+**Non-Goals**
 
-- History memory V2/V3 (history search, FTS memory, vector memory) beyond V1.
-- Reworking knowledge-base ingestion, embeddings, or LanceDB index configuration (except as needed for new tools).
-- A fully collaborative editor or complex multi-document merge mechanics.
-- Per-user permissions, multi-tenant security, or cloud execution.
+- Implementing concrete docx editing behavior in this change.
+- Implementing excel operations in this change.
+- Supporting arbitrary unrestricted shell execution outside workspace policy.
+- Preserving long-term backward compatibility for deprecated writing workflow APIs.
 
 ## Decisions
 
-### 1) Orchestration model: Host-driven state machine over monolithic agent
+### 1) Runtime shape: host-centric orchestration with named capabilities
 
-**Decision:** Implement the runtime as a host-driven state machine in LangGraph:
+**Decision**
 
-- `host` produces/updates a structured plan and decides the next step.
-- `retrieval` executes retrieval tasks via ToolNode, with bounded self-check loops.
-- `writer` executes writing tasks via ToolNode, with bounded self-check loops.
-- `answer` always runs at the end (success or failure), streaming final output tokens.
+Runtime orchestration centers on host decisions and capability dispatch:
 
-**Rationale:** This structure guarantees:
+- `host` analyzes request and current context.
+- `local_kb_retrieval` performs local KB retrieval operations.
+- `terminal_exec` handles raw command execution tasks.
+- `docx` is registered as capability placeholder (not implemented in this change).
+- future `excel` uses same registry model.
 
-- Deterministic failure routing (any node failure short-circuits to `answer` with a failure reason).
-- Explicit step visibility for UI (host plan and per-tool steps).
-- Bounded retries for retrieval (≤3) and writing (≤5) without leaking complexity into a single prompt.
+Flow:
 
-**Alternatives considered:**
+- Host may iterate with `local_kb_retrieval` until context is sufficient.
+- Host then either:
+  - streams direct response, or
+  - emits execution plan and dispatches capability tasks.
 
-- A single tool-calling agent handling everything: simpler initially, but weak guarantees for failure routing, difficult to bound loops, and poor step-level UI visibility.
+There is no separate mandatory answer node responsibility.
 
-### 2) Execution trace protocol: “AI Run Events” as the UI contract
+### 2) Retrieval node semantics: `local_kb_retrieval`
 
-**Decision:** Define a new IPC event channel (e.g., `ai-run-event`) with a stable union of event types.
+**Decision**
 
-Minimum event set:
+Rename retrieval capability/node semantics to `local_kb_retrieval` to clarify scope and avoid confusion with file-system search through terminal commands.
 
-- Run lifecycle: `run_started`, `run_completed`, `run_failed`, `run_cancelled`
-- Planning: `plan_created` (structured plan)
-- Task lifecycle: `task_started`, `task_completed`, `task_failed`
-- Tool lifecycle: `tool_call_started`, `tool_call_result`
-- Answer streaming: `answer_token`, `answer_completed`
-- Optional state patching: `state_patch` (for right panel updates)
+**Rationale**
 
-**Rationale:** The renderer becomes a pure consumer of events, enabling:
+- Keeps KB retrieval intent explicit.
+- Allows terminal capability to independently perform file-system searches when needed by host plan.
 
-- A left “trace view” (plan → tasks → tool steps) with collapsible groups.
-- A right “context panel” driven by state patches (retrieval results, writing docs, active doc preview).
-- Debuggability and reproducibility of runs.
+### 3) `terminal_exec` capability: raw command input + internal loop
 
-**Alternatives considered:**
+**Decision**
 
-- Reusing the existing writing workflow stage events: insufficient for multi-task planning, tool-level details, and chat answer streaming.
+`terminal_exec` accepts raw command strings as task input and executes through internal loop logic:
 
-### 3) Tooling: Retrieval and writing operations are explicit ToolNodes
+- evaluate command request
+- policy check (sandbox + risk classification)
+- execute command
+- inspect output
+- decide next command or finish
 
-**Decision:** Expose each retrieval and writing capability as a dedicated ToolNode callable by the `retrieval` or `writer` agent.
+Guardrails:
 
-Retrieval tool set (initial):
+- bounded command count per task
+- per-command timeout/output limits
+- policy classification (read-only / write / delete / external/network-sensitive)
+- approval gate for non-trivial-risk operations
 
-- Knowledge base:
-  - `kb_hybrid_search_chunks(queryText, limit, sourceType?, documentIds?)`
-  - `kb_vector_search_chunks(queryText, limit, sourceType?, documentIds?)`
-  - `kb_fts_search_chunks(queryText, limit, sourceType?, documentIds?)`
-  - `kb_list_documents(keyword, page, pageSize)`
-- Writing workspace:
-  - `writing_list_documents(folderId?)`
-  - `writing_search_documents(keyword, limit)` (V1: title/markdown LIKE; later: FTS)
-  - `writing_get_document(docId)`
+**Rationale**
 
-Writing tool set (initial):
+- Matches desired flexibility for practical local automation.
+- Keeps orchestration simple: host delegates a terminal objective, capability node handles iterative command execution.
 
-- `writing_create_document(folderId?, title, initialContent?, initialMarkdown?)`
-- `writing_update_document(docId, title?, folderId?)`
-- `writing_apply_search_replace(docId, before, target, after, replacement)`
+### 4) Workspace-first execution model
 
-The `writing_apply_search_replace` tool must enforce uniqueness:
+**Decision**
 
-- Locate `(before + target + after)` within the current document content.
-- If match count is not exactly 1, return a structured failure (`0 matches` or `multiple matches`) for the writer agent to refine context and retry.
+Executable runs must bind a user-selected workspace before `terminal_exec` or file-operation capabilities can run.
 
-**Rationale:** Explicit tools reduce hallucinated side effects and make each operation auditable in the event stream.
+Workspace contract includes at least:
 
-**Alternatives considered:**
+- `workspaceId`
+- `rootPath`
+- policy profile (risk defaults / allowed capabilities)
 
-- Letting the model emit freeform “edit instructions” without strict tool enforcement: too risky for document modification and difficult to guarantee correctness.
+Rules:
 
-### 4) LLM invocation: main-process only, `@langchain/openai` aligned
+- command execution cwd must be workspace root or approved subpath.
+- path operations must remain within normalized workspace boundary.
+- missing workspace => runtime emits required-input signal and blocks execution path.
 
-**Decision:** Standardize model calls in the main process using `@langchain/openai`, configured from the existing `llm_config` storage.
+**Rationale**
 
-**Rationale:** Avoids exposing API keys to the renderer and unifies invocation patterns across nodes and tools.
+- Prevents accidental system-wide command impact.
+- Gives users explicit control over action scope and output location.
 
-**Alternatives considered:**
+### 5) Sandbox + approval policy
 
-- Keeping renderer-side streaming: simplest UI-wise, but violates security and makes it harder to guarantee consistent tool orchestration.
+**Decision**
 
-### 5) Chat history memory V1: bounded recent turns + compact session summary
+Sandbox policy is enforced by capability runtime (especially `terminal_exec`) and surfaced in events:
 
-**Decision:** Implement V1 history loading with two inputs to the host prompt:
+- low-risk commands can auto-run by policy.
+- medium/high risk commands require approval.
+- denied approvals fail task with explicit reason.
 
-- `recentTurns`: bounded recent turns (e.g., 8–16 turns) loaded from chat message storage.
-- `sessionSummary`: bounded compact memory per session (target 200–600 tokens).
+Event additions include approval request/decision and terminal step trace.
 
-Summary update policy (V1):
+### 6) Docx capability positioning (Node.js-first, deferred implementation)
 
-- Update after `run_completed` (and optionally after long interactions exceeding a size threshold).
-- Store a structured memory object that includes:
-  - `summary`
-  - `openTasks`
-  - `userPrefs`
-  - `pinnedFacts`
-  - `linkedWritingDocumentIds`
+**Decision**
 
-Persistence decision (V1):
+`docx` is included as capability interface/contract only in this change:
 
-- Add a small companion table (e.g., `chat_session_memory`) keyed by `session_id` to store `memory_json` and `updated_at`.
+- registered in capability map
+- can be planned/selected by host
+- returns structured `not_implemented` until implementation lands
 
-**Rationale:** This avoids expanding the existing `chat_session` schema and allows incremental rollout without a destructive migration.
+Implementation constraints for next phase:
 
-**Alternatives considered:**
+- Node.js ecosystem only
+- no Python runtime or user-side extra toolchain requirement
+- reuse same workspace/sandbox/approval framework
 
-- Adding columns to `chat_session`: straightforward, but risks schema migration complexity and requires coordinated changes across table creation and existing installs.
+**Rationale**
 
-### 6) “@ mention” policy: writing documents only
+- Preserves architecture continuity for future file nodes.
+- Avoids blocking current architecture refactor on complex docx implementation details.
 
-**Decision:** The chat input `@` mention autocomplete and parsing only reference writing workspace documents, not knowledge-base documents.
+### 7) Decommission writing-workflow surfaces
 
-**Rationale:** This enforces the user-facing rule that “@” is for writing operations and prevents ambiguous permissions and editing intents over knowledge-base assets.
+**Decision**
+
+Remove writing-workflow interactions and writing-domain persistence from active architecture:
+
+- no active runtime dependency on writing workflow/store paths
+- no supported chat path through writing workflow endpoints
+- database/docs updated to reflect decommissioned writing-domain usage
+
+### 8) Execution transparency UX contract
+
+**Decision**
+
+Execution visibility is represented in two coordinated UI layers:
+
+- **Inline activity feed** attached to assistant-side chat content to answer "what AI did" in plain language.
+- **Plan panel** showing task progress and expandable step-level trace details.
+
+The event protocol exposes raw trace events and UI-friendly activity events so renderer can render both layers without brittle inference.
+
+**Rationale**
+
+- Improves user trust and comprehension for command-heavy runs.
+- Preserves deep observability for debugging while keeping casual UX readable.
 
 ## Risks / Trade-offs
 
-- **[Event protocol churn]** → Define event types early and treat as a stable UI contract; add versioning if needed.
-- **[Schema migration complexity]** → Prefer companion tables for new persistence (e.g., session memory) and avoid mutating existing tables in V1.
-- **[Tool misuse or unsafe edits]** → Enforce strict schemas and uniqueness checks for search&replace; emit tool results with safe previews and explicit failure reasons.
-- **[Prompt overflow despite V1]** → Hard cap `recentTurns` and `sessionSummary` length; enforce budget in the host context builder.
-- **[Inconsistent state across retries]** → Centralize run state in a single LangGraph state object; emit `state_patch` after each significant step.
-- **[Performance under heavy local retrieval]** → Limit default retrieval `limit`, dedupe results, and return previews for UI while keeping full results internal.
+- **Raw terminal commands increase risk surface**
+  - Mitigation: strict workspace boundary, risk policy, approval gate, bounded loops/timeouts.
+- **User friction from mandatory workspace selection**
+  - Mitigation: remember last workspace per session and support quick workspace switch.
+- **Deferred docx implementation may confuse expectations**
+  - Mitigation: explicit capability status events and clear UI messaging (`not implemented yet`).
+- **Policy tuning complexity**
+  - Mitigation: start conservative; allow profile-based iteration.
 
 ## Migration Plan
 
-1) Introduce the new AI runtime behind new IPC endpoints (`ai-run-start`, `ai-run-cancel`, `ai-run-event`).
-2) Add session memory V1 persistence (companion table) and implement bounded history loading in the host node.
-3) Implement retrieval tools and writer tools as ToolNodes; integrate into the new graph.
-4) Rebuild the chat UI to consume `ai-run-event` and render plan/tasks/tool steps with the right-side panels.
-5) Deprecate the existing writing workflow pipeline and its events, routing writing-from-chat through the new writer node and tools.
-6) Remove renderer-side direct model streaming for chat and ensure all model calls are main-process only.
-
-Rollback strategy:
-
-- Keep the existing chat page and writing workflow available behind a feature flag until the new runtime is stable.
-- Preserve existing chat session/message storage; new session memory table can be ignored if rollback is required.
+1) Introduce updated capability taxonomy (`local_kb_retrieval`, `terminal_exec`, `docx` placeholder).
+2) Add workspace binding requirements to run-start contract and UI flow.
+3) Add sandbox + approval policy engine and terminal capability event traces.
+4) Refactor runtime orchestration to host-led retrieval loops + capability dispatch.
+5) Remove writing-workflow active paths and writing-domain runtime dependencies.
+6) Validate end-to-end with workspace-gated execution scenarios.
 
 ## Open Questions
 
-- Should the execution trace be persisted (beyond UI rendering) for debugging and user audit, and if so, where (new table vs. file-based logs)?
-- Do writing document search tools require FTS indexing on `writing_document.markdown` in V1, or is LIKE-based search acceptable?
-- Should the answer node always cite which tools/results were used, or should citations be an optional UI-only feature?
+- Should workspace be mandatory for all runs, or only when host predicts execution beyond pure KB Q&A?
+- Which command categories are auto-allowed in v1 policy profile?
+- Should terminal loop allow host mid-course intervention, or remain fully capability-local per task?

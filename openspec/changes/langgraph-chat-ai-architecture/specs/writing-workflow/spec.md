@@ -1,22 +1,29 @@
 ## ADDED Requirements
 
-### Requirement: Deprecate the legacy writing workflow pipeline
-The system MUST deprecate the legacy writing workflow pipeline and MUST route writing-related operations initiated from chat through the new AI runtime.
+### Requirement: Remove legacy writing-workflow interactions from active product flow
+The system MUST remove writing-workflow execution from supported chat architecture and MUST not route chat file operations through legacy writing workflow.
 
-#### Scenario: Writing request uses new runtime
-- **WHEN** the user requests to create or modify a writing document in chat mode
-- **THEN** the system executes the writer node tools in the new runtime and does not start the legacy pipeline
+#### Scenario: Chat action request does not use legacy workflow
+- **WHEN** user requests file editing or generation in chat mode
+- **THEN** runtime uses capability nodes (for example `docx`) and does not invoke legacy writing workflow run APIs
 
-### Requirement: Preserve writing workspace persistence
-The system MUST preserve `writing_folder` and `writing_document` as the persistence layer for writing workspace content.
+### Requirement: Remove writing-workflow IPC APIs from supported interface
+Legacy writing-workflow IPC endpoints MUST be removed from supported client surface or hard-disabled with explicit deprecation errors during transition.
 
-#### Scenario: Existing writing documents remain accessible
-- **WHEN** the user opens the writing workspace after migration
-- **THEN** existing folders and documents are available without data loss
+#### Scenario: Legacy endpoint is called during transition
+- **WHEN** client calls deprecated writing-workflow start/cancel APIs
+- **THEN** system returns explicit deprecation failure and no workflow run is created
 
-### Requirement: Provide a migration-safe behavior for legacy workflow endpoints
-If legacy writing workflow IPC endpoints remain present during rollout, they MUST be disabled by default and MUST return an explicit deprecation error.
+### Requirement: Remove writing-domain persistence from active architecture
+Active runtime architecture MUST not depend on `writing_folder`, `writing_document`, or `writing_workflow_run` persistence tables.
 
-#### Scenario: Legacy workflow start is called
-- **WHEN** a client calls the legacy workflow start endpoint while it is disabled
-- **THEN** the system returns an explicit deprecation error instructing clients to use the new runtime
+#### Scenario: Runtime dependencies are validated
+- **WHEN** AI runtime executes retrieval or file-action tasks
+- **THEN** no active runtime path requires writing-domain tables or writing-domain store operations
+
+### Requirement: Define migration/cleanup policy for existing writing data
+The system MUST define deterministic migration behavior for existing writing-domain data when decommissioning the subsystem.
+
+#### Scenario: Existing install upgrade
+- **WHEN** application upgrades to the new architecture
+- **THEN** the system follows declared cleanup policy for writing-domain data (drop or retained-but-unused transition window)

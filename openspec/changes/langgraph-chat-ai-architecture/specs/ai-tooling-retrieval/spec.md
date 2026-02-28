@@ -1,36 +1,29 @@
 ## ADDED Requirements
 
-### Requirement: Provide dedicated retrieval tools
-The system MUST provide dedicated tools for local retrieval across the knowledge base and writing workspace.
+### Requirement: Provide local knowledge-base retrieval tools for `local_kb_retrieval`
+The system MUST provide retrieval tools for local KB search (hybrid/vector/FTS/document listing) used by `local_kb_retrieval`.
 
-#### Scenario: Retrieval agent selects a tool
-- **WHEN** the retrieval node needs context to satisfy a plan step
-- **THEN** it can invoke a tool for knowledge base chunk search, knowledge base document listing, or writing workspace document search
+#### Scenario: Retrieval strategy selection
+- **WHEN** host dispatches `local_kb_retrieval`
+- **THEN** the capability can use hybrid/vector/FTS retrieval tools and return bounded evidence
 
-### Requirement: Support hybrid, vector, and FTS retrieval for knowledge base chunks
-The system MUST provide tools that execute hybrid search, vector-only search, and FTS-only search over knowledge base chunks.
+### Requirement: Support imported-document scoping
+Retrieval tools MUST support filtering by user-selected imported document ids when provided.
 
-#### Scenario: Hybrid search returns ranked chunks
-- **WHEN** the retrieval tool is called with a query text
-- **THEN** the tool returns a bounded list of chunk results ranked by relevance
+#### Scenario: Scoped retrieval
+- **WHEN** run context contains selected document ids
+- **THEN** retrieval results are constrained to selected documents by default policy
 
-### Requirement: Support knowledge base document table search
-The system MUST provide a tool to list knowledge base documents filtered by a keyword.
+### Requirement: Keep retrieval and terminal file search concerns separate
+`local_kb_retrieval` tooling MUST focus on KB storage retrieval and MUST NOT be required to implement shell-based filesystem search behaviors.
 
-#### Scenario: User requests documents by name
-- **WHEN** the retrieval node calls the document listing tool with a keyword
-- **THEN** the tool returns documents whose names match the keyword
+#### Scenario: Host needs filesystem command search
+- **WHEN** host decides shell/file-system search is required
+- **THEN** host dispatches `terminal_exec` capability rather than overloading KB retrieval tools
 
-### Requirement: Support writing workspace document discovery and read access
-The system MUST provide tools to list writing workspace documents, search writing workspace documents by keyword, and fetch a writing document by id.
+### Requirement: Return bounded, safe payloads for model and UI
+Retrieval tools MUST return bounded counts and safe preview fields.
 
-#### Scenario: Resolve a writing document mention
-- **WHEN** the host or retrieval node has a referenced writing document id
-- **THEN** the tool returns the writing document record for downstream planning or editing
-
-### Requirement: Return safe, bounded retrieval results
-Retrieval tools MUST return bounded results and MUST provide fields suitable for both LLM consumption and UI rendering.
-
-#### Scenario: Large result sets are constrained
-- **WHEN** a retrieval tool could return more than the configured limit
-- **THEN** it returns at most the configured limit and provides a preview suitable for UI display
+#### Scenario: Large match set
+- **WHEN** matches exceed configured limits
+- **THEN** tool returns capped results and preview-safe payloads

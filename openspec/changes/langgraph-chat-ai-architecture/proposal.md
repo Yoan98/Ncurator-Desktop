@@ -1,51 +1,82 @@
 ## Why
 
-The current chat experience is a single-step “search + prompt + stream” flow in the renderer, which cannot transparently execute multi-step plans (retrieve, write, update documents) and exposes model credentials to the UI layer. The existing writing workflow is a separate fixed pipeline and does not integrate with chat-driven tasks or a unified execution trace.
+The architecture direction has shifted from writing-workspace automation to a general AI-hosted local execution model:
+
+- We need a host that loops on local KB retrieval before deciding response or execution.
+- We need a dedicated terminal execution capability for practical local tasks.
+- Terminal execution must be sandboxed and tied to an explicit user-selected workspace.
+- File-operation nodes should be extensible (`docx` first, later `excel`), but `docx` implementation itself is deferred.
+- `docx` must be designed for Node.js ecosystem execution (no Python/system dependency requirement for end users).
+- Legacy writing-workflow interactions and persistence remain in the current architecture and must be removed from active flow.
 
 ## What Changes
 
-- Introduce a new LangGraph-based AI runtime for chat mode with four nodes: host, retrieval, writer, and answer.
-- Add a structured execution event stream so the UI can render plan, tasks, and tool steps, plus a final streamed answer.
-- Move all LLM calls to the main process and standardize on `@langchain/openai` for model invocation.
-- Replace the existing writing workflow with the new AI runtime for all writing-related operations.
-- Restrict `@` mentions to writing workspace documents only (no knowledge-base document mentions via `@`).
-- Provide local retrieval tools (hybrid / vector / FTS / document list) and writing tools (create/update/search&replace) as LangGraph ToolNodes.
-- Implement chat history loading V1 to avoid prompt bloat:
-  - Load recent turns (bounded) for continuity
-  - Maintain a compact per-session summary (bounded) for long-term context
-- **BREAKING**: Remove or deprecate the existing writing workflow run pipeline and its related persistence/events.
-- Rebuild the chat page UI to match the new execution model:
-  - Left: chat + plan/task/tool-step trace (collapsible)
-  - Right: retrieval results list or writing workspace panel (document list + editor)
+- Refactor runtime orchestration to host-centric flow with named capabilities:
+  - `host`
+  - `local_kb_retrieval` (renamed retrieval node)
+  - `terminal_exec`
+  - `docx` (placeholder capability in this change)
+  - `excel` (future extension placeholder)
+- Keep retrieval-first behavior:
+  - host emits retrieval intent
+  - `local_kb_retrieval` returns evidence
+  - host loops until context is sufficient
+- Allow host to choose:
+  - direct streamed response
+  - or execution plan over capability nodes
+- Add `terminal_exec` capability that accepts raw command strings and performs internal step loops.
+- Add mandatory workspace binding for execution runs (user must choose workspace before file/terminal actions).
+- Introduce sandbox policy + approval gate for terminal and file actions.
+- Keep file artifact events and local open actions.
+- Add dual-layer execution UX in chat:
+  - inline AI activity feed in assistant side ("what AI did")
+  - dedicated plan UI with task progress and expandable step details
+- Remove writing-workflow interactions and writing-domain persistence from active runtime architecture.
+- Keep `docx` as interface-first placeholder in this change; real editing implementation comes later.
 
 ## Capabilities
 
 ### New Capabilities
 
-- `ai-runner`: LangGraph chat runtime orchestration (host/retrieval/writer/answer), failure routing, and cancellation.
-- `ai-run-event-stream`: A stable event protocol for plan/tasks/tool calls and streamed answer tokens.
-- `ai-tooling-retrieval`: Retrieval ToolNodes for local knowledge base search (hybrid/vector/FTS), document table search, and writing document search.
-- `ai-tooling-writing`: Writing ToolNodes for creating/updating writing documents and safe search&replace edits with uniqueness guarantees.
-- `chat-history-memory-v1`: Bounded recent-turn loading plus compact per-session summary generation and updates.
-- `chat-execution-ui`: Chat UI that visualizes plan execution and renders retrieval/writing side panels.
+- `ai-tooling-terminal-exec`: raw command execution capability with internal loop and policy guards.
+- `ai-workspace-sandbox`: workspace selection, sandbox boundaries, risk policy, and approval flow.
+- `ai-node-capability-registry`: extensible capability dispatch for `docx`/`excel` and future nodes.
+- `ai-tooling-docx`: Node.js-based docx capability contract placeholder (implementation deferred).
 
 ### Modified Capabilities
 
-- `writing-workflow`: Replace the existing writing workflow pipeline with the new LangGraph chat runtime (**BREAKING**).
+- `ai-runner`: move to host + `local_kb_retrieval` loop + optional plan execution with capability nodes.
+- `ai-tooling-retrieval`: clarify local knowledge-base retrieval role and imported-document scoping.
+- `chat-execution-ui`: add workspace selection gate and terminal execution trace visibility.
+- `ai-run-event-stream`: add terminal step, approval-related, and UI-friendly activity event requirements.
+
+### Removed Capabilities
+
+- `writing-workflow`: remove legacy writing workflow from active product flow.
+- `ai-tooling-writing`: remove writing-workspace runtime tooling from active chat architecture.
 
 ## Impact
 
 - Main process:
-  - New LangGraph runtime for chat mode, ToolNodes, and streaming event emission over IPC.
-  - Standardize LLM calls via `@langchain/openai` using the existing `llm_config` storage.
-  - Update writing workspace operations to route through the new writer tools when initiated from chat.
-- Database:
-  - Keep `writing_document` and `writing_folder` as the writing workspace persistence layer.
-  - Deprecate/remove `writing_workflow_run` data and related usage.
-  - Add minimal storage for chat history memory V1 (e.g., session summary fields or a small companion table).
+  - Add `terminal_exec` capability runtime with raw command loop and sandbox checks.
+  - Add workspace + approval policy enforcement.
+  - Keep `docx` capability registration contract without implementing concrete operations yet.
+  - Remove writing-workflow execution paths from active flow.
+- Database/storage:
+  - Add/maintain workspace metadata needed for run binding and policy checks.
+  - Keep KB document/chunk storage as retrieval source of truth.
+  - Remove writing-domain persistence from active architecture.
 - Renderer:
-  - Remove the current chat page implementation and rebuild interactions to follow the new event stream.
-  - Stop using the browser-side OpenAI SDK for chat; consume the main-process stream/events instead.
+  - Require workspace selection before executable runs.
+  - Display terminal capability trace, approval prompts, and artifact actions.
+  - Keep imported-document `@` targeting for retrieval/action scope.
 - IPC/API surface:
-  - New `ai-run-start`/`ai-run-cancel` handlers and `ai-run-event` channel.
-  - Adjust `@` mention endpoints to only query writing workspace documents.
+  - Extend run-start payload with workspace context.
+  - Add approval and terminal step event handling contract.
+  - Remove writing-workflow endpoints from supported client flow.
+
+## Breaking Changes
+
+- `AiTaskKind` is capability-based (`local_kb_retrieval`, `terminal_exec`, `docx`, future kinds), no `writer`.
+- Executable runs require explicit workspace binding.
+- Writing-workflow IPC and writing-domain runtime paths are removed from supported architecture.

@@ -1,40 +1,47 @@
 ## ADDED Requirements
 
-### Requirement: Orchestrate host, retrieval, writer, and answer nodes
-The system MUST execute chat runs using a LangGraph state machine with four nodes: host, retrieval, writer, and answer.
+### Requirement: Orchestrate host-led loops with explicit capabilities
+The system MUST orchestrate runs with host-led control and capability nodes including `local_kb_retrieval`, `terminal_exec`, and extensible future capabilities.
 
-#### Scenario: Successful multi-step run
-- **WHEN** a user submits a message in chat mode
-- **THEN** the system runs host to produce a plan, executes required retrieval and/or writer steps, and finally runs answer
+#### Scenario: Host loops over retrieval
+- **WHEN** host determines context is insufficient
+- **THEN** it dispatches `local_kb_retrieval` and re-enters analysis until stop conditions are met
 
-### Requirement: Enforce bounded retry loops per node
-The system MUST bound iterative execution loops to prevent unbounded tool calling.
+### Requirement: Let host choose direct response vs execution plan
+The host MUST decide whether to answer directly or create an execution plan after retrieval context is sufficient.
 
-#### Scenario: Retrieval retry limit reached
-- **WHEN** the retrieval node evaluates its results as insufficient three times for the same task
-- **THEN** the retrieval node reports task failure to the host and the run transitions to answer
+#### Scenario: Informational request
+- **WHEN** no executable action is needed
+- **THEN** host streams direct response without dispatching execution capabilities
 
-#### Scenario: Writer retry limit reached
-- **WHEN** the writer node evaluates its output as insufficient five times for the same task
-- **THEN** the writer node reports task failure to the host and the run transitions to answer
+#### Scenario: Action request
+- **WHEN** local actions are needed
+- **THEN** host emits plan tasks and dispatches capability execution
 
-### Requirement: Fail-fast routing to answer
-The system MUST interrupt the remaining plan steps and transition to the answer node when any task is marked as failed.
+### Requirement: Require workspace binding for executable runs
+The runtime MUST require valid workspace context before executing `terminal_exec` or file-action capabilities.
 
-#### Scenario: Tool execution error
-- **WHEN** a tool call throws an execution error during a run
-- **THEN** the system marks the active task as failed and runs answer with the failure reason
+#### Scenario: Missing workspace for action request
+- **WHEN** host attempts to dispatch executable capability without workspace binding
+- **THEN** runtime blocks execution and emits explicit workspace-required signal
 
-### Requirement: Support run cancellation
-The system MUST allow a run to be cancelled and MUST stop additional tool calls and node execution after cancellation.
+### Requirement: Use capability registry dispatch and fail fast on unknown kinds
+Task dispatch MUST resolve through capability registry and unknown capability kinds MUST fail with explicit errors.
 
-#### Scenario: User cancels an active run
-- **WHEN** the user triggers cancel for the active run
-- **THEN** the system stops execution and emits a cancellation completion signal
+#### Scenario: Unknown task kind
+- **WHEN** a plan task references unregistered capability kind
+- **THEN** runtime marks task failed with unsupported-capability reason
 
-### Requirement: Load chat history context for each run
-The host node MUST load bounded chat history context (recent turns and session summary) prior to plan generation.
+### Requirement: Host owns final response streaming
+The runtime MUST stream final user-facing output from host finalization logic.
 
-#### Scenario: Host prepares context for planning
-- **WHEN** the host node starts a run
-- **THEN** it loads recent turns and the session summary and uses them to generate a plan
+#### Scenario: Run completion
+- **WHEN** run reaches terminal state
+- **THEN** host emits ordered response tokens and response completion event
+
+### Requirement: Support cancellation and fail-fast routing
+The runtime MUST stop further execution on cancellation or unrecoverable task failure.
+
+#### Scenario: User cancels active run
+- **WHEN** cancel signal arrives during retrieval or capability execution
+- **THEN** runtime stops remaining work and emits run-cancelled event

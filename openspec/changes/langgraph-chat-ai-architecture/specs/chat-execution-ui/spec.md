@@ -1,33 +1,50 @@
 ## ADDED Requirements
 
-### Requirement: Provide a single chat input with writing document mentions
-The chat UI MUST provide a single input field and MUST support `@` mention selection limited to writing workspace documents.
+### Requirement: Provide imported-document `@` targeting in chat
+The chat UI MUST provide `@` selection from imported documents and send selected ids with run input.
 
-#### Scenario: Mention is restricted to writing documents
-- **WHEN** the user types `@` in the chat input
-- **THEN** the UI suggests only writing workspace documents and never suggests knowledge base documents
+#### Scenario: Mention suggestions
+- **WHEN** user types `@` in chat input
+- **THEN** suggestions come from imported KB documents
 
-### Requirement: Visualize plan, tasks, and tool steps in chat
-The chat UI MUST render the execution trace including the plan, per-task status, and per-tool call steps.
+### Requirement: Require workspace selection for executable runs
+The chat UI MUST collect/select workspace context before starting runs that require terminal or file-execution capabilities.
 
-#### Scenario: Task steps are visible during execution
-- **WHEN** the runtime emits plan, task, and tool call events
-- **THEN** the UI renders a task list with nested tool steps as they occur
+#### Scenario: Workspace missing on action request
+- **WHEN** user sends prompt that requires execution and no workspace is selected
+- **THEN** UI presents workspace selection flow before execution continues
 
-### Requirement: Support collapsible task groups with live state
-The chat UI MUST allow task groups to be collapsed and MUST show live progress state for running and completed tasks.
+### Requirement: Show inline AI activity feed in assistant side
+The chat UI MUST show a user-readable inline activity feed under assistant content describing what AI did (for example read docs, ran commands, created/deleted files).
 
-#### Scenario: User collapses completed tasks
-- **WHEN** tasks complete and the user collapses a task group
-- **THEN** the UI preserves the ability to expand and review tool steps for that task
+#### Scenario: Inline activity visibility
+- **WHEN** runtime emits activity events during execution
+- **THEN** assistant-side UI displays ordered activity items with status and short summaries
 
-### Requirement: Render a right-side context panel driven by run state
-The chat UI MUST render a right-side panel that switches between retrieval results and writing workspace views based on runtime state updates.
+### Requirement: Render explicit plan UI with progress
+The chat UI MUST render a dedicated plan view showing plan steps, current step, and progress state.
 
-#### Scenario: Retrieval results are displayed
-- **WHEN** the runtime emits retrieval tool results or state patches with result lists
-- **THEN** the right panel displays a retrieval results list component
+#### Scenario: Plan progress updates
+- **WHEN** runtime emits plan and task lifecycle events
+- **THEN** UI updates plan progress indicators and active/completed/failed step states in real time
 
-#### Scenario: Writing operations are displayed
-- **WHEN** the runtime emits writer tool events indicating a create or edit operation
-- **THEN** the right panel displays a writing component that can show document lists and the active document editor
+### Requirement: Support expandable step details
+The plan UI MUST allow users to expand/collapse per-step details including tool/terminal traces and outputs.
+
+#### Scenario: User expands completed step
+- **WHEN** user opens a completed step in plan UI
+- **THEN** UI shows associated detailed traces without losing summary visibility
+
+### Requirement: Support approval and workspace-required interaction events
+The UI MUST render actionable prompts for approval-required and workspace-required events.
+
+#### Scenario: Approval prompt shown
+- **WHEN** runtime emits approval-required event
+- **THEN** UI shows approve/deny actions and submits decision to runtime
+
+### Requirement: Render retrieval and artifact panels
+The right panel MUST show retrieval outputs and file artifact entries with open actions.
+
+#### Scenario: Artifact interaction
+- **WHEN** artifact events arrive
+- **THEN** UI shows artifact links and supports open default/reveal/open-with actions with error feedback
