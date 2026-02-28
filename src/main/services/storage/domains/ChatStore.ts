@@ -1,6 +1,23 @@
 import type { ChatMessage, ChatSession, ChatSessionMemory } from '../../../types/store'
 import { LanceDbCore, LANCE_TABLES } from '../core/LanceDbCore'
 
+type ChatSessionRow = { id?: unknown; title?: unknown; created_at?: unknown }
+type ChatMessageRow = {
+  id?: unknown
+  session_id?: unknown
+  role?: unknown
+  content?: unknown
+  timestamp?: unknown
+  sources?: unknown
+  error?: unknown
+}
+
+const toChatRole = (value: unknown): ChatMessage['role'] => {
+  const role = String(value || '')
+  if (role === 'assistant' || role === 'system') return role
+  return 'user'
+}
+
 export class ChatStore {
   public constructor(private readonly core: LanceDbCore) {}
 
@@ -41,11 +58,14 @@ export class ChatStore {
     const table = await this.core.openTable(LANCE_TABLES.CHAT_SESSION)
     const results = await table.query().toArray()
     return results
-      .map((r: any) => ({
-        id: r.id as string,
-        title: r.title as string,
-        created_at: Number(r.created_at)
-      }))
+      .map((r) => {
+        const row = r as ChatSessionRow
+        return {
+          id: String(row.id || ''),
+          title: String(row.title || ''),
+          created_at: Number(row.created_at || 0)
+        }
+      })
       .sort((a, b) => b.created_at - a.created_at)
   }
 
@@ -74,15 +94,18 @@ export class ChatStore {
       .where(`session_id = '${this.core.escapeSqlString(sessionId)}'`)
       .toArray()
     return results
-      .map((r: any) => ({
-        id: r.id as string,
-        session_id: r.session_id as string,
-        role: r.role as any,
-        content: r.content as string,
-        timestamp: Number(r.timestamp),
-        sources: r.sources as string,
-        error: r.error as boolean
-      }))
+      .map((r) => {
+        const row = r as ChatMessageRow
+        return {
+          id: String(row.id || ''),
+          session_id: String(row.session_id || ''),
+          role: toChatRole(row.role),
+          content: String(row.content || ''),
+          timestamp: Number(row.timestamp || 0),
+          sources: row.sources ? String(row.sources) : undefined,
+          error: typeof row.error === 'boolean' ? row.error : undefined
+        }
+      })
       .sort((a, b) => a.timestamp - b.timestamp)
   }
 

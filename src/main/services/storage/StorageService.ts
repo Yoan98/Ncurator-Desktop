@@ -2,7 +2,6 @@ import { LanceDbCore } from './core/LanceDbCore'
 import { ChatStore } from './domains/ChatStore'
 import { DocumentsStore } from './domains/DocumentsStore'
 import { LlmConfigStore } from './domains/LlmConfigStore'
-import { WritingStore } from './domains/WritingStore'
 
 export class StorageService {
   private static instance: StorageService
@@ -11,14 +10,12 @@ export class StorageService {
   public readonly documents: DocumentsStore
   public readonly chat: ChatStore
   public readonly llm: LlmConfigStore
-  public readonly writing: WritingStore
 
   private constructor() {
     this.core = new LanceDbCore()
     this.documents = new DocumentsStore(this.core)
     this.chat = new ChatStore(this.core)
     this.llm = new LlmConfigStore(this.core)
-    this.writing = new WritingStore(this.core)
   }
 
   public static getInstance(): StorageService {
@@ -36,4 +33,3 @@ export class StorageService {
     await this.core.close()
   }
 }
-

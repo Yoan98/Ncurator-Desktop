@@ -17,10 +17,7 @@ export const LANCE_TABLES = {
   CHAT_SESSION: 'chat_session',
   CHAT_MESSAGE: 'chat_message',
   CHAT_SESSION_MEMORY: 'chat_session_memory',
-  LLM_CONFIG: 'llm_config',
-  WRITING_FOLDER: 'writing_folder',
-  WRITING_DOCUMENT: 'writing_document',
-  WRITING_WORKFLOW_RUN: 'writing_workflow_run'
+  LLM_CONFIG: 'llm_config'
 } as const
 
 export type LanceTableName = (typeof LANCE_TABLES)[keyof typeof LANCE_TABLES]
@@ -223,45 +220,6 @@ export class LanceDbCore {
           new arrow.Field('model_name', new arrow.Utf8()),
           new arrow.Field('api_key', new arrow.Utf8()),
           new arrow.Field('is_active', new arrow.Bool())
-        ])
-      },
-      {
-        name: LANCE_TABLES.WRITING_FOLDER,
-        schema: new arrow.Schema([
-          new arrow.Field('id', new arrow.Utf8()),
-          new arrow.Field('name', new arrow.Utf8()),
-          new arrow.Field('parent_id', new arrow.Utf8(), true),
-          new arrow.Field('created_at', new arrow.Int64()),
-          new arrow.Field('updated_at', new arrow.Int64())
-        ])
-      },
-      {
-        name: LANCE_TABLES.WRITING_DOCUMENT,
-        schema: new arrow.Schema([
-          new arrow.Field('id', new arrow.Utf8()),
-          new arrow.Field('title', new arrow.Utf8()),
-          new arrow.Field('folder_id', new arrow.Utf8(), true),
-          new arrow.Field('content', new arrow.Utf8()),
-          new arrow.Field('markdown', new arrow.Utf8(), true),
-          new arrow.Field('created_at', new arrow.Int64()),
-          new arrow.Field('updated_at', new arrow.Int64())
-        ])
-      },
-      {
-        name: LANCE_TABLES.WRITING_WORKFLOW_RUN,
-        schema: new arrow.Schema([
-          new arrow.Field('id', new arrow.Utf8()),
-          new arrow.Field('writing_document_id', new arrow.Utf8(), true),
-          new arrow.Field('status', new arrow.Utf8()),
-          new arrow.Field('input', new arrow.Utf8()),
-          new arrow.Field('outline', new arrow.Utf8(), true),
-          new arrow.Field('retrieval_plan', new arrow.Utf8(), true),
-          new arrow.Field('retrieved', new arrow.Utf8(), true),
-          new arrow.Field('citations', new arrow.Utf8(), true),
-          new arrow.Field('draft_markdown', new arrow.Utf8(), true),
-          new arrow.Field('error', new arrow.Utf8(), true),
-          new arrow.Field('created_at', new arrow.Int64()),
-          new arrow.Field('updated_at', new arrow.Int64())
         ])
       }
     ]

@@ -3,21 +3,16 @@ import { IngestionService } from '../services/ingestion/loader'
 import { EmbeddingService } from '../services/vector/EmbeddingService'
 import { StorageService } from '../services/storage/StorageService'
 import { ModelService } from '../services/model/ModelService'
-import { WritingWorkflowService } from '../services/writing/WritingWorkflowService'
 import { AiRunService } from '../services/ai/AiRunService'
 import { updateSessionMemoryAfterRun } from '../services/ai/memory'
 import { v4 as uuidv4 } from 'uuid'
 import type {
   SearchResult,
-  DocumentRecord,
   DocumentListResponse,
   ChunkListResponse,
   ChatSession,
   ChatMessage,
   LLMConfig,
-  WritingFolderRecord,
-  WritingDocumentRecord,
-  WritingWorkflowRunRecord,
   AiRunEvent,
   AiRunStartRequest,
   AiRunStartResponse,
@@ -28,7 +23,7 @@ import type {
 import path from 'path'
 import fs from 'fs'
 import { DOCUMENTS_PATH } from '../utils/paths'
-import { ENABLE_LEGACY_WRITING_WORKFLOW, WEB_INGEST_CONCURRENCY } from '../utils/constant'
+import { WEB_INGEST_CONCURRENCY } from '../utils/constant'
 import { Jieba } from '@node-rs/jieba'
 import { dict } from '@node-rs/jieba/dict'
 import { normalizeForIpc } from '../utils/serialization'
@@ -42,7 +37,6 @@ export function registerHandlers(services: {
   modelService: ModelService
 }) {
   const { ingestionService, embeddingService, storageService, modelService } = services
-  const activeWritingRuns = new Map<string, { cancelled: boolean; senderId: number }>()
   const activeAiRuns = new Map<string, { cancelled: boolean; senderId: number }>()
   const activeAiApprovals = new Map<
     string,
@@ -57,7 +51,6 @@ export function registerHandlers(services: {
   const documentsStore = storageService.documents
   const chatStore = storageService.chat
   const llmStore = storageService.llm
-  const writingStore = storageService.writing
 
   ipcMain.handle('ingest-file', async (event, filePath: string, filename: string) => {
     let documentId: string = ''
@@ -579,187 +572,6 @@ export function registerHandlers(services: {
 
   ipcMain.handle('get-embedding-status', () => {
     return embeddingService.getStatus()
-  })
-
-  // === Writing Workspace & Writing Workflow ===
-
-  ipcMain.handle('writing-folder-list', async (): Promise<WritingFolderRecord[]> => {
-    try {
-      return await writingStore.listFolders()
-    } catch (e: any) {
-      console.error('[WRITING-FOLDER-LIST] Error:', e)
-      return []
-    }
-  })
-
-  ipcMain.handle('writing-folder-save', async (_event, folder: WritingFolderRecord) => {
-    try {
-      await writingStore.saveFolder(folder)
-      return { success: true }
-    } catch (e: any) {
-      console.error('[WRITING-FOLDER-SAVE] Error:', e)
-      return { success: false, error: e.message }
-    }
-  })
-
-  ipcMain.handle('writing-folder-delete', async (_event, id: string) => {
-    try {
-      await writingStore.deleteFolder(id)
-      return { success: true }
-    } catch (e: any) {
-      console.error('[WRITING-FOLDER-DELETE] Error:', e)
-      return { success: false, error: e.message }
-    }
-  })
-
-  ipcMain.handle(
-    'writing-document-list',
-    async (_event, payload: { folderId?: string }): Promise<WritingDocumentRecord[]> => {
-      try {
-        return await writingStore.listDocuments(payload?.folderId)
-      } catch (e: any) {
-        console.error('[WRITING-DOCUMENT-LIST] Error:', e)
-        return []
-      }
-    }
-  )
-
-  ipcMain.handle('writing-document-get', async (_event, id: string) => {
-    try {
-      const doc = await writingStore.getDocument(id)
-      return { success: true, doc }
-    } catch (e: any) {
-      console.error('[WRITING-DOCUMENT-GET] Error:', e)
-      return { success: false, error: e.message }
-    }
-  })
-
-  ipcMain.handle('writing-document-save', async (_event, doc: WritingDocumentRecord) => {
-    try {
-      await writingStore.saveDocument(doc)
-      return { success: true }
-    } catch (e: any) {
-      console.error('[WRITING-DOCUMENT-SAVE] Error:', e)
-      return { success: false, error: e.message }
-    }
-  })
-
-  ipcMain.handle('writing-document-delete', async (_event, id: string) => {
-    try {
-      await writingStore.deleteDocument(id)
-      return { success: true }
-    } catch (e: any) {
-      console.error('[WRITING-DOCUMENT-DELETE] Error:', e)
-      return { success: false, error: e.message }
-    }
-  })
-
-  ipcMain.handle(
-    'writing-mention-documents',
-    async (_event, payload: { keyword?: string; limit?: number }): Promise<DocumentRecord[]> => {
-      try {
-        const limit = Math.max(1, Math.min(50, Number(payload?.limit || 20)))
-        const res = await documentsStore.listDocuments({
-          keyword: payload?.keyword,
-          page: 1,
-          pageSize: limit
-        })
-        return res.items
-      } catch (e: any) {
-        console.error('[WRITING-MENTION-DOCUMENTS] Error:', e)
-        return []
-      }
-    }
-  )
-
-  ipcMain.handle(
-    'writing-retrieve',
-    async (
-      _event,
-      payload: { query: string; selectedDocumentIds?: string[] }
-    ): Promise<SearchResult[]> => {
-      try {
-        const query = String(payload?.query || '').trim()
-        if (!query) return []
-        const { data: queryVector } = await embeddingService.embed(query)
-        const docIds = Array.isArray(payload?.selectedDocumentIds)
-          ? payload!.selectedDocumentIds!.filter(Boolean)
-          : undefined
-        const results = await documentsStore.hybridSearch(queryVector, query, 20, undefined, docIds)
-        return results.map(normalizeForIpc)
-      } catch (e: any) {
-        console.error('[WRITING-RETRIEVE] Error:', e)
-        return []
-      }
-    }
-  )
-
-  ipcMain.handle(
-    'writing-workflow-run-get',
-    async (_event, id: string): Promise<WritingWorkflowRunRecord | null> => {
-      try {
-        if (!ENABLE_LEGACY_WRITING_WORKFLOW) return null
-        return await writingStore.getWorkflowRun(id)
-      } catch (e: any) {
-        console.error('[WRITING-WORKFLOW-RUN-GET] Error:', e)
-        return null
-      }
-    }
-  )
-
-  ipcMain.handle(
-    'writing-workflow-start',
-    async (
-      event,
-      payload: { input: string; selectedDocumentIds?: string[]; writingDocumentId?: string }
-    ) => {
-      if (!ENABLE_LEGACY_WRITING_WORKFLOW) {
-        return {
-          success: false,
-          error: 'deprecated: use ai-run-start'
-        }
-      }
-      const runId = uuidv4()
-      activeWritingRuns.set(runId, { cancelled: false, senderId: event.sender.id })
-      ;(async () => {
-        const sendEvent = (evt: any) => {
-          if (event.sender.isDestroyed()) return
-          event.sender.send('writing-workflow-event', evt)
-        }
-        try {
-          await WritingWorkflowService.getInstance().run(
-            {
-              runId,
-              input: String(payload?.input || ''),
-              selectedDocumentIds: payload?.selectedDocumentIds,
-              writingDocumentId: payload?.writingDocumentId
-            },
-            {
-              documentsStore,
-              llmStore,
-              writingStore,
-              embeddingService,
-              sendEvent,
-              isCancelled: () => Boolean(activeWritingRuns.get(runId)?.cancelled)
-            }
-          )
-        } finally {
-          activeWritingRuns.delete(runId)
-        }
-      })()
-
-      return { success: true, runId }
-    }
-  )
-
-  ipcMain.handle('writing-workflow-cancel', async (_event, runId: string) => {
-    if (!ENABLE_LEGACY_WRITING_WORKFLOW) {
-      return { success: false, error: 'deprecated: use ai-run-cancel' }
-    }
-    const entry = activeWritingRuns.get(runId)
-    if (!entry) return { success: false, error: 'run not found' }
-    entry.cancelled = true
-    return { success: true }
   })
 
   ipcMain.handle(

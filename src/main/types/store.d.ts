@@ -9,12 +9,6 @@ import {
   ChatSession,
   ChatMessage,
   LLMConfig,
-  WritingFolderRecord,
-  WritingDocumentRecord,
-  WritingWorkflowRunRecord,
-  WritingWorkflowRunStatus,
-  WritingWorkflowEvent,
-  WritingWorkflowStageId,
   AiRunEvent,
   AiPlanTask,
   AiRunStatus,
@@ -23,6 +17,8 @@ import {
   AiRunCancelResponse,
   AiRunApprovalDecisionRequest,
   AiRunApprovalDecisionResponse,
+  JsonObject,
+  JsonValue,
   ChatSessionMemory,
   ChatSessionMemoryRow
 } from '../../shared/types'
@@ -37,12 +33,6 @@ export type {
   ChatSession,
   ChatMessage,
   LLMConfig,
-  WritingFolderRecord,
-  WritingDocumentRecord,
-  WritingWorkflowRunRecord,
-  WritingWorkflowRunStatus,
-  WritingWorkflowEvent,
-  WritingWorkflowStageId,
   AiRunEvent,
   AiPlanTask,
   AiRunStatus,
@@ -51,6 +41,8 @@ export type {
   AiRunCancelResponse,
   AiRunApprovalDecisionRequest,
   AiRunApprovalDecisionResponse,
+  JsonObject,
+  JsonValue,
   ChatSessionMemory,
   ChatSessionMemoryRow
 }

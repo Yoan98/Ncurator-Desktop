@@ -8,6 +8,29 @@ import type {
 } from '../../../types/store'
 import { LanceDbCore, LANCE_TABLES } from '../core/LanceDbCore'
 
+type ChunkRow = Record<string, unknown> & {
+  id?: unknown
+  text?: unknown
+  document_name?: unknown
+  document_id?: unknown
+  source_type?: unknown
+  metadata?: unknown
+  created_at?: unknown
+  vector?: unknown
+}
+
+type DocumentRow = Record<string, unknown> & {
+  id?: unknown
+  name?: unknown
+  source_type?: unknown
+  file_path?: unknown
+  created_at?: unknown
+  import_status?: unknown
+}
+
+const normalizeSourceType = (value: unknown): DocumentRecord['source_type'] =>
+  String(value || '') === 'web' ? 'web' : 'file'
+
 export class DocumentsStore {
   private reranker: lancedb.rerankers.RRFReranker | null = null
 
@@ -71,10 +94,13 @@ export class DocumentsStore {
     ])
     if (where) query.where(where)
     const results = await query.nearestTo(queryVector).distanceType('cosine').limit(limit).toArray()
-    return results.map((item: any) => ({
-      ...item,
-      created_at: Number(item.created_at)
-    })) as SearchResult[]
+    return results.map((item) => {
+      const row = item as ChunkRow
+      return {
+        ...(row as unknown as SearchResult),
+        created_at: Number(row.created_at || 0)
+      }
+    })
   }
 
   public async ftsSearch(
@@ -91,10 +117,13 @@ export class DocumentsStore {
     ])
     if (where) q.where(where)
     const results = await q.fullTextSearch(queryText).limit(limit).toArray()
-    return results.map((item: any) => ({
-      ...item,
-      created_at: Number(item.created_at)
-    })) as SearchResult[]
+    return results.map((item) => {
+      const row = item as ChunkRow
+      return {
+        ...(row as unknown as SearchResult),
+        created_at: Number(row.created_at || 0)
+      }
+    })
   }
 
   public async hybridSearch(
@@ -119,10 +148,13 @@ export class DocumentsStore {
       .rerank(reranker)
       .limit(limit)
       .toArray()
-    return results.map((item: any) => ({
-      ...item,
-      created_at: Number(item.created_at)
-    })) as SearchResult[]
+    return results.map((item) => {
+      const row = item as ChunkRow
+      return {
+        ...(row as unknown as SearchResult),
+        created_at: Number(row.created_at || 0)
+      }
+    })
   }
 
   public async search(
@@ -145,19 +177,27 @@ export class DocumentsStore {
     if (!whereClause) return results
     const documents = await docTable.query().where(whereClause).toArray()
     const docMap = new Map(
-      documents.map((d: any) => [
-        d.id,
-        {
-          ...d,
-          created_at: Number(d.created_at)
-        }
-      ])
+      documents.map((d) => {
+        const row = d as DocumentRow
+        return [
+          String(row.id || ''),
+          {
+            ...(row as unknown as DocumentRecord),
+            source_type: normalizeSourceType(row.source_type),
+            created_at: Number(row.created_at || 0)
+          }
+        ] as const
+      })
     )
 
-    return results.map((item: any) => ({
-      ...item,
-      document: item.document_id ? docMap.get(item.document_id) : undefined
-    })) as SearchResult[]
+    return results.map((item) => {
+      const row = item as ChunkRow
+      const documentId = row.document_id ? String(row.document_id) : undefined
+      return {
+        ...(row as unknown as SearchResult),
+        document: documentId ? docMap.get(documentId) : undefined
+      }
+    })
   }
 
   public async listDocuments(params: {
@@ -181,15 +221,16 @@ export class DocumentsStore {
     if (where) query.where(where)
     const rows = await query.limit(pageSize).offset(skip).toArray()
 
-    const items = rows.map((item: any) => {
-      const s = Number(item.import_status ?? 2)
+    const items = rows.map((item) => {
+      const row = item as DocumentRow
+      const s = Number(row.import_status ?? 2)
       const importStatus = (s === 1 ? 1 : s === 3 ? 3 : 2) as 1 | 2 | 3
       return {
-        id: item.id as string,
-        name: item.name as string,
-        source_type: item.source_type as any,
-        file_path: item.file_path as string,
-        created_at: Number(item.created_at),
+        id: String(row.id || ''),
+        name: String(row.name || ''),
+        source_type: normalizeSourceType(row.source_type),
+        file_path: row.file_path ? String(row.file_path) : undefined,
+        created_at: Number(row.created_at || 0),
         import_status: importStatus
       }
     })
@@ -213,18 +254,21 @@ export class DocumentsStore {
     if (where && where.trim().length > 0) query.where(where)
     const rows = await query.limit(pageSize).offset(skip).toArray()
 
-    const items = rows.map((item: any) => ({
-      id: item.id as string,
-      text: item.text as string,
-      document_name: item.document_name as string,
-      document_id: item.document_id as string,
-      source_type: item.source_type as any,
-      metadata: item.metadata as any,
-      created_at: Number(item.created_at),
-      vector: Array.isArray(item.vector)
-        ? (item.vector as number[])
-        : Array.from((item.vector || []) as Float32Array)
-    }))
+    const items = rows.map((item) => {
+      const row = item as ChunkRow
+      return {
+        id: String(row.id || ''),
+        text: String(row.text || ''),
+        document_name: String(row.document_name || ''),
+        document_id: row.document_id ? String(row.document_id) : undefined,
+        source_type: normalizeSourceType(row.source_type),
+        metadata: row.metadata as SearchResult['metadata'],
+        created_at: Number(row.created_at || 0),
+        vector: Array.isArray(row.vector)
+          ? (row.vector as number[])
+          : Array.from((row.vector || []) as Float32Array)
+      }
+    })
 
     return { items, total }
   }
@@ -251,8 +295,8 @@ export class DocumentsStore {
         await chunkTable.delete(`document_id = "${safeId}"`)
         await docTable.delete(`id = "${safeId}"`)
       }
-    } catch (error: any) {
-      return { success: false, msg: error.message }
+    } catch (error: unknown) {
+      return { success: false, msg: error instanceof Error ? error.message : String(error) }
     }
     return { success: true, msg: 'Documents deleted successfully' }
   }

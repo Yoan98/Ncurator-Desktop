@@ -1,13 +1,13 @@
 import { HumanMessage, SystemMessage } from '@langchain/core/messages'
-import type { ChatSessionMemory } from '../../types/store'
+import type { ChatSessionMemory, JsonObject } from '../../types/store'
 import type { ChatStore } from '../storage/domains/ChatStore'
 import type { LlmConfigStore } from '../storage/domains/LlmConfigStore'
 import { createChatModel } from '../llm/chatModel'
 
-const parseJsonObject = (text: string): any => {
+const parseJsonObject = <T extends JsonObject>(text: string): T => {
   const trimmed = String(text || '').trim()
   try {
-    return JSON.parse(trimmed)
+    return JSON.parse(trimmed) as T
   } catch (err) {
     void err
   }
@@ -15,20 +15,21 @@ const parseJsonObject = (text: string): any => {
   const end = trimmed.lastIndexOf('}')
   if (start >= 0 && end > start) {
     const slice = trimmed.slice(start, end + 1)
-    return JSON.parse(slice)
+    return JSON.parse(slice) as T
   }
   throw new Error('无法解析 JSON 输出')
 }
 
-const normalizeMemory = (input: any): ChatSessionMemory => {
-  const obj = input && typeof input === 'object' ? input : {}
-  const toList = (v: any) => (Array.isArray(v) ? v : []).map((x) => String(x || '').trim()).filter(Boolean)
+const normalizeMemory = (input: unknown): ChatSessionMemory => {
+  const obj: Record<string, unknown> = input && typeof input === 'object' ? (input as Record<string, unknown>) : {}
+  const toList = (v: unknown) =>
+    (Array.isArray(v) ? v : []).map((x) => String(x || '').trim()).filter(Boolean)
   return {
     summary: String(obj.summary || '').trim(),
     openTasks: toList(obj.openTasks).slice(0, 20),
     userPrefs: toList(obj.userPrefs).slice(0, 20),
     pinnedFacts: toList(obj.pinnedFacts).slice(0, 20),
-    linkedWritingDocumentIds: toList(obj.linkedWritingDocumentIds).slice(0, 50)
+    linkedDocumentIds: toList(obj.linkedDocumentIds).slice(0, 50)
   }
 }
 
@@ -47,7 +48,7 @@ export const updateSessionMemoryAfterRun = async (input: {
     openTasks: [],
     userPrefs: [],
     pinnedFacts: [],
-    linkedWritingDocumentIds: []
+    linkedDocumentIds: []
   }
 
   const cfg = await input.llmStore.getActive()
@@ -59,7 +60,7 @@ export const updateSessionMemoryAfterRun = async (input: {
       [
         'You update session memory for a desktop chat assistant.',
         'Return JSON only with keys:',
-        'summary, openTasks, userPrefs, pinnedFacts, linkedWritingDocumentIds.',
+        'summary, openTasks, userPrefs, pinnedFacts, linkedDocumentIds.',
         'Do not include secrets or credentials.',
         'Keep summary concise.',
         'Use arrays of short strings.'
@@ -77,7 +78,7 @@ export const updateSessionMemoryAfterRun = async (input: {
   ])
   const text = typeof res?.content === 'string' ? res.content : String(res?.content ?? '')
   if (!text) return
-  const json = parseJsonObject(text)
+  const json = parseJsonObject<JsonObject>(text)
   const memory = normalizeMemory(json)
   await input.chatStore.saveSessionMemory(sessionId, memory)
 }

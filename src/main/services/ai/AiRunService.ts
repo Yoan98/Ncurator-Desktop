@@ -26,10 +26,11 @@ export class AiRunService {
         plan: []
       } as AiRunState)
       return res as AiRunState
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const err = e as { code?: string; message?: string }
       if (
-        e?.code === 'CANCELLED' ||
-        String(e?.message || '')
+        err.code === 'CANCELLED' ||
+        String(err.message || '')
           .toLowerCase()
           .includes('cancel')
       ) {

@@ -7,7 +7,7 @@ import { normalizeForIpc } from '../../../utils/serialization'
 const MAX_RETRIEVAL_LIMIT = 50
 const MAX_LIST_PAGE_SIZE = 50
 
-const previewArray = (rows: any[], max = 3) => {
+const previewArray = <T>(rows: T[], max = 3): T[] => {
   const list = Array.isArray(rows) ? rows : []
   return list.slice(0, Math.max(0, max))
 }
@@ -41,7 +41,7 @@ export const buildRetrievalTools = (input: {
 }) => {
   const { ctx, runId, taskId } = input
 
-  const emitStarted = (toolName: string, args: any) => {
+  const emitStarted = (toolName: string, args: unknown) => {
     const toolCallId = uuidv4()
     ctx.sendEvent({
       type: 'tool_call_started',
@@ -55,7 +55,12 @@ export const buildRetrievalTools = (input: {
     return toolCallId
   }
 
-  const emitResult = (toolName: string, toolCallId: string, outputPreview: any, error?: string) => {
+  const emitResult = (
+    toolName: string,
+    toolCallId: string,
+    outputPreview: unknown,
+    error?: string
+  ) => {
     ctx.sendEvent({
       type: 'tool_call_result',
       runId,
@@ -94,7 +99,7 @@ export const buildRetrievalTools = (input: {
         const normalized = rows.map(normalizeForIpc)
         emitResult(toolName, toolCallId, previewArray(normalized))
         return normalized
-      } catch (e: any) {
+      } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e)
         emitResult(toolName, toolCallId, [], msg)
         throw e
@@ -137,7 +142,7 @@ export const buildRetrievalTools = (input: {
         const normalized = rows.map(normalizeForIpc)
         emitResult(toolName, toolCallId, previewArray(normalized))
         return normalized
-      } catch (e: any) {
+      } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e)
         emitResult(toolName, toolCallId, [], msg)
         throw e
@@ -179,7 +184,7 @@ export const buildRetrievalTools = (input: {
         const normalized = rows.map(normalizeForIpc)
         emitResult(toolName, toolCallId, previewArray(normalized))
         return normalized
-      } catch (e: any) {
+      } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e)
         emitResult(toolName, toolCallId, [], msg)
         throw e
@@ -225,7 +230,7 @@ export const buildRetrievalTools = (input: {
         const normalized = { items, total: items.length }
         emitResult(toolName, toolCallId, previewArray(items))
         return normalized
-      } catch (e: any) {
+      } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e)
         emitResult(toolName, toolCallId, { items: [], total: 0 }, msg)
         throw e

@@ -1,6 +1,15 @@
 import type { LLMConfig } from '../../../types/store'
 import { LanceDbCore, LANCE_TABLES } from '../core/LanceDbCore'
 
+type LlmConfigRow = {
+  id?: unknown
+  name?: unknown
+  base_url?: unknown
+  model_name?: unknown
+  api_key?: unknown
+  is_active?: unknown
+}
+
 export class LlmConfigStore {
   public constructor(private readonly core: LanceDbCore) {}
 
@@ -13,14 +22,17 @@ export class LlmConfigStore {
   public async list(): Promise<LLMConfig[]> {
     const table = await this.core.openTable(LANCE_TABLES.LLM_CONFIG)
     const results = await table.query().toArray()
-    return results.map((r: any) => ({
-      id: r.id as string,
-      name: r.name as string,
-      base_url: r.base_url as string,
-      model_name: r.model_name as string,
-      api_key: r.api_key as string,
-      is_active: Boolean(r.is_active)
-    }))
+    return results.map((r) => {
+      const row = r as LlmConfigRow
+      return {
+        id: String(row.id || ''),
+        name: String(row.name || ''),
+        base_url: String(row.base_url || ''),
+        model_name: String(row.model_name || ''),
+        api_key: String(row.api_key || ''),
+        is_active: Boolean(row.is_active)
+      }
+    })
   }
 
   public async delete(id: string): Promise<void> {
@@ -42,4 +54,3 @@ export class LlmConfigStore {
     return configs.find((c) => c.is_active) || null
   }
 }
-

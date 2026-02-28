@@ -5,7 +5,8 @@ import { ToolNode } from '@langchain/langgraph/prebuilt'
 import { z } from 'zod/v4'
 import type { AiPlanTask, AiRunContext, AiRunState, AiTaskKind } from './types'
 import { createChatModel } from '../llm/chatModel'
-import { AIMessage, HumanMessage, SystemMessage } from '@langchain/core/messages'
+import { AIMessage, BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages'
+import type { JsonObject } from '../../../shared/types'
 import { buildRetrievalTools } from './tools/retrievalTools'
 import { runTerminalCommand } from './tools/terminalExec'
 
@@ -18,10 +19,14 @@ const TERMINAL_TIMEOUT_MS = 15000
 const TERMINAL_MAX_OUTPUT_CHARS = 8000
 const TERMINAL_SAFE_PREVIEW_CHARS = 600
 
-const parseJsonObject = (text: string): any => {
+type ChatContentChunk = { text?: string }
+type ToolCallCarrier = { tool_calls?: unknown[]; content?: unknown }
+type ToolNodeOutput = { messages?: unknown[] }
+
+const parseJsonObject = <T extends JsonObject>(text: string): T => {
   const trimmed = String(text || '').trim()
   try {
-    return JSON.parse(trimmed)
+    return JSON.parse(trimmed) as T
   } catch (err) {
     void err
   }
@@ -29,7 +34,7 @@ const parseJsonObject = (text: string): any => {
   const end = trimmed.lastIndexOf('}')
   if (start >= 0 && end > start) {
     const slice = trimmed.slice(start, end + 1)
-    return JSON.parse(slice)
+    return JSON.parse(slice) as T
   }
   throw new Error('无法解析 JSON 输出')
 }
@@ -39,9 +44,10 @@ const getMessageText = (content: unknown): string => {
   if (!Array.isArray(content)) return String(content ?? '')
 
   return content
-    .map((chunk: any) => {
+    .map((chunk: unknown) => {
       if (typeof chunk === 'string') return chunk
-      if (typeof chunk?.text === 'string') return chunk.text
+      const c = chunk as ChatContentChunk
+      if (typeof c?.text === 'string') return c.text
       return ''
     })
     .join('\n')
@@ -145,12 +151,27 @@ const inferHeuristicKind = (input: string): AiTaskKind => {
 }
 
 const createAiRunStateSchema = () =>
+  // Keep state schema permissive enough for graph transitions while maintaining task shape.
   new StateSchema({
     runId: z.string(),
     sessionId: z.string(),
     status: z.enum(['running', 'completed', 'failed', 'cancelled']).default('running'),
     input: z.string(),
-    plan: z.array(z.any()).default(() => []),
+    plan: z
+      .array(
+        z.object({
+          id: z.string(),
+          title: z.string(),
+          kind: z.string(),
+          input: z.string().optional(),
+          status: z.enum(['pending', 'running', 'completed', 'failed']),
+          attempts: z.number(),
+          error: z.string().optional(),
+          resultCode: z.enum(['ok', 'not_implemented']).optional(),
+          resultMessage: z.string().optional()
+        })
+      )
+      .default(() => []),
     activeTaskId: z.string().optional(),
     error: z.string().optional(),
     outputText: z.string().optional()
@@ -197,15 +218,18 @@ const ensurePlan = async (ctx: AiRunContext, state: AiRunState): Promise<AiPlanT
     if (!Array.isArray(json?.tasks)) return heuristic
 
     const mapped: AiPlanTask[] = json.tasks
-      .map((t: any, i: number) => ({
-        id: String(t?.id || `task-${i + 1}`),
-        title: String(t?.title || 'Task'),
-        kind: normalizePlannedKind(t?.kind),
-        input: t?.input == null ? undefined : String(t.input || '').trim(),
-        status: 'pending' as const,
-        attempts: 0
-      }))
-      .filter((t: any) => Boolean(t.id && t.title))
+      .map((t: unknown, i: number) => {
+        const raw = t && typeof t === 'object' ? (t as Record<string, unknown>) : {}
+        return {
+          id: String(raw.id || `task-${i + 1}`),
+          title: String(raw.title || 'Task'),
+          kind: normalizePlannedKind(raw.kind),
+          input: raw.input == null ? undefined : String(raw.input || '').trim(),
+          status: 'pending' as const,
+          attempts: 0
+        }
+      })
+      .filter((t) => Boolean(t.id && t.title))
 
     return mapped
   } catch (e) {
@@ -231,10 +255,10 @@ const buildHostFinalAnswer = async (ctx: AiRunContext, state: AiRunState): Promi
         `用户输入:\n${state.input}\n\n计划执行情况:\n${planText || '无计划任务'}\n\n已知结论:\n${String(state.outputText || '').trim() || '无'}\n\n请直接给最终答复。`
       )
     ])
-    const text = getMessageText((res as any)?.content).trim()
+    const text = getMessageText((res as ToolCallCarrier)?.content).trim()
     if (text) return text
-  } catch (e: any) {
-    const msg = String(e?.message || '')
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e)
     if (msg.toLowerCase().includes('cancel')) throw e
   }
 
@@ -366,7 +390,10 @@ const executeLocalKbRetrieval: CapabilityExecutor = async (ctx, state, task) => 
   let satisfied = false
   let note = ''
   let lastAi: AIMessage | null = null
-  const messages: any[] = [new SystemMessage(system), new HumanMessage(user)]
+  const messages: BaseMessage[] = [
+    new SystemMessage(system),
+    new HumanMessage(user)
+  ]
 
   for (let i = 0; i < MAX_TOOL_ROUNDS_PER_DISPATCH; i += 1) {
     ctx.checkCancelled()
@@ -374,17 +401,17 @@ const executeLocalKbRetrieval: CapabilityExecutor = async (ctx, state, task) => 
     lastAi = ai
     messages.push(ai)
 
-    const toolCalls = Array.isArray((ai as any)?.tool_calls) ? (ai as any).tool_calls : []
-    if (toolCalls.length > 0) {
-      const out = await toolNode.invoke({ messages: [ai] })
-      const toolMessages = Array.isArray((out as any)?.messages) ? (out as any).messages : []
+    const toolCalls = (ai as ToolCallCarrier).tool_calls
+    if (Array.isArray(toolCalls) && toolCalls.length > 0) {
+      const out = (await toolNode.invoke({ messages: [ai] })) as ToolNodeOutput
+      const toolMessages = (Array.isArray(out?.messages) ? out.messages : []) as BaseMessage[]
       messages.push(...toolMessages)
       continue
     }
 
-    const content = getMessageText((ai as any)?.content)
+    const content = getMessageText((ai as ToolCallCarrier)?.content)
     try {
-      const json = parseJsonObject(content)
+      const json = parseJsonObject<{ satisfied?: boolean; note?: string }>(content)
       satisfied = Boolean(json?.satisfied)
       note = String(json?.note || '')
     } catch (e) {
@@ -445,7 +472,7 @@ const executeLocalKbRetrieval: CapabilityExecutor = async (ctx, state, task) => 
   return {
     plan,
     activeTaskId: undefined,
-    outputText: note || getMessageText((lastAi as any)?.content || '') || state.outputText
+    outputText: note || getMessageText((lastAi as ToolCallCarrier | null)?.content || '') || state.outputText
   }
 }
 

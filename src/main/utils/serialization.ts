@@ -1,4 +1,6 @@
-export function normalizeForIpc<T extends { vector?: any; metadata?: any }>(item: T): T {
+type IpcSerializable = { vector?: unknown; metadata?: unknown }
+
+export function normalizeForIpc<T extends IpcSerializable>(item: T): T {
   const newItem = { ...item }
 
   // 删除 vector
@@ -8,7 +10,7 @@ export function normalizeForIpc<T extends { vector?: any; metadata?: any }>(item
 
   // 序列化 metadata
   if (newItem.metadata && typeof newItem.metadata !== 'string') {
-    newItem.metadata = JSON.stringify(newItem.metadata)
+    newItem.metadata = JSON.stringify(newItem.metadata) as T['metadata']
   }
 
   return newItem

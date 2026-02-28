@@ -6,11 +6,9 @@ import type {
   ChunkListResponse,
   SearchSourceFilter,
   WebIngestPayload,
-  DocumentRecord,
-  WritingFolderRecord,
-  WritingDocumentRecord,
-  WritingWorkflowRunRecord,
-  WritingWorkflowEvent,
+  ChatSession,
+  ChatMessage,
+  LLMConfig,
   AiRunEvent,
   AiRunStartRequest,
   AiRunStartResponse,
@@ -18,6 +16,14 @@ import type {
   AiRunApprovalDecisionRequest,
   AiRunApprovalDecisionResponse
 } from '../shared/types'
+
+type ModelInfo = {
+  id: string
+  name: string
+  description: string
+  tags: string[]
+  isDownloaded: boolean
+}
 
 // Custom APIs for renderer
 const api = {
@@ -83,68 +89,27 @@ const api = {
     }) => void
   ) => ipcRenderer.on('download-progress', (_event, data) => cb(data)),
   removeDownloadProgressListeners: () => ipcRenderer.removeAllListeners('download-progress'),
-  getModels: (): Promise<any[]> => ipcRenderer.invoke('get-models'),
+  getModels: (): Promise<ModelInfo[]> => ipcRenderer.invoke('get-models'),
   getEmbeddingStatus: (): Promise<string> => ipcRenderer.invoke('get-embedding-status'),
   readFile: (filePath: string): Promise<Uint8Array> => ipcRenderer.invoke('read-file', filePath),
 
   // Chat & LLM
-  chatSessionList: (): Promise<any[]> => ipcRenderer.invoke('chat-session-list'),
-  chatSessionSave: (session: any): Promise<{ success: boolean; error?: string }> =>
+  chatSessionList: (): Promise<ChatSession[]> => ipcRenderer.invoke('chat-session-list'),
+  chatSessionSave: (session: ChatSession): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('chat-session-save', session),
   chatSessionDelete: (id: string): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('chat-session-delete', id),
-  chatMessageList: (sessionId: string): Promise<any[]> =>
+  chatMessageList: (sessionId: string): Promise<ChatMessage[]> =>
     ipcRenderer.invoke('chat-message-list', sessionId),
-  chatMessageSave: (message: any): Promise<{ success: boolean; error?: string }> =>
+  chatMessageSave: (message: ChatMessage): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('chat-message-save', message),
-  llmConfigList: (): Promise<any[]> => ipcRenderer.invoke('llm-config-list'),
-  llmConfigSave: (config: any): Promise<{ success: boolean; error?: string }> =>
+  llmConfigList: (): Promise<LLMConfig[]> => ipcRenderer.invoke('llm-config-list'),
+  llmConfigSave: (config: LLMConfig): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('llm-config-save', config),
   llmConfigDelete: (id: string): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('llm-config-delete', id),
   llmConfigSetActive: (id: string): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('llm-config-set-active', id),
-
-  // Writing Workspace
-  writingFolderList: (): Promise<WritingFolderRecord[]> => ipcRenderer.invoke('writing-folder-list'),
-  writingFolderSave: (folder: WritingFolderRecord): Promise<{ success: boolean; error?: string }> =>
-    ipcRenderer.invoke('writing-folder-save', folder),
-  writingFolderDelete: (id: string): Promise<{ success: boolean; error?: string }> =>
-    ipcRenderer.invoke('writing-folder-delete', id),
-  writingDocumentList: (payload: { folderId?: string }): Promise<WritingDocumentRecord[]> =>
-    ipcRenderer.invoke('writing-document-list', payload),
-  writingDocumentGet: (
-    id: string
-  ): Promise<{ success: boolean; doc?: WritingDocumentRecord | null; error?: string }> =>
-    ipcRenderer.invoke('writing-document-get', id),
-  writingDocumentSave: (doc: WritingDocumentRecord): Promise<{ success: boolean; error?: string }> =>
-    ipcRenderer.invoke('writing-document-save', doc),
-  writingDocumentDelete: (id: string): Promise<{ success: boolean; error?: string }> =>
-    ipcRenderer.invoke('writing-document-delete', id),
-
-  // Writing AI Workflow
-  writingMentionDocuments: (payload: {
-    keyword?: string
-    limit?: number
-  }): Promise<DocumentRecord[]> => ipcRenderer.invoke('writing-mention-documents', payload),
-  writingRetrieve: (payload: {
-    query: string
-    selectedDocumentIds?: string[]
-  }): Promise<SearchResult[]> => ipcRenderer.invoke('writing-retrieve', payload),
-  writingWorkflowStart: (payload: {
-    input: string
-    selectedDocumentIds?: string[]
-    writingDocumentId?: string
-  }): Promise<{ success: boolean; runId?: string; error?: string }> =>
-    ipcRenderer.invoke('writing-workflow-start', payload),
-  writingWorkflowCancel: (runId: string): Promise<{ success: boolean; error?: string }> =>
-    ipcRenderer.invoke('writing-workflow-cancel', runId),
-  writingWorkflowRunGet: (runId: string): Promise<WritingWorkflowRunRecord | null> =>
-    ipcRenderer.invoke('writing-workflow-run-get', runId),
-  onWritingWorkflowEvent: (cb: (event: WritingWorkflowEvent) => void) =>
-    ipcRenderer.on('writing-workflow-event', (_event, data) => cb(data)),
-  removeWritingWorkflowEventListeners: () =>
-    ipcRenderer.removeAllListeners('writing-workflow-event'),
 
   aiRunStart: (payload: AiRunStartRequest): Promise<AiRunStartResponse> =>
     ipcRenderer.invoke('ai-run-start', payload),

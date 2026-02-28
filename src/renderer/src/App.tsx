@@ -8,8 +8,7 @@ import {
   HiOutlineMagnifyingGlass,
   HiOutlineChatBubbleLeftRight,
   HiCloudArrowDown,
-  HiOutlineHome,
-  HiOutlinePencilSquare
+  HiOutlineHome
 } from 'react-icons/hi2'
 import SearchPage from './pages/SearchPage'
 import ChatPage from './pages/ChatPage'
@@ -17,7 +16,6 @@ import SettingsPage from './pages/SettingsPage'
 import ImportPage from './pages/ImportPage'
 import TestPage from './pages/TestPage'
 import ModelDownloadPage from './pages/ModelDownloadPage'
-import WritingWorkspacePage from './pages/WritingWorkspacePage'
 import NotificationCenter from './components/NotificationCenter'
 import brandIcon from '../../../resources/icon.png'
 
@@ -120,11 +118,6 @@ const MainLayout: React.FC = () => {
             placement="bottomRight"
             menu={{
               items: [
-                {
-                  key: 'writing',
-                  label: '写作空间',
-                  icon: <HiOutlinePencilSquare className="w-4 h-4" />
-                },
                 { key: 'kb', label: '知识库管理', icon: <HiOutlineBookOpen className="w-4 h-4" /> },
                 {
                   key: 'settings',
@@ -139,7 +132,6 @@ const MainLayout: React.FC = () => {
                 { key: 'test', label: '实验室', icon: <HiOutlineBeaker className="w-4 h-4" /> }
               ],
               onClick: (info) => {
-                if (info.key === 'writing') navigate('/writing')
                 if (info.key === 'kb') navigate('/import')
                 if (info.key === 'settings') navigate('/settings')
                 if (info.key === 'model-download') navigate('/model-download')
@@ -158,7 +150,6 @@ const MainLayout: React.FC = () => {
         <Routes>
           <Route path="/" element={<SearchPage />} />
           <Route path="/chat" element={<ChatPage />} />
-          <Route path="/writing" element={<WritingWorkspacePage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/model-download" element={<ModelDownloadPage />} />
           <Route path="/import" element={<ImportPage />} />

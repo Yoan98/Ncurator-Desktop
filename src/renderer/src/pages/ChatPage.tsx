@@ -23,6 +23,44 @@ const extractAbsolutePaths = (text: string): string[] => {
   return unique.slice(0, 5)
 }
 
+type RightPanelState =
+  | {
+      title: string
+      kind: 'chunks'
+      data: SearchResult[]
+    }
+  | {
+      title: string
+      kind: 'docs'
+      data: DocumentRecord[]
+    }
+  | {
+      title: string
+      kind: 'json'
+      data: unknown
+    }
+
+type ToolCallEvent = Extract<AiRunEvent, { type: 'tool_call_started' | 'tool_call_result' }>
+type TerminalEvent = Extract<
+  AiRunEvent,
+  { type: 'terminal_step_started' | 'terminal_step_result' | 'terminal_step_error' }
+>
+type ActivityEvent = Extract<AiRunEvent, { type: 'activity' }>
+
+const getPageNumberFromMetadata = (metadata: SearchResult['metadata']): number => {
+  if (!metadata) return 1
+  if (typeof metadata === 'string') {
+    try {
+      const parsed = JSON.parse(metadata) as { page?: unknown }
+      return typeof parsed.page === 'number' ? parsed.page : 1
+    } catch (e) {
+      void e
+      return 1
+    }
+  }
+  return typeof metadata.page === 'number' ? metadata.page : 1
+}
+
 const ChatPage: React.FC = () => {
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
@@ -35,11 +73,7 @@ const ChatPage: React.FC = () => {
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([])
   const [mentionOptions, setMentionOptions] = useState<DocumentRecord[]>([])
   const [workspaceRootPath, setWorkspaceRootPath] = useState('')
-  const [rightPanel, setRightPanel] = useState<null | {
-    title: string
-    kind: 'chunks' | 'docs' | 'json'
-    data: any
-  }>(null)
+  const [rightPanel, setRightPanel] = useState<RightPanelState | null>(null)
   const assistantMsgIdRef = useRef<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -142,7 +176,7 @@ const ChatPage: React.FC = () => {
         pageSize: 20
       })
       setMentionOptions(res.items || [])
-    } catch (e: any) {
+    } catch (e: unknown) {
       void e
     }
   }
@@ -434,8 +468,8 @@ const ChatPage: React.FC = () => {
     try {
       const res = await window.api.aiRunCancel(aiRunId)
       if (!res.success) message.error(res.error || '取消失败')
-    } catch (e: any) {
-      message.error(e?.message || '取消失败')
+    } catch (e: unknown) {
+      message.error(e instanceof Error ? e.message : '取消失败')
     }
   }
 
@@ -444,22 +478,22 @@ const ChatPage: React.FC = () => {
 
     const toolCalls = aiEvents.filter(
       (e) => e.type === 'tool_call_started' || e.type === 'tool_call_result'
-    ) as Array<any>
+    ) as ToolCallEvent[]
     const terminalSteps = aiEvents.filter(
       (e) =>
         e.type === 'terminal_step_started' ||
         e.type === 'terminal_step_result' ||
         e.type === 'terminal_step_error'
-    ) as Array<any>
+    ) as TerminalEvent[]
 
-    const toolCallsByTask: Record<string, Array<any>> = {}
+    const toolCallsByTask: Record<string, ToolCallEvent[]> = {}
     for (const evt of toolCalls) {
       const key = String(evt.taskId || '__no_task__')
       if (!toolCallsByTask[key]) toolCallsByTask[key] = []
       toolCallsByTask[key].push(evt)
     }
 
-    const terminalByTask: Record<string, Array<any>> = {}
+    const terminalByTask: Record<string, TerminalEvent[]> = {}
     for (const evt of terminalSteps) {
       const key = String(evt.taskId || '__no_task__')
       if (!terminalByTask[key]) terminalByTask[key] = []
@@ -518,7 +552,11 @@ const ChatPage: React.FC = () => {
                         {evt.command}
                       </div>
                       <div className="text-xs text-[#999999] mt-1 whitespace-pre-wrap">
-                        {evt.error || evt.outputPreview || ''}
+                        {'error' in evt
+                          ? evt.error
+                          : 'outputPreview' in evt
+                            ? evt.outputPreview
+                            : ''}
                       </div>
                     </div>
                   ))}
@@ -604,7 +642,7 @@ const ChatPage: React.FC = () => {
   }
 
   const renderActivityFeed = () => {
-    const activities = aiEvents.filter((e) => e.type === 'activity') as Array<any>
+    const activities = aiEvents.filter((e) => e.type === 'activity') as ActivityEvent[]
     if (activities.length === 0) return null
 
     return (
@@ -814,7 +852,7 @@ const ChatPage: React.FC = () => {
             filePath: currentPreviewDoc.document.file_path,
             fileName: currentPreviewDoc.document_name,
             metadata: {
-              pageNumber: (currentPreviewDoc.metadata as any)?.page || 1
+              pageNumber: getPageNumberFromMetadata(currentPreviewDoc.metadata)
             }
           }
         ]

@@ -1,12 +1,14 @@
 import { HumanMessage, SystemMessage } from '@langchain/core/messages'
 import type { AiRunContext, AiRunDeps, AiRunStartPayload } from './types'
 import { createChatModel } from '../llm/chatModel'
-import type { ChatMessage, ChatSessionMemory } from '../../types/store'
+import type { ChatMessage, JsonObject } from '../../types/store'
 
-const parseJsonObject = (text: string): any => {
+type CancelledError = Error & { code: 'CANCELLED' }
+
+const parseJsonObject = <T extends JsonObject>(text: string): T => {
   const trimmed = String(text || '').trim()
   try {
-    return JSON.parse(trimmed)
+    return JSON.parse(trimmed) as T
   } catch (err) {
     void err
   }
@@ -14,7 +16,7 @@ const parseJsonObject = (text: string): any => {
   const end = trimmed.lastIndexOf('}')
   if (start >= 0 && end > start) {
     const slice = trimmed.slice(start, end + 1)
-    return JSON.parse(slice)
+    return JSON.parse(slice) as T
   }
   throw new Error('无法解析 JSON 输出')
 }
@@ -38,7 +40,7 @@ const formatTurns = (messages: ChatMessage[]) => {
 export const createAiRunContext = (payload: AiRunStartPayload, deps: AiRunDeps): AiRunContext => {
   const checkCancelled = () => {
     if (deps.isCancelled()) {
-      const e: any = new Error('cancelled')
+      const e = new Error('cancelled') as CancelledError
       e.code = 'CANCELLED'
       throw e
     }
@@ -50,14 +52,17 @@ export const createAiRunContext = (payload: AiRunStartPayload, deps: AiRunDeps):
     return cfg
   }
 
-  const chatJson: AiRunContext['chatJson'] = async ({ system, user, temperature }) => {
+  const chatJson: AiRunContext['chatJson'] = async <T extends JsonObject>(
+    input
+  ): Promise<T> => {
     checkCancelled()
+    const { system, user, temperature } = input
     const cfg = await getActiveConfig()
     const model = createChatModel(cfg, { temperature: temperature ?? 0.2 })
     const res = await model.invoke([new SystemMessage(system), new HumanMessage(user)])
     const text = typeof res?.content === 'string' ? res.content : String(res?.content ?? '')
     if (!text) throw new Error('大模型返回为空')
-    return parseJsonObject(text)
+    return parseJsonObject<T>(text)
   }
 
   const loadHistory: AiRunContext['loadHistory'] = async (limits) => {
@@ -72,9 +77,7 @@ export const createAiRunContext = (payload: AiRunStartPayload, deps: AiRunDeps):
     const messages = await deps.chatStore.getRecentChatMessages(payload.sessionId, recentTurns)
     const recentTurnsText = clipText(formatTurns(messages), maxRecentTurnsChars)
 
-    const memory = (await deps.chatStore.getSessionMemory(
-      payload.sessionId
-    )) as ChatSessionMemory | null
+    const memory = await deps.chatStore.getSessionMemory(payload.sessionId)
     const sessionSummaryText = clipText(String(memory?.summary || ''), maxSummaryChars)
 
     return { recentTurnsText, sessionSummaryText }

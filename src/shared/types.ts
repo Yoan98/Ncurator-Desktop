@@ -1,6 +1,10 @@
 export type DocumentSourceType = 'file' | 'web'
 export type DocumentImportStatus = 1 | 2 | 3
 export type SearchSourceFilter = 'all' | DocumentSourceType
+export type JsonPrimitive = string | number | boolean | null
+export type JsonValue = JsonPrimitive | JsonObject | JsonArray
+export type JsonObject = { [key: string]: JsonValue }
+export type JsonArray = JsonValue[]
 
 export interface WebIngestPayload {
   url: string
@@ -98,90 +102,6 @@ export interface ChatSession {
   created_at: number
 }
 
-export interface WritingFolderRecord {
-  id: string
-  name: string
-  parent_id?: string
-  created_at: number
-  updated_at: number
-}
-
-export interface WritingDocumentRecord {
-  id: string
-  title: string
-  folder_id?: string
-  content: string
-  markdown?: string
-  created_at: number
-  updated_at: number
-}
-
-/** @deprecated Legacy writing workflow contracts; not used by active chat runtime. */
-export type WritingWorkflowRunStatus = 'running' | 'completed' | 'failed' | 'cancelled'
-
-/** @deprecated Legacy writing workflow contracts; not used by active chat runtime. */
-export interface WritingWorkflowRunRecord {
-  id: string
-  writing_document_id?: string
-  status: WritingWorkflowRunStatus
-  input: string
-  outline?: string
-  retrieval_plan?: string
-  retrieved?: string
-  citations?: string
-  draft_markdown?: string
-  error?: string
-  created_at: number
-  updated_at: number
-}
-
-/** @deprecated Legacy writing workflow contracts; not used by active chat runtime. */
-export type WritingWorkflowStageId =
-  | 'validate_input'
-  | 'generate_outline'
-  | 'generate_retrieval_plan'
-  | 'retrieve_context'
-  | 'select_citations'
-  | 'generate_markdown_draft'
-
-/** @deprecated Legacy writing workflow contracts; not used by active chat runtime. */
-export type WritingWorkflowEvent =
-  | {
-      type: 'run_started'
-      runId: string
-      createdAt: number
-    }
-  | {
-      type: 'stage_started'
-      runId: string
-      stageId: WritingWorkflowStageId
-    }
-  | {
-      type: 'stage_output'
-      runId: string
-      stageId: WritingWorkflowStageId
-      payload: any
-    }
-  | {
-      type: 'stage_completed'
-      runId: string
-      stageId: WritingWorkflowStageId
-    }
-  | {
-      type: 'run_completed'
-      runId: string
-    }
-  | {
-      type: 'run_failed'
-      runId: string
-      error: string
-      stageId?: WritingWorkflowStageId
-    }
-  | {
-      type: 'run_cancelled'
-      runId: string
-    }
-
 export type AiTaskKind = 'local_kb_retrieval' | 'terminal_exec' | 'docx'
 export type AiTaskStatus = 'pending' | 'running' | 'completed' | 'failed'
 export type AiRunStatus = 'running' | 'completed' | 'failed' | 'cancelled'
@@ -274,7 +194,7 @@ export type AiRunEvent =
       taskId?: string
       toolCallId: string
       toolName: string
-      input: any
+      input: unknown
       createdAt: number
     }
   | {
@@ -283,7 +203,7 @@ export type AiRunEvent =
       taskId?: string
       toolCallId: string
       toolName: string
-      outputPreview: any
+      outputPreview: unknown
       completedAt: number
       error?: string
     }
@@ -387,7 +307,7 @@ export type ChatSessionMemory = {
   openTasks: string[]
   userPrefs: string[]
   pinnedFacts: string[]
-  linkedWritingDocumentIds: string[]
+  linkedDocumentIds: string[]
 }
 
 export type ChatSessionMemoryRow = {

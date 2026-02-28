@@ -34,5 +34,21 @@ export default defineConfig(
       'react/prop-types': 0
     }
   },
+  {
+    files: [
+      'src/main/services/ai/**/*.{ts,tsx}',
+      'src/main/services/storage/domains/ChatStore.ts',
+      'src/main/services/storage/domains/DocumentsStore.ts',
+      'src/main/services/storage/domains/LlmConfigStore.ts',
+      'src/preload/index.ts',
+      'src/shared/types.ts',
+      'src/main/utils/serialization.ts',
+      'src/renderer/src/utils/serialization.ts',
+      'src/renderer/src/pages/ChatPage.tsx'
+    ],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'error'
+    }
+  },
   eslintConfigPrettier
 )
