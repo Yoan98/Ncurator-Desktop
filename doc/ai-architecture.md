@@ -6,7 +6,7 @@ The active AI runtime in NCurator-Desktop is a capability-based LangGraph archit
 
 - Entry point: `ai-run-start` IPC in Main process.
 - Orchestration: Host-led graph in `src/main/services/ai/graph.ts`.
-- Capability nodes: `local_kb_retrieval`, `terminal_exec`, `docx` (placeholder).
+- Capability nodes: `local_kb_retrieval`, `terminal_exec`, `docx`.
 - Event stream: `ai-run-event` IPC channel to Renderer.
 - Execution scope: workspace-bound for executable tasks.
 
@@ -32,7 +32,7 @@ The legacy writing workflow is decommissioned and is not part of the active arch
 2. Main creates run context and starts LangGraph.
 3. Host plans capability tasks.
 4. Runtime dispatches tasks through capability registry.
-5. Capabilities emit lifecycle/tool/terminal/activity events.
+5. Capabilities emit lifecycle/tool/terminal/activity/file-artifact events.
 6. Host produces final answer and run completes/cancels/fails.
 
 ## Capability Contracts
@@ -45,16 +45,21 @@ The legacy writing workflow is decommissioned and is not part of the active arch
 
 ### `terminal_exec`
 
-- Accepts raw command text.
+- Accepts natural-language objective text (host no longer needs raw shell command bootstrap).
+- Runs an internal tool loop with `terminal_run_command` and `terminal_finish`.
 - Requires workspace binding (`workspaceId`, `rootPath`).
-- Applies boundary and risk checks.
-- Requests approval for medium/high risk commands.
+- Enforces per-command boundary checks and risk classification inside tool execution.
+- Requests approval for medium/high risk commands before execution.
+- Emits terminal step traces and file artifact metadata when command output creates/updates files.
+- Must stop on bounded loop limits (`max steps` / `timeout`) with explicit failure result.
 
 ### `docx`
 
-- Registered in capability registry.
-- Placeholder in current release (`not_implemented` response).
-- Future implementation must stay Node.js-first.
+- Implemented as Node.js-first tool-driven capability (no Python/system-tool baseline requirement).
+- Uses structured tools: `docx_inspect`, `docx_apply_edits`, `docx_save_output`, `docx_finish`.
+- Applies workspace-bound path checks and overwrite approval gating for destructive writes.
+- Emits inspect/apply/save activity traces and file artifact metadata for saved outputs.
+- Must stop on bounded loop limits (`max steps` / `timeout`) with explicit failure result.
 
 ## Event Model
 
@@ -65,6 +70,7 @@ Core event families:
 - Tool traces: `tool_call_started`, `tool_call_result`
 - Terminal traces: `terminal_step_started`, `terminal_step_result`, `terminal_step_error`
 - UI-facing activities: `activity`
+- File artifacts: `file_artifact`
 - Gating events: `workspace_required`, `approval_required`, `approval_decision`
 - Answer streaming: `answer_token`, `answer_completed`
 
@@ -82,7 +88,8 @@ When adding a new capability node:
 2. Register executor in capability registry.
 3. Emit standard lifecycle and trace events.
 4. Keep workspace/policy enforcement consistent for executable actions.
-5. Update this document and corresponding agent/skill guidance in the same change.
+5. Emit `file_artifact` events for capability-owned file outputs when applicable.
+6. Update this document and corresponding agent/skill guidance in the same change.
 
 ## Non-Goals
 

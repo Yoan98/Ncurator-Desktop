@@ -43,6 +43,7 @@ export type DesktopApi = {
   ) => Promise<{ success: boolean; created?: number; error?: string }>
   openExternal: (url: string) => Promise<{ success: boolean; error?: string }>
   openPath: (filePath: string) => Promise<{ success: boolean; error?: string }>
+  revealPath: (filePath: string) => Promise<{ success: boolean; error?: string }>
   search: (query: string, sourceType?: SearchSourceFilter) => Promise<SearchResponse>
   ftsSearch: (query: string, sourceType?: SearchSourceFilter) => Promise<SearchResult[]>
   vectorSearch: (query: string, sourceType?: SearchSourceFilter) => Promise<SearchResult[]>

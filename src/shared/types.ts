@@ -105,17 +105,46 @@ export interface ChatSession {
 export type AiTaskKind = 'local_kb_retrieval' | 'terminal_exec' | 'docx'
 export type AiTaskStatus = 'pending' | 'running' | 'completed' | 'failed'
 export type AiRunStatus = 'running' | 'completed' | 'failed' | 'cancelled'
+export type AiTaskResultCode =
+  | 'ok'
+  | 'failed'
+  | 'workspace_required'
+  | 'approval_denied'
+  | 'bounded_loop_error'
+  | 'invalid_input'
+
+export type AiTaskToolInput =
+  | {
+      kind: 'local_kb_retrieval'
+      objective: string
+    }
+  | {
+      kind: 'terminal_exec'
+      objective: string
+      preferredCwd?: string
+    }
+  | {
+      kind: 'docx'
+      objective: string
+      sourcePath?: string
+      outputPath?: string
+    }
+
+export type AiFileArtifactCapability = 'terminal_exec' | 'docx'
+export type AiFileArtifactOperation = 'created' | 'updated'
 
 export type AiPlanTask = {
   id: string
   title: string
   kind: AiTaskKind | string
   input?: string
+  toolInput?: AiTaskToolInput
   status: AiTaskStatus
   attempts: number
   error?: string
-  resultCode?: 'ok' | 'not_implemented'
+  resultCode?: AiTaskResultCode
   resultMessage?: string
+  resultData?: JsonObject
 }
 
 export type AiRunStartRequest = {
@@ -179,8 +208,9 @@ export type AiRunEvent =
       type: 'task_result'
       runId: string
       taskId: string
-      code: 'ok' | 'not_implemented'
+      code: AiTaskResultCode
       message?: string
+      data?: JsonObject
     }
   | {
       type: 'task_failed'
@@ -249,6 +279,19 @@ export type AiRunEvent =
       actionType: string
       status: 'started' | 'completed' | 'failed'
       summary: string
+      createdAt: number
+    }
+  | {
+      type: 'file_artifact'
+      runId: string
+      taskId: string
+      artifactId: string
+      capability: AiFileArtifactCapability
+      path: string
+      fileName: string
+      operation: AiFileArtifactOperation
+      summary: string
+      stepId?: string
       createdAt: number
     }
   | {

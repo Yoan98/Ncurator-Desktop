@@ -1,24 +1,29 @@
 import { randomUUID } from 'node:crypto'
-import path from 'node:path'
 import { END, START, StateGraph, StateSchema } from '@langchain/langgraph'
 import { ToolNode } from '@langchain/langgraph/prebuilt'
 import { z } from 'zod/v4'
 import type { AiPlanTask, AiRunContext, AiRunState, AiTaskKind } from './types'
 import { createChatModel } from '../llm/chatModel'
 import { AIMessage, BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages'
-import type { JsonObject } from '../../../shared/types'
+import type { AiTaskResultCode, JsonObject } from '../../../shared/types'
 import { asRecord, toString } from '../../utils/decoder'
 import { buildRetrievalTools } from './tools/retrievalTools'
-import { runTerminalCommand } from './tools/terminalExec'
+import { buildTerminalCapabilityTools } from './tools/terminalCapabilityTools'
+import { buildDocxCapabilityTools } from './tools/docxCapabilityTools'
+import { runBoundedLoop } from './tools/boundedLoop'
 
 const CAPABILITY_KINDS: AiTaskKind[] = ['local_kb_retrieval', 'terminal_exec', 'docx']
 const MAX_RETRIEVAL_DISPATCH_STEPS = 3
 const MAX_TOOL_ROUNDS_PER_DISPATCH = 3
 
-const MAX_TERMINAL_STEPS = 4
+const MAX_TERMINAL_STEPS = 6
+const TERMINAL_LOOP_TIMEOUT_MS = 60000
 const TERMINAL_TIMEOUT_MS = 15000
 const TERMINAL_MAX_OUTPUT_CHARS = 8000
 const TERMINAL_SAFE_PREVIEW_CHARS = 600
+const MAX_DOCX_STEPS = 8
+const DOCX_LOOP_TIMEOUT_MS = 90000
+const DOCX_SAFE_PREVIEW_CHARS = 1400
 
 type ChatContentChunk = { text?: string }
 
@@ -37,11 +42,37 @@ const getToolNodeMessages = (value: unknown): BaseMessage[] => {
 
 const toPlannedTask = (value: unknown, index: number): AiPlanTask => {
   const raw = asRecord(value)
+  const kind = normalizePlannedKind(raw.kind)
+  const normalizedInput = raw.input == null ? undefined : toString(raw.input).trim()
+  const objective = normalizedInput || toString(raw.objective || raw.title || '').trim() || undefined
+  const toolInput =
+    objective && kind === 'terminal_exec'
+      ? {
+          kind: 'terminal_exec' as const,
+          objective,
+          preferredCwd:
+            raw.preferredCwd == null ? undefined : toString(raw.preferredCwd).trim() || undefined
+        }
+      : objective && kind === 'docx'
+        ? {
+            kind: 'docx' as const,
+            objective,
+            sourcePath: raw.sourcePath == null ? undefined : toString(raw.sourcePath).trim() || undefined,
+            outputPath: raw.outputPath == null ? undefined : toString(raw.outputPath).trim() || undefined
+          }
+        : objective && kind === 'local_kb_retrieval'
+          ? {
+              kind: 'local_kb_retrieval' as const,
+              objective
+            }
+          : undefined
+
   return {
     id: toString(raw.id || `task-${index + 1}`),
     title: toString(raw.title || 'Task'),
-    kind: normalizePlannedKind(raw.kind),
-    input: raw.input == null ? undefined : toString(raw.input).trim(),
+    kind,
+    input: normalizedInput,
+    toolInput,
     status: 'pending',
     attempts: 0
   }
@@ -75,81 +106,6 @@ const getMessageText = (content: unknown): string => {
       return ''
     })
     .join('\n')
-}
-
-const clipText = (text: string, maxChars: number) => {
-  const raw = String(text || '')
-  if (raw.length <= maxChars) return { text: raw, truncated: false }
-  return { text: raw.slice(0, maxChars), truncated: true }
-}
-
-const isPathInsideRoot = (candidatePath: string, rootPath: string) => {
-  const root = path.resolve(rootPath)
-  const candidate = path.resolve(candidatePath)
-  const rel = path.relative(root, candidate)
-  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel))
-}
-
-const parseAbsolutePathTokens = (command: string): string[] => {
-  const matches = String(command || '').match(/(^|[\s"'`])\/[^\s"'`;]+/g) || []
-  return matches
-    .map((token) => token.trim())
-    .map((token) => token.replace(/^['"`]/, ''))
-    .filter((token) => token.startsWith('/'))
-}
-
-const checkWorkspaceBoundary = (
-  command: string,
-  rootPath: string
-): { ok: true } | { ok: false; reason: string } => {
-  if (!rootPath) {
-    return { ok: false, reason: 'workspace root path is missing' }
-  }
-
-  if (/(^|\s)cd\s+\.\.(\/|\s|$)/.test(command) || command.includes('../')) {
-    return { ok: false, reason: 'command contains path escape pattern (..)' }
-  }
-
-  const absolutePaths = parseAbsolutePathTokens(command)
-  for (const p of absolutePaths) {
-    if (!isPathInsideRoot(p, rootPath)) {
-      return { ok: false, reason: `path out of workspace boundary: ${p}` }
-    }
-  }
-
-  return { ok: true }
-}
-
-const classifyCommandRisk = (command: string): 'low' | 'medium' | 'high' => {
-  const text = String(command || '').toLowerCase()
-
-  if (
-    /\brm\s+-rf\b/.test(text) ||
-    /\bmkfs\b/.test(text) ||
-    /\bdd\b/.test(text) ||
-    /\bshutdown\b/.test(text) ||
-    /\breboot\b/.test(text) ||
-    /\bchown\b/.test(text)
-  ) {
-    return 'high'
-  }
-
-  if (
-    /\brm\b/.test(text) ||
-    /\bmv\b/.test(text) ||
-    /\bcp\b/.test(text) ||
-    /\bmkdir\b/.test(text) ||
-    /\btouch\b/.test(text) ||
-    /\bchmod\b/.test(text) ||
-    /\bcurl\b/.test(text) ||
-    /\bwget\b/.test(text) ||
-    /\bgit\s+push\b/.test(text) ||
-    />/.test(text)
-  ) {
-    return 'medium'
-  }
-
-  return 'low'
 }
 
 const isKnownCapabilityKind = (kind: string): kind is AiTaskKind => {
@@ -188,11 +144,22 @@ const createAiRunStateSchema = () =>
           title: z.string(),
           kind: z.string(),
           input: z.string().optional(),
+          toolInput: z.any().optional(),
           status: z.enum(['pending', 'running', 'completed', 'failed']),
           attempts: z.number(),
           error: z.string().optional(),
-          resultCode: z.enum(['ok', 'not_implemented']).optional(),
-          resultMessage: z.string().optional()
+          resultCode: z
+            .enum([
+              'ok',
+              'failed',
+              'workspace_required',
+              'approval_denied',
+              'bounded_loop_error',
+              'invalid_input'
+            ])
+            .optional(),
+          resultMessage: z.string().optional(),
+          resultData: z.any().optional()
         })
       )
       .default(() => []),
@@ -220,7 +187,11 @@ const ensurePlan = async (ctx: AiRunContext, state: AiRunState): Promise<AiPlanT
       id: 'task-1',
       title: '分析并完成请求',
       kind: heuristicKind,
-      input: heuristicKind === 'terminal_exec' ? String(state.input || '').trim() : undefined,
+      input: String(state.input || '').trim() || undefined,
+      toolInput: {
+        kind: heuristicKind,
+        objective: String(state.input || '').trim()
+      },
       status: 'pending',
       attempts: 0
     }
@@ -231,8 +202,8 @@ const ensurePlan = async (ctx: AiRunContext, state: AiRunState): Promise<AiPlanT
     const json = await ctx.chatJson({
       system: [
         'You are a planning host for a desktop AI runtime.',
-        'Output JSON only as: {"tasks":[{"id":"...","title":"...","kind":"local_kb_retrieval"|"terminal_exec"|"docx","input":"optional raw command for terminal_exec"}]}.',
-        'For terminal tasks, set input to raw command text when available.',
+        'Output JSON only as: {"tasks":[{"id":"...","title":"...","kind":"local_kb_retrieval"|"terminal_exec"|"docx","input":"task objective text","objective":"optional richer objective","sourcePath":"optional .docx source","outputPath":"optional .docx output"}]}.',
+        'For terminal/docx tasks, input should be natural-language objective text, not raw shell commands.',
         'Return tasks: [] only when no retrieval or execution is needed.'
       ].join(' '),
       user: `User message:\n${state.input}\n\nSession summary:\n${history.sessionSummaryText}\n\nRecent turns:\n${history.recentTurnsText}`,
@@ -349,7 +320,9 @@ const markTaskFailed = (
   ctx: AiRunContext,
   state: AiRunState,
   taskId: string,
-  error: string
+  error: string,
+  code: AiTaskResultCode = 'failed',
+  data?: JsonObject
 ): Partial<AiRunState> => {
   const plan = (state.plan || []).map((t) =>
     t.id === taskId
@@ -358,12 +331,21 @@ const markTaskFailed = (
           attempts: Number(t.attempts || 0) + 1,
           status: 'failed' as const,
           error,
-          resultCode: undefined,
-          resultMessage: undefined
+          resultCode: code,
+          resultMessage: error,
+          resultData: data
         }
       : t
   )
   ctx.sendEvent({ type: 'task_failed', runId: state.runId, taskId, error })
+  ctx.sendEvent({
+    type: 'task_result',
+    runId: state.runId,
+    taskId,
+    code,
+    message: error,
+    data
+  })
   emitActivity({
     ctx,
     runId: state.runId,
@@ -378,6 +360,55 @@ const markTaskFailed = (
     error,
     outputText: error
   }
+}
+
+const completeTask = (input: {
+  ctx: AiRunContext
+  state: AiRunState
+  task: AiPlanTask
+  code?: AiTaskResultCode
+  message?: string
+  data?: JsonObject
+  outputText?: string
+}): Partial<AiRunState> => {
+  const code = input.code || 'ok'
+  const plan = (input.state.plan || []).map((taskItem) =>
+    taskItem.id === input.task.id
+      ? {
+          ...taskItem,
+          attempts: Number(taskItem.attempts || 0) + 1,
+          status: 'completed' as const,
+          error: undefined,
+          resultCode: code,
+          resultMessage: input.message,
+          resultData: input.data
+        }
+      : taskItem
+  )
+  input.ctx.sendEvent({ type: 'task_completed', runId: input.state.runId, taskId: input.task.id })
+  input.ctx.sendEvent({
+    type: 'task_result',
+    runId: input.state.runId,
+    taskId: input.task.id,
+    code,
+    message: input.message,
+    data: input.data
+  })
+  return {
+    plan,
+    activeTaskId: undefined,
+    outputText: input.outputText || input.message || input.state.outputText
+  }
+}
+
+const resolveTaskObjective = (state: AiRunState, task: AiPlanTask): string => {
+  if (task.toolInput?.kind === 'terminal_exec' || task.toolInput?.kind === 'docx') {
+    return String(task.toolInput.objective || '').trim()
+  }
+  if (task.toolInput?.kind === 'local_kb_retrieval') {
+    return String(task.toolInput.objective || '').trim()
+  }
+  return String(task.input || task.title || state.input || '').trim()
 }
 
 const executeLocalKbRetrieval: CapabilityExecutor = async (ctx, state, task) => {
@@ -438,31 +469,14 @@ const executeLocalKbRetrieval: CapabilityExecutor = async (ctx, state, task) => 
 
   const attempts = Number(task.attempts || 0) + 1
   if (satisfied) {
-    const plan = (state.plan || []).map((t) =>
-      t.id === task.id
-        ? {
-            ...t,
-            attempts,
-            status: 'completed' as const,
-            error: undefined,
-            resultCode: 'ok' as const,
-            resultMessage: note || undefined
-          }
-        : t
-    )
-    ctx.sendEvent({ type: 'task_completed', runId: state.runId, taskId: task.id })
-    ctx.sendEvent({
-      type: 'task_result',
-      runId: state.runId,
-      taskId: task.id,
+    return completeTask({
+      ctx,
+      state,
+      task,
       code: 'ok',
-      message: note || undefined
-    })
-    return {
-      plan,
-      activeTaskId: undefined,
+      message: note || undefined,
       outputText: note || state.outputText
-    }
+    })
   }
 
   if (attempts >= MAX_RETRIEVAL_DISPATCH_STEPS) {
@@ -478,67 +492,25 @@ const executeLocalKbRetrieval: CapabilityExecutor = async (ctx, state, task) => 
           status: 'running' as const,
           error: undefined,
           resultCode: undefined,
-          resultMessage: undefined
+          resultMessage: undefined,
+          resultData: undefined
         }
       : t
   )
 
-    return {
-      plan,
-      activeTaskId: undefined,
-      outputText:
-        note || getMessageText(getCarrierContent(lastAi)) || state.outputText
-    }
-  }
-
-const decideTerminalNextStep = async (input: {
-  ctx: AiRunContext
-  state: AiRunState
-  task: AiPlanTask
-  stepIndex: number
-  lastCommand: string
-  lastOutputPreview: string
-  lastExitCode: number | null
-  timedOut: boolean
-}): Promise<{ done: boolean; nextCommand?: string; note?: string }> => {
-  const { ctx, state, task, stepIndex, lastCommand, lastOutputPreview, lastExitCode, timedOut } =
-    input
-
-  if (timedOut) {
-    return { done: true, note: 'terminal command timed out' }
-  }
-
-  try {
-    const json = await ctx.chatJson({
-      system: [
-        'You are the terminal_exec loop controller.',
-        'Decide whether to finish or run another raw shell command.',
-        'Output JSON only as: {"done": true|false, "nextCommand": "...", "note": "..."}.',
-        'Only provide nextCommand when done=false.'
-      ].join(' '),
-      user: `User input:\n${state.input}\n\nTask:\n${task.title}\n\nLast command:\n${lastCommand}\n\nLast exit code:\n${String(lastExitCode)}\n\nLast output preview:\n${lastOutputPreview}\n\nCurrent step: ${stepIndex}/${MAX_TERMINAL_STEPS}`,
-      temperature: 0.1
-    })
-    return {
-      done: Boolean(json?.done),
-      nextCommand: json?.nextCommand == null ? undefined : String(json.nextCommand || '').trim(),
-      note: json?.note == null ? undefined : String(json.note || '').trim()
-    }
-  } catch (e) {
-    void e
-    return {
-      done: lastExitCode === 0,
-      note: lastExitCode === 0 ? 'command completed' : 'command failed'
-    }
+  return {
+    plan,
+    activeTaskId: undefined,
+    outputText: note || getMessageText(getCarrierContent(lastAi)) || state.outputText
   }
 }
 
 const executeTerminalExec: CapabilityExecutor = async (ctx, state, task) => {
   ctx.checkCancelled()
 
-  let command = String(task.input || task.title || '').trim()
-  if (!command) {
-    return markTaskFailed(ctx, state, task.id, 'terminal_exec requires raw command input')
+  const objective = resolveTaskObjective(state, task)
+  if (!objective) {
+    return markTaskFailed(ctx, state, task.id, 'terminal_exec requires objective input', 'invalid_input')
   }
 
   const workspaceId = String(ctx.workspace?.workspaceId || '').trim()
@@ -552,212 +524,349 @@ const executeTerminalExec: CapabilityExecutor = async (ctx, state, task) => {
       requiredFields: ['workspaceId', 'rootPath'],
       createdAt: Date.now()
     })
-    return markTaskFailed(ctx, state, task.id, 'workspace is required for terminal_exec')
-  }
-
-  const cwd = path.resolve(workspaceRootPath)
-
-  for (let stepIndex = 1; stepIndex <= MAX_TERMINAL_STEPS; stepIndex += 1) {
-    ctx.checkCancelled()
-
-    const boundary = checkWorkspaceBoundary(command, cwd)
-    if (!boundary.ok) {
-      return markTaskFailed(ctx, state, task.id, `workspace boundary check failed: ${boundary.reason}`)
-    }
-
-    const riskLevel = classifyCommandRisk(command)
-    if (riskLevel !== 'low') {
-      const decision = await ctx.requestApproval({
-        runId: state.runId,
-        taskId: task.id,
-        command,
-        riskLevel,
-        reason: `command classified as ${riskLevel} risk`
-      })
-      if (!decision.approved) {
-        return markTaskFailed(ctx, state, task.id, decision.reason || 'approval denied')
-      }
-    }
-
-    const stepId = randomUUID()
-    ctx.sendEvent({
-      type: 'terminal_step_started',
-      runId: state.runId,
-      taskId: task.id,
-      stepId,
-      stepIndex,
-      command,
-      cwd,
-      createdAt: Date.now()
-    })
-    emitActivity({
-      ctx,
-      runId: state.runId,
-      taskId: task.id,
-      actionType: 'terminal_exec',
-      status: 'started',
-      summary: `执行命令: ${command}`
-    })
-
-    const result = await runTerminalCommand({
-      command,
-      cwd,
-      timeoutMs: TERMINAL_TIMEOUT_MS,
-      maxOutputChars: TERMINAL_MAX_OUTPUT_CHARS
-    })
-
-    const previewSource = [result.stdout, result.stderr].filter(Boolean).join('\n').trim()
-    const preview = clipText(previewSource || '(no output)', TERMINAL_SAFE_PREVIEW_CHARS)
-
-    const stepError =
-      result.timedOut || result.exitCode !== 0
-        ? result.timedOut
-          ? `command timed out after ${TERMINAL_TIMEOUT_MS}ms`
-          : `command exited with code ${String(result.exitCode)}`
-        : undefined
-
-    if (stepError) {
-      ctx.sendEvent({
-        type: 'terminal_step_error',
-        runId: state.runId,
-        taskId: task.id,
-        stepId,
-        stepIndex,
-        command,
-        error: stepError,
-        outputPreview: preview.text,
-        completedAt: Date.now()
-      })
-      emitActivity({
-        ctx,
-        runId: state.runId,
-        taskId: task.id,
-        actionType: 'terminal_exec',
-        status: 'failed',
-        summary: `${command} -> ${stepError}`
-      })
-    } else {
-      ctx.sendEvent({
-        type: 'terminal_step_result',
-        runId: state.runId,
-        taskId: task.id,
-        stepId,
-        stepIndex,
-        command,
-        outputPreview: preview.text,
-        exitCode: result.exitCode,
-        timedOut: result.timedOut,
-        truncated: result.truncated || preview.truncated,
-        completedAt: Date.now()
-      })
-      emitActivity({
-        ctx,
-        runId: state.runId,
-        taskId: task.id,
-        actionType: 'terminal_exec',
-        status: 'completed',
-        summary: `${command} -> success`
-      })
-    }
-
-    const decision = await decideTerminalNextStep({
+    return markTaskFailed(
       ctx,
       state,
-      task,
-      stepIndex,
-      lastCommand: command,
-      lastOutputPreview: preview.text,
-      lastExitCode: result.exitCode,
-      timedOut: result.timedOut
-    })
+      task.id,
+      'workspace is required for terminal_exec',
+      'workspace_required'
+    )
+  }
 
-    if (decision.done) {
-      const attempts = Number(task.attempts || 0) + 1
-      const plan = (state.plan || []).map((t) =>
-        t.id === task.id
-          ? {
-              ...t,
-              attempts,
-              status: 'completed' as const,
-              error: undefined,
-              resultCode: 'ok' as const,
-              resultMessage: decision.note || undefined
-            }
-          : t
-      )
-      ctx.sendEvent({ type: 'task_completed', runId: state.runId, taskId: task.id })
-      ctx.sendEvent({
-        type: 'task_result',
+  const cfg = await ctx.getModelConfig()
+  const terminal = buildTerminalCapabilityTools({
+    ctx,
+    runId: state.runId,
+    taskId: task.id,
+    workspaceRootPath,
+    timeoutMs: TERMINAL_TIMEOUT_MS,
+    maxOutputChars: TERMINAL_MAX_OUTPUT_CHARS,
+    safePreviewChars: TERMINAL_SAFE_PREVIEW_CHARS,
+    emitActivity: (activity) => {
+      emitActivity({
+        ctx,
         runId: state.runId,
         taskId: task.id,
-        code: 'ok',
-        message: decision.note || undefined
+        actionType: activity.actionType,
+        status: activity.status,
+        summary: activity.summary
       })
+    }
+  })
+  const toolNode = new ToolNode(terminal.tools)
+  const model = createChatModel(cfg, { temperature: 0.1 }).bindTools(terminal.tools)
+  const messages: BaseMessage[] = [
+    new SystemMessage(
+      [
+        'You are the `terminal_exec` capability.',
+        'User provides natural-language objective. Do not assume raw shell command input.',
+        'Only execute shell commands through tool `terminal_run_command`.',
+        'Never claim completion in plain text. Finish only by calling `terminal_finish`.',
+        'When commands write files, always include `expectedArtifacts` in `terminal_run_command`.',
+        'If a command is unsafe or blocked, adapt strategy and then call `terminal_finish` with success=false when objective cannot continue.'
+      ].join('\n')
+    ),
+    new HumanMessage(
+      `Objective:\n${objective}\n\nWorkspace root:\n${workspaceRootPath}\n\nTask title:\n${task.title}\n\nLoop limit:\n${MAX_TERMINAL_STEPS} tool rounds, ${TERMINAL_LOOP_TIMEOUT_MS}ms timeout.`
+    )
+  ]
+
+  const loopResult = await runBoundedLoop<{
+    success: boolean
+    code?: AiTaskResultCode
+    message: string
+    data?: JsonObject
+  }>({
+    maxSteps: MAX_TERMINAL_STEPS,
+    timeoutMs: TERMINAL_LOOP_TIMEOUT_MS,
+    onRound: async () => {
+      ctx.checkCancelled()
+      const ai = (await model.invoke(messages)) as AIMessage
+      messages.push(ai)
+      const toolCalls = getCarrierToolCalls(ai)
+      if (toolCalls.length === 0) {
+        const rawText = getMessageText(getCarrierContent(ai)).trim()
+        return {
+          done: true as const,
+          value: {
+            success: false,
+            code: 'invalid_input' as const,
+            message: rawText || 'terminal_exec must continue via terminal tools'
+          }
+        }
+      }
+
+      const out = await toolNode.invoke({ messages: [ai] })
+      const toolMessages = getToolNodeMessages(out)
+      messages.push(...toolMessages)
+
+      if (!terminal.state.finish.done) {
+        return { done: false as const }
+      }
+
+      if (terminal.state.finish.success) {
+        return {
+          done: true as const,
+          value: {
+            success: true,
+            code: 'ok' as const,
+            message: terminal.state.finish.summary || 'terminal objective completed',
+            data: {
+              steps: terminal.state.stepIndex
+            }
+          }
+        }
+      }
+
       return {
-        plan,
-        activeTaskId: undefined,
-        outputText: decision.note || preview.text || state.outputText
+        done: true as const,
+        value: {
+          success: false,
+          code:
+            terminal.state.finish.resultCode && terminal.state.finish.resultCode !== 'ok'
+              ? terminal.state.finish.resultCode
+              : 'failed',
+          message: terminal.state.finish.summary || 'terminal_exec finished with failure'
+        }
       }
     }
+  })
 
-    const nextCommand = String(decision.nextCommand || '').trim()
-    if (!nextCommand) {
+  if (!loopResult.ok) {
+    if (loopResult.reason === 'timeout') {
       return markTaskFailed(
         ctx,
         state,
         task.id,
-        decision.note || 'terminal_exec requires nextCommand when done=false'
+        `terminal_exec loop timed out after ${TERMINAL_LOOP_TIMEOUT_MS}ms`,
+        'bounded_loop_error',
+        {
+          timeoutMs: TERMINAL_LOOP_TIMEOUT_MS,
+          rounds: loopResult.rounds
+        }
       )
     }
-
-    command = nextCommand
+    return markTaskFailed(
+      ctx,
+      state,
+      task.id,
+      `terminal_exec exceeded max steps (${MAX_TERMINAL_STEPS})`,
+      'bounded_loop_error',
+      {
+        maxSteps: MAX_TERMINAL_STEPS,
+        rounds: loopResult.rounds
+      }
+    )
   }
 
-  return markTaskFailed(
+  if (!loopResult.value.success) {
+    return markTaskFailed(
+      ctx,
+      state,
+      task.id,
+      loopResult.value.message,
+      loopResult.value.code && loopResult.value.code !== 'ok' ? loopResult.value.code : 'failed',
+      loopResult.value.data
+    )
+  }
+
+  return completeTask({
     ctx,
     state,
-    task.id,
-    `terminal_exec exceeded max steps (${MAX_TERMINAL_STEPS})`
-  )
+    task,
+    code: 'ok',
+    message: loopResult.value.message,
+    outputText: loopResult.value.message,
+    data: loopResult.value.data
+  })
 }
 
-const executeDocxPlaceholder: CapabilityExecutor = async (ctx, state, task) => {
+const executeDocxCapability: CapabilityExecutor = async (ctx, state, task) => {
   ctx.checkCancelled()
-  const message = 'docx capability is planned but not implemented yet (Node.js-first placeholder)'
-  const attempts = Number(task.attempts || 0) + 1
-  const plan = (state.plan || []).map((t) =>
-    t.id === task.id
-      ? {
-          ...t,
-          attempts,
-          status: 'completed' as const,
-          error: undefined,
-          resultCode: 'not_implemented' as const,
-          resultMessage: message
-        }
-      : t
-  )
-  ctx.sendEvent({ type: 'task_completed', runId: state.runId, taskId: task.id })
-  ctx.sendEvent({
-    type: 'task_result',
-    runId: state.runId,
-    taskId: task.id,
-    code: 'not_implemented',
-    message
-  })
-  emitActivity({
+
+  const objective = resolveTaskObjective(state, task)
+  if (!objective) {
+    return markTaskFailed(ctx, state, task.id, 'docx capability requires objective input', 'invalid_input')
+  }
+
+  const workspaceId = String(ctx.workspace?.workspaceId || '').trim()
+  const workspaceRootPath = String(ctx.workspace?.rootPath || '').trim()
+  if (!workspaceId || !workspaceRootPath) {
+    ctx.sendEvent({
+      type: 'workspace_required',
+      runId: state.runId,
+      taskId: task.id,
+      reason: 'docx capability requires workspace binding before execution',
+      requiredFields: ['workspaceId', 'rootPath'],
+      createdAt: Date.now()
+    })
+    return markTaskFailed(
+      ctx,
+      state,
+      task.id,
+      'workspace is required for docx capability',
+      'workspace_required'
+    )
+  }
+
+  const cfg = await ctx.getModelConfig()
+  const docx = buildDocxCapabilityTools({
     ctx,
     runId: state.runId,
     taskId: task.id,
-    actionType: 'docx',
-    status: 'completed',
-    summary: message
+    workspaceRootPath,
+    safePreviewChars: DOCX_SAFE_PREVIEW_CHARS,
+    emitActivity: (activity) => {
+      emitActivity({
+        ctx,
+        runId: state.runId,
+        taskId: task.id,
+        actionType: activity.actionType,
+        status: activity.status,
+        summary: activity.summary
+      })
+    }
   })
-  return {
-    plan,
-    activeTaskId: undefined,
-    outputText: message
+  const toolNode = new ToolNode(docx.tools)
+  const model = createChatModel(cfg, { temperature: 0.1 }).bindTools(docx.tools)
+  const messages: BaseMessage[] = [
+    new SystemMessage(
+      [
+        'You are the `docx` capability.',
+        'Use only the tools: docx_inspect, docx_apply_edits, docx_save_output, docx_finish.',
+        'Always inspect before applying edits or saving output.',
+        'When overwrite is rejected, choose a new save-as output path.',
+        'Finish explicitly with docx_finish. Never return plain-text completion.'
+      ].join('\n')
+    ),
+    new HumanMessage(
+      [
+        `Objective:\n${objective}`,
+        `Workspace root:\n${workspaceRootPath}`,
+        `Task title:\n${task.title}`,
+        `Loop limit:\n${MAX_DOCX_STEPS} tool rounds, ${DOCX_LOOP_TIMEOUT_MS}ms timeout.`,
+        task.toolInput?.kind === 'docx' && task.toolInput.sourcePath
+          ? `Suggested source path:\n${task.toolInput.sourcePath}`
+          : '',
+        task.toolInput?.kind === 'docx' && task.toolInput.outputPath
+          ? `Suggested output path:\n${task.toolInput.outputPath}`
+          : ''
+      ]
+        .filter(Boolean)
+        .join('\n\n')
+    )
+  ]
+
+  const loopResult = await runBoundedLoop<{
+    success: boolean
+    code?: AiTaskResultCode
+    message: string
+    data?: JsonObject
+  }>({
+    maxSteps: MAX_DOCX_STEPS,
+    timeoutMs: DOCX_LOOP_TIMEOUT_MS,
+    onRound: async () => {
+      ctx.checkCancelled()
+      const ai = (await model.invoke(messages)) as AIMessage
+      messages.push(ai)
+      const toolCalls = getCarrierToolCalls(ai)
+      if (toolCalls.length === 0) {
+        const rawText = getMessageText(getCarrierContent(ai)).trim()
+        return {
+          done: true as const,
+          value: {
+            success: false,
+            code: 'invalid_input' as const,
+            message: rawText || 'docx capability must continue via docx tools'
+          }
+        }
+      }
+
+      const out = await toolNode.invoke({ messages: [ai] })
+      const toolMessages = getToolNodeMessages(out)
+      messages.push(...toolMessages)
+
+      if (!docx.state.finish.done) {
+        return { done: false as const }
+      }
+
+      if (docx.state.finish.success) {
+        return {
+          done: true as const,
+          value: {
+            success: true,
+            code: 'ok' as const,
+            message: docx.state.finish.summary || 'docx objective completed',
+            data: docx.state.outputPath
+              ? {
+                  outputPath: docx.state.outputPath
+                }
+              : undefined
+          }
+        }
+      }
+
+      return {
+        done: true as const,
+        value: {
+          success: false,
+          code:
+            docx.state.finish.resultCode && docx.state.finish.resultCode !== 'ok'
+              ? docx.state.finish.resultCode
+              : 'failed',
+          message: docx.state.finish.summary || 'docx capability finished with failure'
+        }
+      }
+    }
+  })
+
+  if (!loopResult.ok) {
+    if (loopResult.reason === 'timeout') {
+      return markTaskFailed(
+        ctx,
+        state,
+        task.id,
+        `docx loop timed out after ${DOCX_LOOP_TIMEOUT_MS}ms`,
+        'bounded_loop_error',
+        {
+          timeoutMs: DOCX_LOOP_TIMEOUT_MS,
+          rounds: loopResult.rounds
+        }
+      )
+    }
+    return markTaskFailed(
+      ctx,
+      state,
+      task.id,
+      `docx capability exceeded max steps (${MAX_DOCX_STEPS})`,
+      'bounded_loop_error',
+      {
+        maxSteps: MAX_DOCX_STEPS,
+        rounds: loopResult.rounds
+      }
+    )
   }
+
+  if (!loopResult.value.success) {
+    return markTaskFailed(
+      ctx,
+      state,
+      task.id,
+      loopResult.value.message,
+      loopResult.value.code && loopResult.value.code !== 'ok' ? loopResult.value.code : 'failed',
+      loopResult.value.data
+    )
+  }
+
+  return completeTask({
+    ctx,
+    state,
+    task,
+    code: 'ok',
+    message: loopResult.value.message,
+    outputText: loopResult.value.message,
+    data: loopResult.value.data
+  })
 }
 
 const capabilityRegistry = new Map<string, CapabilityExecutor>()
@@ -768,7 +877,7 @@ const registerCapability = (kind: string, executor: CapabilityExecutor) => {
 
 registerCapability('local_kb_retrieval', executeLocalKbRetrieval)
 registerCapability('terminal_exec', executeTerminalExec)
-registerCapability('docx', executeDocxPlaceholder)
+registerCapability('docx', executeDocxCapability)
 
 const capabilityNode = async (ctx: AiRunContext, state: AiRunState): Promise<Partial<AiRunState>> => {
   ctx.checkCancelled()

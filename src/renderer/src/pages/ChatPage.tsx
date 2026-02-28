@@ -10,6 +10,7 @@ import type {
   ChatSession,
   ChatMessage
 } from '../../../shared/types'
+import { groupArtifactEventsByTask } from '../../../shared/aiRunEventUtils'
 import { parseIpcResult } from '../utils/serialization'
 import FileRender, { FileRenderDocument } from '../components/fileRenders'
 import MarkdownRenderer from '../components/MarkdownRenderer'
@@ -39,6 +40,11 @@ type RightPanelState =
       kind: 'json'
       data: unknown
     }
+  | {
+      title: string
+      kind: 'artifacts'
+      data: ArtifactEvent[]
+    }
 
 type ToolCallEvent = Extract<AiRunEvent, { type: 'tool_call_started' | 'tool_call_result' }>
 type TerminalEvent = Extract<
@@ -46,6 +52,7 @@ type TerminalEvent = Extract<
   { type: 'terminal_step_started' | 'terminal_step_result' | 'terminal_step_error' }
 >
 type ActivityEvent = Extract<AiRunEvent, { type: 'activity' }>
+type ArtifactEvent = Extract<AiRunEvent, { type: 'file_artifact' }>
 
 const getPageNumberFromMetadata = (metadata: SearchResult['metadata']): number => {
   if (!metadata) return 1
@@ -227,6 +234,20 @@ const ChatPage: React.FC = () => {
           title: `终端步骤 · ${evt.type}`,
           kind: 'json',
           data: evt
+        })
+        return
+      }
+
+      if (evt.type === 'file_artifact') {
+        setRightPanel((prev) => {
+          const current =
+            prev && prev.kind === 'artifacts' ? (prev.data as ArtifactEvent[]) : []
+          const next = [...current, evt].slice(-20)
+          return {
+            title: '文件产物',
+            kind: 'artifacts',
+            data: next
+          }
         })
         return
       }
@@ -500,6 +521,8 @@ const ChatPage: React.FC = () => {
       terminalByTask[key].push(evt)
     }
 
+    const artifactsByTask = groupArtifactEventsByTask(aiEvents)
+
     const total = aiPlan.length
     const completed = aiPlan.filter((t) => t.status === 'completed').length
     const running = aiPlan.find((t) => t.status === 'running')
@@ -508,6 +531,7 @@ const ChatPage: React.FC = () => {
     const taskPanels = aiPlan.map((t) => {
       const toolItems = toolCallsByTask[t.id] || []
       const terminalItems = terminalByTask[t.id] || []
+      const artifactItems = artifactsByTask[t.id] || []
       return (
         <Panel
           key={t.id}
@@ -588,6 +612,51 @@ const ChatPage: React.FC = () => {
                           {evt.error ? `[error] ${evt.error}` : JSON.stringify(evt.outputPreview)}
                         </div>
                       )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <div className="text-xs font-medium text-[#666666] mb-2">Artifacts</div>
+              {artifactItems.length === 0 ? (
+                <div className="text-xs text-[#999999]">暂无文件产物</div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {artifactItems.map((evt, idx) => (
+                    <div
+                      key={`${evt.artifactId}-${idx}`}
+                      className="border border-[#E5E5E4] rounded-lg bg-white px-3 py-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="text-xs font-medium text-[#1F1F1F] truncate">
+                          {evt.fileName}
+                        </div>
+                        <div className="text-[11px] text-[#999999]">{evt.operation}</div>
+                      </div>
+                      <div className="text-xs text-[#999999] mt-1 truncate">{evt.path}</div>
+                      <div className="text-xs text-[#666666] mt-1">{evt.summary}</div>
+                      <div className="flex items-center gap-2 mt-2">
+                        <Button
+                          size="small"
+                          onClick={async () => {
+                            const res = await window.api.openPath(evt.path)
+                            if (!res.success) message.error(res.error || '打开失败')
+                          }}
+                        >
+                          打开
+                        </Button>
+                        <Button
+                          size="small"
+                          onClick={async () => {
+                            const res = await window.api.revealPath(evt.path)
+                            if (!res.success) message.error(res.error || '定位失败')
+                          }}
+                        >
+                          定位
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -708,6 +777,44 @@ const ChatPage: React.FC = () => {
                     </div>
                   ))}
                 </div>
+              ) : rightPanel.kind === 'artifacts' ? (
+                <div className="flex flex-col gap-2">
+                  {(rightPanel.data as ArtifactEvent[]).map((evt, idx) => (
+                    <div
+                      key={`${evt.artifactId || idx}-${idx}`}
+                      className="border border-[#E5E5E4] rounded-lg px-3 py-2 bg-white"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-xs font-semibold text-[#1F1F1F] truncate">
+                          {evt.fileName}
+                        </div>
+                        <div className="text-[11px] text-[#999999]">{evt.operation}</div>
+                      </div>
+                      <div className="text-[11px] text-[#999999] mt-1 truncate">{evt.path}</div>
+                      <div className="text-xs text-[#666666] mt-2">{evt.summary}</div>
+                      <div className="flex items-center gap-1 mt-2">
+                        <Button
+                          size="small"
+                          onClick={async () => {
+                            const res = await window.api.openPath(evt.path)
+                            if (!res.success) message.error(res.error || '打开失败')
+                          }}
+                        >
+                          打开
+                        </Button>
+                        <Button
+                          size="small"
+                          onClick={async () => {
+                            const res = await window.api.revealPath(evt.path)
+                            if (!res.success) message.error(res.error || '定位失败')
+                          }}
+                        >
+                          定位
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               ) : (
                 <div className="flex flex-col gap-3">
                   <div className="text-xs text-[#666666] whitespace-pre-wrap">
@@ -744,6 +851,15 @@ const ChatPage: React.FC = () => {
                                 }}
                               >
                                 打开
+                              </Button>
+                              <Button
+                                size="small"
+                                onClick={async () => {
+                                  const res = await window.api.revealPath(p)
+                                  if (!res.success) message.error(res.error || '定位失败')
+                                }}
+                              >
+                                定位
                               </Button>
                             </div>
                           </div>

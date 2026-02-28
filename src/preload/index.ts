@@ -23,6 +23,8 @@ const api: DesktopApi = {
     ipcRenderer.invoke('open-external', url),
   openPath: (filePath: string): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('open-path', filePath),
+  revealPath: (filePath: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('reveal-path', filePath),
   search: (
     query: string,
     sourceType?: SearchSourceFilter

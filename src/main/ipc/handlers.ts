@@ -409,6 +409,19 @@ export function registerHandlers(services: {
     }
   })
 
+  ipcMain.handle('reveal-path', async (_event, rawPath: string) => {
+    try {
+      const value = String(rawPath || '').trim()
+      if (!value) return { success: false, error: 'path is required' }
+      const resolved = path.resolve(value)
+      if (!fs.existsSync(resolved)) return { success: false, error: 'path not found' }
+      shell.showItemInFolder(resolved)
+      return { success: true }
+    } catch (error: unknown) {
+      return { success: false, error: getErrorMessage(error) }
+    }
+  })
+
   ipcMain.handle('search', async (_event, query: string, sourceType?: 'all' | 'file' | 'web') => {
     try {
       const { data: queryVector } = await embeddingService.embed(query)
