@@ -38,8 +38,9 @@
 
 - [ ] 7.1 Add/adjust tests for terminal objective decomposition through tools, including approval-required and boundary-failure cases.
 - [ ] 7.2 Add/adjust tests for docx capability execution (inspect/apply/save) and overwrite approval gating.
-- [ ] 7.3 Add/adjust tests for artifact event emission and renderer consumption.
-- [ ] 7.4 Run `pnpm lint` and `pnpm typecheck` to confirm end-to-end contract consistency.
+- [ ] 7.3 Add/adjust tests for docx bounded-loop behavior (max-step/timeout), including explicit failure result and stopping further tool calls after limit breach.
+- [ ] 7.4 Add/adjust tests for artifact event emission and renderer consumption.
+- [ ] 7.5 Run `pnpm lint` and `pnpm typecheck` to confirm end-to-end contract consistency.
 
 ## 8. Documentation Updates
 

@@ -28,3 +28,13 @@ The `docx` capability MUST require workspace binding for file actions and MUST g
 - **WHEN** capability receives an in-place overwrite operation
 - **THEN** runtime requests approval before write and defaults to save-as behavior when overwrite is not approved
 
+### Requirement: Run bounded internal tool loops and finish explicitly
+The `docx` capability MUST run an internal tool loop to satisfy the task objective, MUST enforce bounded loop limits (for example max-step and timeout), and MUST terminate with explicit success or failure state.
+
+#### Scenario: Docx task requires multiple iterative tool steps
+- **WHEN** a docx objective cannot be completed in a single tool call
+- **THEN** the capability continues iterative inspect/plan/apply/save tool execution within configured limits until finish is emitted
+
+#### Scenario: Docx loop exceeds configured bounds
+- **WHEN** the capability reaches max-step or timeout limit before completion
+- **THEN** the task is marked failed with a bounded-loop error and no further docx tool calls are executed
