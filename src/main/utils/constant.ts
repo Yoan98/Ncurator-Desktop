@@ -13,7 +13,7 @@ export const WEB_INGEST_MAX_CHARS = 400000
 export const WEB_INGEST_CONCURRENCY = 2
 
 export const ENABLE_LEGACY_WRITING_WORKFLOW =
-  process.env.ENABLE_LEGACY_WRITING_WORKFLOW === '1' || process.env.NODE_ENV === 'development'
+  process.env.ENABLE_LEGACY_WRITING_WORKFLOW === '1'
 
 export const SPLITTER_SEPARATORS = ['\n\n', '\n', '。', ';', ',', ' ', '']
 export const ZH_STOP_WORDS =

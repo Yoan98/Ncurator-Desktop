@@ -21,6 +21,8 @@ import {
   AiRunStartRequest,
   AiRunStartResponse,
   AiRunCancelResponse,
+  AiRunApprovalDecisionRequest,
+  AiRunApprovalDecisionResponse,
   ChatSessionMemory,
   ChatSessionMemoryRow
 } from '../../shared/types'
@@ -47,6 +49,8 @@ export type {
   AiRunStartRequest,
   AiRunStartResponse,
   AiRunCancelResponse,
+  AiRunApprovalDecisionRequest,
+  AiRunApprovalDecisionResponse,
   ChatSessionMemory,
   ChatSessionMemoryRow
 }

@@ -21,7 +21,9 @@ import type {
   AiRunEvent,
   AiRunStartRequest,
   AiRunStartResponse,
-  AiRunCancelResponse
+  AiRunCancelResponse,
+  AiRunApprovalDecisionRequest,
+  AiRunApprovalDecisionResponse
 } from '../types/store'
 import path from 'path'
 import fs from 'fs'
@@ -42,6 +44,16 @@ export function registerHandlers(services: {
   const { ingestionService, embeddingService, storageService, modelService } = services
   const activeWritingRuns = new Map<string, { cancelled: boolean; senderId: number }>()
   const activeAiRuns = new Map<string, { cancelled: boolean; senderId: number }>()
+  const activeAiApprovals = new Map<
+    string,
+    Map<
+      string,
+      {
+        taskId: string
+        resolve: (decision: { approved: boolean; reason?: string }) => void
+      }
+    >
+  >()
   const documentsStore = storageService.documents
   const chatStore = storageService.chat
   const llmStore = storageService.llm
@@ -382,6 +394,20 @@ export function registerHandlers(services: {
         return { success: false, error: '仅支持 http/https URL' }
       }
       await shell.openExternal(parsed.toString())
+      return { success: true }
+    } catch (error: any) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  ipcMain.handle('open-path', async (_event, rawPath: string) => {
+    try {
+      const value = String(rawPath || '').trim()
+      if (!value) return { success: false, error: 'path is required' }
+      const resolved = path.resolve(value)
+      if (!fs.existsSync(resolved)) return { success: false, error: 'path not found' }
+      const err = await shell.openPath(resolved)
+      if (err) return { success: false, error: err }
       return { success: true }
     } catch (error: any) {
       return { success: false, error: error.message }
@@ -741,11 +767,27 @@ export function registerHandlers(services: {
     async (event, payload: AiRunStartRequest): Promise<AiRunStartResponse> => {
       const sessionId = String(payload?.sessionId || '').trim()
       const input = String(payload?.input || '').trim()
+      const selectedDocumentIds = Array.isArray(payload?.selectedDocumentIds)
+        ? payload.selectedDocumentIds.map(String).filter(Boolean)
+        : undefined
+      const workspace =
+        payload?.workspace &&
+        String(payload.workspace.workspaceId || '').trim() &&
+        String(payload.workspace.rootPath || '').trim()
+          ? {
+              workspaceId: String(payload.workspace.workspaceId).trim(),
+              rootPath: String(payload.workspace.rootPath).trim(),
+              policyProfile: payload.workspace.policyProfile
+                ? String(payload.workspace.policyProfile)
+                : undefined
+            }
+          : undefined
       if (!sessionId) return { success: false, error: 'sessionId is required' }
       if (!input) return { success: false, error: 'input is required' }
 
       const runId = uuidv4()
       activeAiRuns.set(runId, { cancelled: false, senderId: event.sender.id })
+      activeAiApprovals.set(runId, new Map())
 
       const sendEvent = (evt: AiRunEvent) => {
         if (event.sender.isDestroyed()) return
@@ -767,15 +809,67 @@ export function registerHandlers(services: {
 
         try {
           const result = await AiRunService.getInstance().run(
-            { runId, sessionId, input },
+            { runId, sessionId, input, selectedDocumentIds, workspace },
             {
               llmStore,
               chatStore,
               documentsStore,
-              writingStore,
               embeddingService,
               isCancelled: () => Boolean(activeAiRuns.get(runId)?.cancelled),
-              sendEvent
+              sendEvent,
+              requestApproval: async (request) => {
+                const approvals = activeAiApprovals.get(runId)
+                if (!approvals) return { approved: false, reason: 'run not active' }
+
+                const approvalId = uuidv4()
+                sendEvent({
+                  type: 'approval_required',
+                  runId,
+                  taskId: request.taskId,
+                  approvalId,
+                  command: request.command,
+                  riskLevel: request.riskLevel,
+                  reason: request.reason,
+                  createdAt: Date.now()
+                })
+
+                return await new Promise<{ approved: boolean; reason?: string }>((resolve) => {
+                  const timeout = setTimeout(() => {
+                    approvals.delete(approvalId)
+                    sendEvent({
+                      type: 'approval_decision',
+                      runId,
+                      taskId: request.taskId,
+                      approvalId,
+                      approved: false,
+                      reason: 'approval timeout',
+                      decidedAt: Date.now()
+                    })
+                    resolve({ approved: false, reason: 'approval timeout' })
+                  }, 60_000)
+
+                  approvals.set(approvalId, {
+                    taskId: request.taskId,
+                    resolve: (decision) => {
+                      clearTimeout(timeout)
+                      approvals.delete(approvalId)
+                      sendEvent({
+                        type: 'approval_decision',
+                        runId,
+                        taskId: request.taskId,
+                        approvalId,
+                        approved: Boolean(decision.approved),
+                        reason: decision.reason,
+                        decidedAt: Date.now()
+                      })
+                      resolve({
+                        approved: Boolean(decision.approved),
+                        reason: decision.reason
+                      })
+                    }
+                  })
+                })
+              }
             }
           )
 
@@ -814,6 +908,14 @@ export function registerHandlers(services: {
           const msg = e instanceof Error ? e.message : String(e)
           sendEvent({ type: 'run_failed', runId, error: msg })
         } finally {
+          const approvals = activeAiApprovals.get(runId)
+          if (approvals) {
+            for (const [approvalId, pending] of approvals.entries()) {
+              pending.resolve({ approved: false, reason: 'run closed' })
+              approvals.delete(approvalId)
+            }
+          }
+          activeAiApprovals.delete(runId)
           activeAiRuns.delete(runId)
         }
       })()
@@ -828,6 +930,33 @@ export function registerHandlers(services: {
     entry.cancelled = true
     return { success: true }
   })
+
+  ipcMain.handle(
+    'ai-run-approval-decide',
+    async (
+      _event,
+      payload: AiRunApprovalDecisionRequest
+    ): Promise<AiRunApprovalDecisionResponse> => {
+      const runId = String(payload?.runId || '').trim()
+      const approvalId = String(payload?.approvalId || '').trim()
+      if (!runId || !approvalId) {
+        return { success: false, error: 'runId and approvalId are required' }
+      }
+
+      const approvals = activeAiApprovals.get(runId)
+      if (!approvals) return { success: false, error: 'run not found' }
+
+      const pending = approvals.get(approvalId)
+      if (!pending) return { success: false, error: 'approval not found' }
+
+      pending.resolve({
+        approved: Boolean(payload?.approved),
+        reason: payload?.reason ? String(payload.reason) : undefined
+      })
+
+      return { success: true }
+    }
+  )
 
   // === Chat & LLM Handlers ===
 

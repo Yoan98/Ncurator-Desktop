@@ -116,8 +116,10 @@ export interface WritingDocumentRecord {
   updated_at: number
 }
 
+/** @deprecated Legacy writing workflow contracts; not used by active chat runtime. */
 export type WritingWorkflowRunStatus = 'running' | 'completed' | 'failed' | 'cancelled'
 
+/** @deprecated Legacy writing workflow contracts; not used by active chat runtime. */
 export interface WritingWorkflowRunRecord {
   id: string
   writing_document_id?: string
@@ -133,6 +135,7 @@ export interface WritingWorkflowRunRecord {
   updated_at: number
 }
 
+/** @deprecated Legacy writing workflow contracts; not used by active chat runtime. */
 export type WritingWorkflowStageId =
   | 'validate_input'
   | 'generate_outline'
@@ -141,6 +144,7 @@ export type WritingWorkflowStageId =
   | 'select_citations'
   | 'generate_markdown_draft'
 
+/** @deprecated Legacy writing workflow contracts; not used by active chat runtime. */
 export type WritingWorkflowEvent =
   | {
       type: 'run_started'
@@ -178,22 +182,31 @@ export type WritingWorkflowEvent =
       runId: string
     }
 
-export type AiTaskKind = 'retrieval' | 'writer'
+export type AiTaskKind = 'local_kb_retrieval' | 'terminal_exec' | 'docx'
 export type AiTaskStatus = 'pending' | 'running' | 'completed' | 'failed'
 export type AiRunStatus = 'running' | 'completed' | 'failed' | 'cancelled'
 
 export type AiPlanTask = {
   id: string
   title: string
-  kind: AiTaskKind
+  kind: AiTaskKind | string
+  input?: string
   status: AiTaskStatus
   attempts: number
   error?: string
+  resultCode?: 'ok' | 'not_implemented'
+  resultMessage?: string
 }
 
 export type AiRunStartRequest = {
   sessionId: string
   input: string
+  selectedDocumentIds?: string[]
+  workspace?: {
+    workspaceId: string
+    rootPath: string
+    policyProfile?: string
+  }
 }
 
 export type AiRunStartResponse = {
@@ -203,6 +216,18 @@ export type AiRunStartResponse = {
 }
 
 export type AiRunCancelResponse = {
+  success: boolean
+  error?: string
+}
+
+export type AiRunApprovalDecisionRequest = {
+  runId: string
+  approvalId: string
+  approved: boolean
+  reason?: string
+}
+
+export type AiRunApprovalDecisionResponse = {
   success: boolean
   error?: string
 }
@@ -231,6 +256,13 @@ export type AiRunEvent =
       taskId: string
     }
   | {
+      type: 'task_result'
+      runId: string
+      taskId: string
+      code: 'ok' | 'not_implemented'
+      message?: string
+    }
+  | {
       type: 'task_failed'
       runId: string
       taskId: string
@@ -254,6 +286,77 @@ export type AiRunEvent =
       outputPreview: any
       completedAt: number
       error?: string
+    }
+  | {
+      type: 'terminal_step_started'
+      runId: string
+      taskId: string
+      stepId: string
+      stepIndex: number
+      command: string
+      cwd: string
+      createdAt: number
+    }
+  | {
+      type: 'terminal_step_result'
+      runId: string
+      taskId: string
+      stepId: string
+      stepIndex: number
+      command: string
+      outputPreview: string
+      exitCode: number | null
+      timedOut: boolean
+      truncated: boolean
+      completedAt: number
+    }
+  | {
+      type: 'terminal_step_error'
+      runId: string
+      taskId: string
+      stepId: string
+      stepIndex: number
+      command: string
+      error: string
+      outputPreview?: string
+      completedAt: number
+    }
+  | {
+      type: 'activity'
+      runId: string
+      taskId?: string
+      activityId: string
+      actionType: string
+      status: 'started' | 'completed' | 'failed'
+      summary: string
+      createdAt: number
+    }
+  | {
+      type: 'workspace_required'
+      runId: string
+      taskId: string
+      reason: string
+      requiredFields: Array<'workspaceId' | 'rootPath'>
+      createdAt: number
+    }
+  | {
+      type: 'approval_required'
+      runId: string
+      taskId: string
+      approvalId: string
+      command: string
+      riskLevel: 'medium' | 'high'
+      reason: string
+      createdAt: number
+    }
+  | {
+      type: 'approval_decision'
+      runId: string
+      taskId: string
+      approvalId: string
+      approved: boolean
+      reason?: string
+      decidedAt: number
     }
   | {
       type: 'answer_token'

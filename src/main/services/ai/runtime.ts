@@ -83,13 +83,25 @@ export const createAiRunContext = (payload: AiRunStartPayload, deps: AiRunDeps):
   return {
     runId: payload.runId,
     sessionId: payload.sessionId,
+    selectedDocumentIds: Array.isArray(payload.selectedDocumentIds)
+      ? payload.selectedDocumentIds.map(String).filter(Boolean)
+      : undefined,
+    workspace: payload.workspace
+      ? {
+          workspaceId: String(payload.workspace.workspaceId || '').trim(),
+          rootPath: String(payload.workspace.rootPath || '').trim(),
+          policyProfile: payload.workspace.policyProfile
+            ? String(payload.workspace.policyProfile)
+            : undefined
+        }
+      : undefined,
     checkCancelled,
     chatJson,
     sendEvent: deps.sendEvent,
+    requestApproval: deps.requestApproval,
     loadHistory,
     getModelConfig: getActiveConfig,
     documentsStore: deps.documentsStore,
-    writingStore: deps.writingStore,
     embeddingService: deps.embeddingService
   }
 }

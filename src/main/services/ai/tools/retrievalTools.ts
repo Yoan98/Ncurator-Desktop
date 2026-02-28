@@ -4,9 +4,34 @@ import { v4 as uuidv4 } from 'uuid'
 import type { AiRunContext } from '../types'
 import { normalizeForIpc } from '../../../utils/serialization'
 
+const MAX_RETRIEVAL_LIMIT = 50
+const MAX_LIST_PAGE_SIZE = 50
+
 const previewArray = (rows: any[], max = 3) => {
   const list = Array.isArray(rows) ? rows : []
   return list.slice(0, Math.max(0, max))
+}
+
+const toStringIdList = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return []
+  return value.map(String).map((v) => v.trim()).filter(Boolean)
+}
+
+const resolveScopedDocumentIds = (
+  runScopedIds: unknown,
+  requestedIds: unknown
+): string[] | null => {
+  const runScope = toStringIdList(runScopedIds)
+  const requested = toStringIdList(requestedIds)
+
+  if (runScope.length === 0) {
+    return requested.length > 0 ? requested : null
+  }
+
+  if (requested.length === 0) return runScope
+
+  const allowed = new Set(runScope)
+  return requested.filter((id) => allowed.has(id))
 }
 
 export const buildRetrievalTools = (input: {
@@ -50,11 +75,22 @@ export const buildRetrievalTools = (input: {
       try {
         ctx.checkCancelled()
         const queryText = String(args.queryText || '').trim()
-        const limit = Math.max(1, Math.min(50, Number(args.limit ?? 10)))
+        const limit = Math.max(1, Math.min(MAX_RETRIEVAL_LIMIT, Number(args.limit ?? 10)))
         const filter = args.sourceType && args.sourceType !== 'all' ? String(args.sourceType) : undefined
-        const documentIds = Array.isArray(args.documentIds) ? args.documentIds.map(String).filter(Boolean) : undefined
+        const scopedDocumentIds = resolveScopedDocumentIds(ctx.selectedDocumentIds, args.documentIds)
+        if (Array.isArray(scopedDocumentIds) && scopedDocumentIds.length === 0) {
+          emitResult(toolName, toolCallId, [])
+          return []
+        }
+
         const { data: vec } = await ctx.embeddingService.embed(queryText)
-        const rows = await ctx.documentsStore.hybridSearch(vec, queryText, limit, filter, documentIds)
+        const rows = await ctx.documentsStore.hybridSearch(
+          vec,
+          queryText,
+          limit,
+          filter,
+          scopedDocumentIds || undefined
+        )
         const normalized = rows.map(normalizeForIpc)
         emitResult(toolName, toolCallId, previewArray(normalized))
         return normalized
@@ -83,11 +119,21 @@ export const buildRetrievalTools = (input: {
       try {
         ctx.checkCancelled()
         const queryText = String(args.queryText || '').trim()
-        const limit = Math.max(1, Math.min(50, Number(args.limit ?? 10)))
+        const limit = Math.max(1, Math.min(MAX_RETRIEVAL_LIMIT, Number(args.limit ?? 10)))
         const filter = args.sourceType && args.sourceType !== 'all' ? String(args.sourceType) : undefined
-        const documentIds = Array.isArray(args.documentIds) ? args.documentIds.map(String).filter(Boolean) : undefined
+        const scopedDocumentIds = resolveScopedDocumentIds(ctx.selectedDocumentIds, args.documentIds)
+        if (Array.isArray(scopedDocumentIds) && scopedDocumentIds.length === 0) {
+          emitResult(toolName, toolCallId, [])
+          return []
+        }
+
         const { data: vec } = await ctx.embeddingService.embed(queryText)
-        const rows = await ctx.documentsStore.vectorSearch(vec, limit, filter, documentIds)
+        const rows = await ctx.documentsStore.vectorSearch(
+          vec,
+          limit,
+          filter,
+          scopedDocumentIds || undefined
+        )
         const normalized = rows.map(normalizeForIpc)
         emitResult(toolName, toolCallId, previewArray(normalized))
         return normalized
@@ -116,10 +162,20 @@ export const buildRetrievalTools = (input: {
       try {
         ctx.checkCancelled()
         const queryText = String(args.queryText || '').trim()
-        const limit = Math.max(1, Math.min(50, Number(args.limit ?? 10)))
+        const limit = Math.max(1, Math.min(MAX_RETRIEVAL_LIMIT, Number(args.limit ?? 10)))
         const filter = args.sourceType && args.sourceType !== 'all' ? String(args.sourceType) : undefined
-        const documentIds = Array.isArray(args.documentIds) ? args.documentIds.map(String).filter(Boolean) : undefined
-        const rows = await ctx.documentsStore.ftsSearch(queryText, limit, filter, documentIds)
+        const scopedDocumentIds = resolveScopedDocumentIds(ctx.selectedDocumentIds, args.documentIds)
+        if (Array.isArray(scopedDocumentIds) && scopedDocumentIds.length === 0) {
+          emitResult(toolName, toolCallId, [])
+          return []
+        }
+
+        const rows = await ctx.documentsStore.ftsSearch(
+          queryText,
+          limit,
+          filter,
+          scopedDocumentIds || undefined
+        )
         const normalized = rows.map(normalizeForIpc)
         emitResult(toolName, toolCallId, previewArray(normalized))
         return normalized
@@ -149,10 +205,26 @@ export const buildRetrievalTools = (input: {
         ctx.checkCancelled()
         const keyword = String(args.keyword || '').trim() || undefined
         const page = Math.max(1, Number(args.page ?? 1))
-        const pageSize = Math.max(1, Math.min(50, Number(args.pageSize ?? 20)))
+        const pageSize = Math.max(1, Math.min(MAX_LIST_PAGE_SIZE, Number(args.pageSize ?? 20)))
+        const scopedDocumentIds = resolveScopedDocumentIds(ctx.selectedDocumentIds, args.documentIds)
+
+        if (Array.isArray(scopedDocumentIds) && scopedDocumentIds.length === 0) {
+          const empty = { items: [], total: 0 }
+          emitResult(toolName, toolCallId, [])
+          return empty
+        }
+
         const res = await ctx.documentsStore.listDocuments({ keyword, page, pageSize })
-        emitResult(toolName, toolCallId, previewArray(res.items))
-        return res
+        if (!scopedDocumentIds) {
+          emitResult(toolName, toolCallId, previewArray(res.items))
+          return res
+        }
+
+        const allowed = new Set(scopedDocumentIds)
+        const items = res.items.filter((item) => allowed.has(item.id))
+        const normalized = { items, total: items.length }
+        emitResult(toolName, toolCallId, previewArray(items))
+        return normalized
       } catch (e: any) {
         const msg = e instanceof Error ? e.message : String(e)
         emitResult(toolName, toolCallId, { items: [], total: 0 }, msg)
@@ -165,97 +237,11 @@ export const buildRetrievalTools = (input: {
       schema: z.object({
         keyword: z.string().optional(),
         page: z.number().optional(),
-        pageSize: z.number().optional()
+        pageSize: z.number().optional(),
+        documentIds: z.array(z.string()).optional()
       })
     }
   )
 
-  const writingListDocuments = tool(
-    async (args) => {
-      const toolName = 'writing_list_documents'
-      const toolCallId = emitStarted(toolName, args)
-      try {
-        ctx.checkCancelled()
-        const folderId = args.folderId ? String(args.folderId) : undefined
-        const rows = await ctx.writingStore.listDocuments(folderId)
-        const preview = previewArray(rows.map((d) => ({ id: d.id, title: d.title, updated_at: d.updated_at })))
-        emitResult(toolName, toolCallId, preview)
-        return rows
-      } catch (e: any) {
-        const msg = e instanceof Error ? e.message : String(e)
-        emitResult(toolName, toolCallId, [], msg)
-        throw e
-      }
-    },
-    {
-      name: 'writing_list_documents',
-      description: 'List writing workspace documents (optionally within a folder).',
-      schema: z.object({
-        folderId: z.string().optional()
-      })
-    }
-  )
-
-  const writingSearchDocuments = tool(
-    async (args) => {
-      const toolName = 'writing_search_documents'
-      const toolCallId = emitStarted(toolName, args)
-      try {
-        ctx.checkCancelled()
-        const keyword = String(args.keyword || '').trim()
-        const limit = Math.max(1, Math.min(50, Number(args.limit ?? 20)))
-        const rows = await ctx.writingStore.searchDocuments(keyword, limit)
-        const preview = previewArray(rows.map((d) => ({ id: d.id, title: d.title, updated_at: d.updated_at })))
-        emitResult(toolName, toolCallId, preview)
-        return rows
-      } catch (e: any) {
-        const msg = e instanceof Error ? e.message : String(e)
-        emitResult(toolName, toolCallId, [], msg)
-        throw e
-      }
-    },
-    {
-      name: 'writing_search_documents',
-      description: 'Search writing workspace documents by keyword (title/markdown).',
-      schema: z.object({
-        keyword: z.string(),
-        limit: z.number().optional()
-      })
-    }
-  )
-
-  const writingGetDocument = tool(
-    async (args) => {
-      const toolName = 'writing_get_document'
-      const toolCallId = emitStarted(toolName, args)
-      try {
-        ctx.checkCancelled()
-        const docId = String(args.docId || '').trim()
-        const doc = await ctx.writingStore.getDocument(docId)
-        emitResult(toolName, toolCallId, doc ? { id: doc.id, title: doc.title, updated_at: doc.updated_at } : null)
-        return doc
-      } catch (e: any) {
-        const msg = e instanceof Error ? e.message : String(e)
-        emitResult(toolName, toolCallId, null, msg)
-        throw e
-      }
-    },
-    {
-      name: 'writing_get_document',
-      description: 'Get a writing workspace document by id.',
-      schema: z.object({
-        docId: z.string()
-      })
-    }
-  )
-
-  return [
-    kbHybridSearchChunks,
-    kbVectorSearchChunks,
-    kbFtsSearchChunks,
-    kbListDocuments,
-    writingListDocuments,
-    writingSearchDocuments,
-    writingGetDocument
-  ]
+  return [kbHybridSearchChunks, kbVectorSearchChunks, kbFtsSearchChunks, kbListDocuments]
 }

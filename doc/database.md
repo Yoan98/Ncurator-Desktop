@@ -20,7 +20,7 @@
   - `DocumentsStore`：`document` / `chunk`（导入、分页、混合检索、删除）
   - `ChatStore`：`chat_session` / `chat_message`（会话与消息 CRUD）
   - `LlmConfigStore`：`llm_config`（配置 CRUD 与激活态切换）
-  - `WritingStore`：`writing_folder` / `writing_document` / `writing_workflow_run`（写作空间与工作流运行记录）
+  - `WritingStore`：`writing_folder` / `writing_document` / `writing_workflow_run`（**遗留表，非 Chat AI active architecture 依赖**）
 - **组合根（Facade）**: `src/main/services/storage/StorageService.ts`
   - 统一持有 `core` 与各 domain store
   - 应用启动时在 `src/main/index.ts` 调用 `await storageService.initialize()`
@@ -113,7 +113,7 @@
 | api_key    | Utf8    | API Key                                    |
 | is_active  | Boolean | 是否为当前激活配置（通常只有一个为 True）  |
 
-### 表: writing_folder（写作空间文件夹表）
+### 表: writing_folder（写作空间文件夹表，遗留）
 
 存储写作空间中的文件夹树结构。
 
@@ -125,7 +125,7 @@
 | created_at | Int64            | 创建时间戳           |
 | updated_at | Int64            | 更新时间戳           |
 
-### 表: writing_document（写作空间文档表）
+### 表: writing_document（写作空间文档表，遗留）
 
 存储写作空间中的文档内容与编辑态快照。
 
@@ -139,9 +139,14 @@
 | created_at | Int64            | 创建时间戳                       |
 | updated_at | Int64            | 更新时间戳                       |
 
-### 表: writing_workflow_run（写作工作流运行记录表）
+### 表: writing_workflow_run（写作工作流运行记录表，遗留）
 
 存储一次 AI 写作运行的输入、阶段产物与状态。部分字段使用 JSON 字符串持久化结构化数据。
+
+> 迁移策略（当前版本）：
+> - 这些遗留表默认“保留但不在 Chat AI active runtime 中使用”。
+> - 仅在显式开启 `ENABLE_LEGACY_WRITING_WORKFLOW=1` 时，才允许旧写作工作流访问。
+> - 后续版本可按发布说明执行清理（导出后删除）或继续只读保留。
 
 | 字段名              | 类型             | 描述                                     |
 | :------------------ | :--------------- | :--------------------------------------- |

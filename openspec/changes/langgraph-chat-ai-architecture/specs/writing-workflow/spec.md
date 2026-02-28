@@ -26,4 +26,8 @@ The system MUST define deterministic migration behavior for existing writing-dom
 
 #### Scenario: Existing install upgrade
 - **WHEN** application upgrades to the new architecture
-- **THEN** the system follows declared cleanup policy for writing-domain data (drop or retained-but-unused transition window)
+- **THEN** writing-domain tables are retained but unused by default, and legacy workflow access remains hard-disabled unless explicitly enabled via `ENABLE_LEGACY_WRITING_WORKFLOW=1`
+
+#### Scenario: Future cleanup execution
+- **WHEN** product decides to fully remove legacy writing data
+- **THEN** cleanup follows explicit release-note policy (export first, then drop `writing_*` tables) instead of implicit runtime deletion

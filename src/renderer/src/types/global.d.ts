@@ -16,7 +16,9 @@ import type {
   AiRunEvent,
   AiRunStartRequest,
   AiRunStartResponse,
-  AiRunCancelResponse
+  AiRunCancelResponse,
+  AiRunApprovalDecisionRequest,
+  AiRunApprovalDecisionResponse
 } from '../../../shared/types'
 
 declare global {
@@ -34,6 +36,7 @@ declare global {
         payload: WebIngestPayload[]
       ) => Promise<{ success: boolean; created?: number; error?: string }>
       openExternal: (url: string) => Promise<{ success: boolean; error?: string }>
+      openPath: (filePath: string) => Promise<{ success: boolean; error?: string }>
       search: (query: string, sourceType?: SearchSourceFilter) => Promise<SearchResponse>
       ftsSearch: (query: string, sourceType?: SearchSourceFilter) => Promise<SearchResult[]>
       vectorSearch: (query: string, sourceType?: SearchSourceFilter) => Promise<SearchResult[]>
@@ -103,7 +106,7 @@ declare global {
       writingDocumentSave: (doc: WritingDocumentRecord) => Promise<{ success: boolean; error?: string }>
       writingDocumentDelete: (id: string) => Promise<{ success: boolean; error?: string }>
 
-      // Writing AI Workflow
+      // Writing AI Workflow (Deprecated for active chat architecture)
       writingMentionDocuments: (payload: { keyword?: string; limit?: number }) => Promise<
         DocumentRecord[]
       >
@@ -123,6 +126,9 @@ declare global {
 
       aiRunStart: (payload: AiRunStartRequest) => Promise<AiRunStartResponse>
       aiRunCancel: (runId: string) => Promise<AiRunCancelResponse>
+      aiRunApprovalDecide: (
+        payload: AiRunApprovalDecisionRequest
+      ) => Promise<AiRunApprovalDecisionResponse>
       onAiRunEvent: (cb: (event: AiRunEvent) => void) => void
       removeAiRunEventListeners: () => void
     }

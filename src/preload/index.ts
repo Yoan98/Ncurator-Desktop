@@ -14,7 +14,9 @@ import type {
   AiRunEvent,
   AiRunStartRequest,
   AiRunStartResponse,
-  AiRunCancelResponse
+  AiRunCancelResponse,
+  AiRunApprovalDecisionRequest,
+  AiRunApprovalDecisionResponse
 } from '../shared/types'
 
 // Custom APIs for renderer
@@ -36,6 +38,8 @@ const api = {
     ipcRenderer.invoke('ingest-webs', payload),
   openExternal: (url: string): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('open-external', url),
+  openPath: (filePath: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('open-path', filePath),
   search: (
     query: string,
     sourceType?: SearchSourceFilter
@@ -146,6 +150,9 @@ const api = {
     ipcRenderer.invoke('ai-run-start', payload),
   aiRunCancel: (runId: string): Promise<AiRunCancelResponse> =>
     ipcRenderer.invoke('ai-run-cancel', runId),
+  aiRunApprovalDecide: (
+    payload: AiRunApprovalDecisionRequest
+  ): Promise<AiRunApprovalDecisionResponse> => ipcRenderer.invoke('ai-run-approval-decide', payload),
   onAiRunEvent: (cb: (event: AiRunEvent) => void) =>
     ipcRenderer.on('ai-run-event', (_event, data) => cb(data)),
   removeAiRunEventListeners: () => ipcRenderer.removeAllListeners('ai-run-event')

@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Input, Button, Card, message, Collapse, Avatar, Tooltip, Space } from 'antd'
+import { Input, Button, Card, message, Collapse, Avatar, Tooltip, Space, Select, Progress } from 'antd'
 import { HiArrowUp, HiPlus, HiTrash, HiUser, HiSparkles, HiBookOpen } from 'react-icons/hi2'
 import { LoadingOutlined } from '@ant-design/icons'
-import { useNavigate } from 'react-router-dom'
 import type {
   AiPlanTask,
   AiRunEvent,
@@ -18,10 +17,13 @@ import MarkdownRenderer from '../components/MarkdownRenderer'
 const { TextArea } = Input
 const { Panel } = Collapse
 
-const safeText = (v: any) => String(v ?? '').trim()
+const extractAbsolutePaths = (text: string): string[] => {
+  const matches = String(text || '').match(/\/[^\s"'`;]+/g) || []
+  const unique = Array.from(new Set(matches.map((v) => v.trim()).filter(Boolean)))
+  return unique.slice(0, 5)
+}
 
 const ChatPage: React.FC = () => {
-  const navigate = useNavigate()
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
   const [currentMessages, setCurrentMessages] = useState<ChatMessage[]>([])
@@ -30,9 +32,12 @@ const ChatPage: React.FC = () => {
   const [aiRunId, setAiRunId] = useState<string | null>(null)
   const [aiEvents, setAiEvents] = useState<AiRunEvent[]>([])
   const [aiPlan, setAiPlan] = useState<AiPlanTask[]>([])
+  const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([])
+  const [mentionOptions, setMentionOptions] = useState<DocumentRecord[]>([])
+  const [workspaceRootPath, setWorkspaceRootPath] = useState('')
   const [rightPanel, setRightPanel] = useState<null | {
     title: string
-    kind: 'chunks' | 'docs' | 'writing_docs' | 'writing_action' | 'json'
+    kind: 'chunks' | 'docs' | 'json'
     data: any
   }>(null)
   const assistantMsgIdRef = useRef<string | null>(null)
@@ -100,6 +105,9 @@ const ChatPage: React.FC = () => {
       setAiRunId(null)
       setAiEvents([])
       setAiPlan([])
+      setSelectedDocumentIds([])
+      setMentionOptions([])
+      setWorkspaceRootPath('')
       setRightPanel(null)
     } else {
       setCurrentMessages([])
@@ -121,6 +129,21 @@ const ChatPage: React.FC = () => {
     } catch (err) {
       console.error(err)
       message.error('删除会话失败')
+    }
+  }
+
+  const searchMentionDocs = async (keyword: string) => {
+    const raw = String(keyword || '').trim()
+    const k = raw.startsWith('@') ? raw.slice(1) : raw
+    try {
+      const res = await window.api.listDocuments({
+        keyword: k || undefined,
+        page: 1,
+        pageSize: 20
+      })
+      setMentionOptions(res.items || [])
+    } catch (e: any) {
+      void e
     }
   }
 
@@ -153,30 +176,23 @@ const ChatPage: React.FC = () => {
           })
           return
         }
-        if (toolName === 'writing_list_documents' || toolName === 'writing_search_documents') {
-          setRightPanel({
-            title: `写作空间 · ${toolName}`,
-            kind: 'writing_docs',
-            data: Array.isArray(evt.outputPreview) ? evt.outputPreview : []
-          })
-          return
-        }
-        if (
-          toolName === 'writing_create_document' ||
-          toolName === 'writing_update_document' ||
-          toolName === 'writing_apply_search_replace'
-        ) {
-          setRightPanel({
-            title: `写作操作 · ${toolName}`,
-            kind: 'writing_action',
-            data: evt.outputPreview
-          })
-          return
-        }
         setRightPanel({
           title: `工具输出 · ${toolName}`,
           kind: 'json',
           data: evt.outputPreview
+        })
+        return
+      }
+
+      if (
+        evt.type === 'terminal_step_started' ||
+        evt.type === 'terminal_step_result' ||
+        evt.type === 'terminal_step_error'
+      ) {
+        setRightPanel({
+          title: `终端步骤 · ${evt.type}`,
+          kind: 'json',
+          data: evt
         })
         return
       }
@@ -200,10 +216,51 @@ const ChatPage: React.FC = () => {
         return
       }
 
+      if (evt.type === 'task_result') {
+        setAiPlan((prev) =>
+          prev.map((t) =>
+            t.id === evt.taskId
+              ? { ...t, resultCode: evt.code, resultMessage: evt.message }
+              : t
+          )
+        )
+        return
+      }
+
       if (evt.type === 'task_failed') {
         setAiPlan((prev) =>
           prev.map((t) => (t.id === evt.taskId ? { ...t, status: 'failed', error: evt.error } : t))
         )
+        return
+      }
+
+      if (evt.type === 'workspace_required') {
+        setLoading(false)
+        message.warning(evt.reason || '执行任务需要先绑定工作区')
+        setRightPanel({
+          title: '工作区要求',
+          kind: 'json',
+          data: evt
+        })
+        return
+      }
+
+      if (evt.type === 'approval_required') {
+        message.info(`命令需要审批：${evt.command}`)
+        setRightPanel({
+          title: '审批请求',
+          kind: 'json',
+          data: evt
+        })
+        return
+      }
+
+      if (evt.type === 'approval_decision') {
+        if (evt.approved) {
+          message.success('审批已通过')
+        } else {
+          message.warning(evt.reason || '审批未通过')
+        }
         return
       }
 
@@ -269,6 +326,15 @@ const ChatPage: React.FC = () => {
     if (!input.trim() || !currentSessionId || loading) return
 
     const userQuery = input.trim()
+    const likelyExecutable =
+      /\b(cmd|bash|shell|terminal|command|run)\b/i.test(userQuery) ||
+      /终端|命令|脚本|执行|创建文件|删除文件|修改文件/.test(userQuery)
+    const normalizedWorkspaceRoot = workspaceRootPath.trim()
+    if (likelyExecutable && !normalizedWorkspaceRoot) {
+      message.warning('该请求可能触发本地执行，请先填写工作区根路径')
+      return
+    }
+
     setInput('')
     setLoading(true)
     setAiEvents([])
@@ -315,7 +381,22 @@ const ChatPage: React.FC = () => {
       }
       setCurrentMessages((prev) => [...prev, assistantMsg])
 
-      const res = await window.api.aiRunStart({ sessionId: currentSessionId, input: userQuery })
+      const workspace =
+        normalizedWorkspaceRoot.length > 0
+          ? {
+              workspaceId:
+                normalizedWorkspaceRoot.split(/[\\/]/).filter(Boolean).pop() ||
+                normalizedWorkspaceRoot,
+              rootPath: normalizedWorkspaceRoot,
+              policyProfile: 'default'
+            }
+          : undefined
+      const res = await window.api.aiRunStart({
+        sessionId: currentSessionId,
+        input: userQuery,
+        selectedDocumentIds: selectedDocumentIds.length ? selectedDocumentIds : undefined,
+        workspace
+      })
       if (!res.success || !res.runId) {
         setLoading(false)
         message.error(res.error || '启动失败')
@@ -364,16 +445,35 @@ const ChatPage: React.FC = () => {
     const toolCalls = aiEvents.filter(
       (e) => e.type === 'tool_call_started' || e.type === 'tool_call_result'
     ) as Array<any>
+    const terminalSteps = aiEvents.filter(
+      (e) =>
+        e.type === 'terminal_step_started' ||
+        e.type === 'terminal_step_result' ||
+        e.type === 'terminal_step_error'
+    ) as Array<any>
 
-    const byTask: Record<string, Array<any>> = {}
+    const toolCallsByTask: Record<string, Array<any>> = {}
     for (const evt of toolCalls) {
       const key = String(evt.taskId || '__no_task__')
-      if (!byTask[key]) byTask[key] = []
-      byTask[key].push(evt)
+      if (!toolCallsByTask[key]) toolCallsByTask[key] = []
+      toolCallsByTask[key].push(evt)
     }
 
+    const terminalByTask: Record<string, Array<any>> = {}
+    for (const evt of terminalSteps) {
+      const key = String(evt.taskId || '__no_task__')
+      if (!terminalByTask[key]) terminalByTask[key] = []
+      terminalByTask[key].push(evt)
+    }
+
+    const total = aiPlan.length
+    const completed = aiPlan.filter((t) => t.status === 'completed').length
+    const running = aiPlan.find((t) => t.status === 'running')
+    const percent = total > 0 ? Math.round((completed / total) * 100) : 0
+
     const taskPanels = aiPlan.map((t) => {
-      const items = byTask[t.id] || []
+      const toolItems = toolCallsByTask[t.id] || []
+      const terminalItems = terminalByTask[t.id] || []
       return (
         <Panel
           key={t.id}
@@ -382,37 +482,80 @@ const ChatPage: React.FC = () => {
               <div className="flex items-center gap-2">
                 <span className="text-sm text-[#1F1F1F]">{t.title}</span>
                 <span className="text-xs text-[#999999]">{t.kind}</span>
+                {t.resultCode ? <span className="text-xs text-[#999999]">{t.resultCode}</span> : null}
+                {t.status === 'running' ? (
+                  <span className="text-[10px] px-2 py-[2px] rounded bg-[#FBF5F2] text-[#D97757]">
+                    active
+                  </span>
+                ) : null}
               </div>
               <span className="text-xs text-[#666666]">{t.status}</span>
             </div>
           }
         >
-          {items.length === 0 ? (
-            <div className="text-xs text-[#999999]">暂无工具步骤</div>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {items.map((evt, idx) => (
-                <div
-                  key={`${evt.toolCallId}-${idx}`}
-                  className="border border-[#E5E5E4] rounded-lg bg-white px-3 py-2"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="text-xs font-medium text-[#1F1F1F]">{evt.toolName}</div>
-                    <div className="text-[11px] text-[#999999]">{evt.type}</div>
-                  </div>
-                  {evt.type === 'tool_call_started' ? (
-                    <div className="text-xs text-[#666666] mt-1 whitespace-pre-wrap">
-                      {JSON.stringify(evt.input)}
+          <div className="flex flex-col gap-3">
+            {t.resultMessage ? (
+              <div className="text-xs text-[#666666] bg-[#F5F5F4] rounded px-2 py-1">
+                {t.resultMessage}
+              </div>
+            ) : null}
+            <div>
+              <div className="text-xs font-medium text-[#666666] mb-2">Terminal</div>
+              {terminalItems.length === 0 ? (
+                <div className="text-xs text-[#999999]">暂无终端步骤</div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {terminalItems.map((evt, idx) => (
+                    <div
+                      key={`${evt.stepId || idx}-${idx}`}
+                      className="border border-[#E5E5E4] rounded-lg bg-white px-3 py-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="text-xs font-medium text-[#1F1F1F]">{evt.type}</div>
+                        <div className="text-[11px] text-[#999999]">step {evt.stepIndex}</div>
+                      </div>
+                      <div className="text-xs text-[#666666] mt-1 whitespace-pre-wrap">
+                        {evt.command}
+                      </div>
+                      <div className="text-xs text-[#999999] mt-1 whitespace-pre-wrap">
+                        {evt.error || evt.outputPreview || ''}
+                      </div>
                     </div>
-                  ) : (
-                    <div className="text-xs text-[#666666] mt-1 whitespace-pre-wrap">
-                      {evt.error ? `[error] ${evt.error}` : JSON.stringify(evt.outputPreview)}
-                    </div>
-                  )}
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
-          )}
+
+            <div>
+              <div className="text-xs font-medium text-[#666666] mb-2">Tool Calls</div>
+              {toolItems.length === 0 ? (
+                <div className="text-xs text-[#999999]">暂无工具步骤</div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {toolItems.map((evt, idx) => (
+                    <div
+                      key={`${evt.toolCallId}-${idx}`}
+                      className="border border-[#E5E5E4] rounded-lg bg-white px-3 py-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="text-xs font-medium text-[#1F1F1F]">{evt.toolName}</div>
+                        <div className="text-[11px] text-[#999999]">{evt.type}</div>
+                      </div>
+                      {evt.type === 'tool_call_started' ? (
+                        <div className="text-xs text-[#666666] mt-1 whitespace-pre-wrap">
+                          {JSON.stringify(evt.input)}
+                        </div>
+                      ) : (
+                        <div className="text-xs text-[#666666] mt-1 whitespace-pre-wrap">
+                          {evt.error ? `[error] ${evt.error}` : JSON.stringify(evt.outputPreview)}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </Panel>
       )
     })
@@ -426,10 +569,16 @@ const ChatPage: React.FC = () => {
         >
           <Panel
             header={
-              <div className="flex items-center justify-between w-full">
-                <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between w-full gap-4">
+                <div className="flex items-center gap-2 min-w-0">
                   <HiSparkles className="text-[#D97757]" />
                   <span className="text-sm font-medium text-[#1F1F1F]">执行轨迹</span>
+                  <span className="text-xs text-[#999999]">{completed}/{total}</span>
+                  {running ? (
+                    <span className="text-xs text-[#D97757] truncate">
+                      进行中: {running.title}
+                    </span>
+                  ) : null}
                 </div>
                 <span className="text-xs text-[#999999]">{aiRunId.slice(0, 8)}</span>
               </div>
@@ -439,12 +588,36 @@ const ChatPage: React.FC = () => {
             {aiPlan.length === 0 ? (
               <div className="text-xs text-[#999999]">等待计划生成…</div>
             ) : (
-              <Collapse ghost size="small">
-                {taskPanels}
-              </Collapse>
+              <div className="flex flex-col gap-3">
+                <div>
+                  <Progress percent={percent} showInfo={false} size="small" strokeColor="#D97757" />
+                </div>
+                <Collapse ghost size="small">
+                  {taskPanels}
+                </Collapse>
+              </div>
             )}
           </Panel>
         </Collapse>
+      </div>
+    )
+  }
+
+  const renderActivityFeed = () => {
+    const activities = aiEvents.filter((e) => e.type === 'activity') as Array<any>
+    if (activities.length === 0) return null
+
+    return (
+      <div className="mb-4 border border-[#E5E5E4] rounded-xl bg-white p-3">
+        <div className="text-xs font-medium text-[#666666] mb-2">AI 活动</div>
+        <div className="flex flex-col gap-2">
+          {activities.slice(-8).map((a, idx) => (
+            <div key={`${a.activityId || idx}-${idx}`} className="text-xs text-[#666666]">
+              <span className="text-[#999999] mr-2">{a.status}</span>
+              <span>{a.summary}</span>
+            </div>
+          ))}
+        </div>
       </div>
     )
   }
@@ -497,66 +670,49 @@ const ChatPage: React.FC = () => {
                     </div>
                   ))}
                 </div>
-              ) : rightPanel.kind === 'writing_docs' ? (
-                <div className="flex flex-col gap-2">
-                  {(
-                    rightPanel.data as Array<{ id: string; title: string; updated_at?: number }>
-                  ).map((d, idx) => (
-                    <div
-                      key={`${d.id || idx}`}
-                      className="border border-[#E5E5E4] rounded-lg px-3 py-2 bg-white"
-                    >
-                      <div className="text-xs font-semibold text-[#1F1F1F] truncate">
-                        {idx + 1}. {d.title}
-                      </div>
-                      <div className="text-[11px] text-[#999999] mt-1 truncate">{d.id}</div>
-                    </div>
-                  ))}
-                </div>
-              ) : rightPanel.kind === 'writing_action' ? (
-                <div className="flex flex-col gap-3">
-                  <div className="border border-[#E5E5E4] rounded-xl p-3 bg-white">
-                    <div className="text-xs font-semibold text-[#1F1F1F]">动作结果</div>
-                    <div className="text-xs text-[#666666] mt-2 whitespace-pre-wrap">
-                      {JSON.stringify(rightPanel.data)}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      onClick={() => {
-                        const docId =
-                          safeText((rightPanel.data as any)?.id) ||
-                          safeText((rightPanel.data as any)?.docId) ||
-                          safeText((rightPanel.data as any)?.writing_document_id)
-                        navigator.clipboard.writeText(docId || '').catch(() => {})
-                        message.success('已复制文档 ID')
-                      }}
-                      className="border-[#E5E5E4]"
-                    >
-                      复制文档 ID
-                    </Button>
-                    <Button
-                      type="primary"
-                      onClick={() => {
-                        const docId =
-                          safeText((rightPanel.data as any)?.id) ||
-                          safeText((rightPanel.data as any)?.docId) ||
-                          safeText((rightPanel.data as any)?.writing_document_id)
-                        if (docId) {
-                          navigate(`/writing?docId=${encodeURIComponent(docId)}`)
-                          return
-                        }
-                        navigate('/writing')
-                      }}
-                      className="!bg-[#D97757] hover:!bg-[#C66A4A] border-none"
-                    >
-                      打开写作空间
-                    </Button>
-                  </div>
-                </div>
               ) : (
-                <div className="text-xs text-[#666666] whitespace-pre-wrap">
-                  {JSON.stringify(rightPanel.data)}
+                <div className="flex flex-col gap-3">
+                  <div className="text-xs text-[#666666] whitespace-pre-wrap">
+                    {JSON.stringify(rightPanel.data)}
+                  </div>
+                  {(() => {
+                    const raw =
+                      typeof rightPanel.data === 'string'
+                        ? rightPanel.data
+                        : JSON.stringify(rightPanel.data)
+                    const paths = extractAbsolutePaths(raw)
+                    if (paths.length === 0) return null
+                    return (
+                      <div className="flex flex-col gap-2">
+                        <div className="text-xs text-[#999999]">检测到可能的产物路径</div>
+                        {paths.map((p) => (
+                          <div
+                            key={p}
+                            className="flex items-center justify-between gap-2 border border-[#E5E5E4] rounded px-2 py-1 bg-white"
+                          >
+                            <div className="text-xs text-[#666666] truncate">{p}</div>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                size="small"
+                                onClick={() => navigator.clipboard.writeText(p).catch(() => {})}
+                              >
+                                复制
+                              </Button>
+                              <Button
+                                size="small"
+                                onClick={async () => {
+                                  const res = await window.api.openPath(p)
+                                  if (!res.success) message.error(res.error || '打开失败')
+                                }}
+                              >
+                                打开
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  })()}
                 </div>
               )}
             </div>
@@ -713,6 +869,7 @@ const ChatPage: React.FC = () => {
         <div className="flex-1 min-h-0 flex">
           {/* Messages */}
           <div className="flex-1 min-w-0 overflow-y-auto p-6 pb-32" ref={scrollRef}>
+            {renderActivityFeed()}
             {currentMessages.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-[#999999] gap-4">
                 <div className="w-16 h-16 bg-[#F5F5F4] rounded-full flex items-center justify-center">
@@ -748,6 +905,27 @@ const ChatPage: React.FC = () => {
                 }
               }}
             />
+            <div className="grid grid-cols-12 gap-2 mb-2">
+              <div className="col-span-7">
+                <Select
+                  mode="multiple"
+                  value={selectedDocumentIds}
+                  onChange={(vals) => setSelectedDocumentIds(vals)}
+                  onSearch={searchMentionDocs}
+                  filterOption={false}
+                  options={mentionOptions.map((d) => ({ label: d.name, value: d.id }))}
+                  placeholder="输入 @ 搜索导入文档范围（可选）"
+                  className="w-full"
+                />
+              </div>
+              <div className="col-span-5">
+                <Input
+                  value={workspaceRootPath}
+                  onChange={(e) => setWorkspaceRootPath(e.target.value)}
+                  placeholder="工作区根路径（执行任务必填）"
+                />
+              </div>
+            </div>
             <div className="flex justify-between items-center">
               <div className="text-xs text-[#999999] flex items-center gap-2">
                 <Tooltip title="由主进程执行计划并返回事件流">
